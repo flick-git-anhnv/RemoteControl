@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "parking-ui-mockup",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["D:/Source/Parking/ParkingV8/Parking-v8-avalonia/design-mockup/server.js"],
+      "port": 7788
+    }
+  ]
+}

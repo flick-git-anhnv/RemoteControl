@@ -1,0 +1,28 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IPGS.RemoteControl.CcuUI.App"
+             RequestedThemeVariant="Light">
+  <Application.Styles>
+    <FluentTheme />
+
+    <!-- Load tokens first so KzButton/KzTextBox styles can resolve kz.brush.* keys -->
+    <Styles>
+      <Styles.Resources>
+        <ResourceDictionary>
+          <ResourceDictionary.MergedDictionaries>
+            <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+          </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+      </Styles.Resources>
+    </Styles>
+  </Application.Styles>
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <!-- ControlThemes: KzButton, KzTextBox, KzPasswordTextBox, ... -->
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/Default.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

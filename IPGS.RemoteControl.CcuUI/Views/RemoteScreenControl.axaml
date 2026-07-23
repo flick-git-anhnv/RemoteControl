@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:IPGS.RemoteControl.CcuUI.ViewModels"
+             x:Class="IPGS.RemoteControl.CcuUI.Views.RemoteScreenControl"
+             x:DataType="vm:RemoteScreenViewModel"
+             Background="Black"
+             Focusable="True">
+  <!--
+    Focusable="True" is required so this UserControl can receive KeyDown/KeyUp events
+    after the user clicks into the remote screen area (TDD §17.5).
+    Key handlers are registered in code-behind using RoutingStrategies.Tunnel so that
+    Tab / Alt+F4 etc. are intercepted before Avalonia's focus-navigation runs.
+  -->
+
+  <!--
+    Fills its parent with the decoded remote frame.
+    Stretch="Uniform" preserves ZCU aspect ratio with letterboxing on mismatch.
+    Pointer events are forwarded to the ViewModel via code-behind to keep
+    coordinate-mapping logic in one testable place.
+  -->
+  <Image Name="RemoteImage"
+         Source="{Binding CurrentFrame}"
+         Stretch="Uniform"
+         HorizontalAlignment="Stretch"
+         VerticalAlignment="Stretch"
+         PointerMoved="OnPointerMoved"
+         PointerPressed="OnPointerPressed"
+         PointerReleased="OnPointerReleased" />
+
+</UserControl>

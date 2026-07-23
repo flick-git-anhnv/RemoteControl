@@ -1,0 +1,75 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:IPGS.RemoteControl.CcuUI.ViewModels"
+        xmlns:views="using:IPGS.RemoteControl.CcuUI.Views"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.RemoteScreenWindow"
+        x:DataType="vm:RemoteScreenViewModel"
+        Title="Remote Control — ZCU"
+        Width="1280" Height="800"
+        MinWidth="640" MinHeight="480"
+        Background="#1A1A2E">
+
+  <Grid RowDefinitions="Auto,Auto,*">
+
+    <!-- ─── Row 0: Status / control bar ─────────────────────────────── -->
+    <Border Grid.Row="0"
+            Background="#251C53"
+            Padding="12,6">
+      <Grid ColumnDefinitions="*,Auto">
+
+        <!-- Status dot + status text -->
+        <StackPanel Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    Spacing="8">
+
+          <Ellipse Width="10" Height="10"
+                   VerticalAlignment="Center"
+                   Fill="{Binding StatusBrush}" />
+
+          <TextBlock Text="{Binding StatusText}"
+                     Foreground="White"
+                     FontSize="13"
+                     VerticalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Disconnect — enabled only while streaming -->
+        <kz:KzButton Grid.Column="1"
+                     Name="BtnDisconnect"
+                     Content="Ngắt kết nối"
+                     IsEnabled="{Binding IsStreaming}"
+                     Click="OnDisconnectClick"
+                     Margin="8,0,0,0" />
+      </Grid>
+    </Border>
+
+    <!-- ─── Row 1: Error banner — visible when Faulted ───────────────── -->
+    <Border Grid.Row="1"
+            Background="#C0390B"
+            Padding="12,8"
+            IsVisible="{Binding IsFaulted}">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="⚠"
+                   Foreground="White"
+                   FontSize="14"
+                   VerticalAlignment="Center" />
+        <TextBlock Text="{Binding ErrorMessage}"
+                   Foreground="White"
+                   FontSize="13"
+                   TextWrapping="Wrap"
+                   VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <!-- ─── Row 2: Remote screen (fills remaining space) ─────────────── -->
+    <!--
+      DataContext is inherited from the Window (RemoteScreenViewModel),
+      so RemoteScreenControl receives the same ViewModel automatically.
+    -->
+    <views:RemoteScreenControl Grid.Row="2"
+                               HorizontalAlignment="Stretch"
+                               VerticalAlignment="Stretch" />
+
+  </Grid>
+
+</Window>

@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>IPGS.RemoteControl.CcuUI</RootNamespace>
+    <AssemblyName>IPGS.RemoteControl.CcuUI</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Avalonia 12.1.0 — match KztekComponentAvalonia.
+      Must be a direct reference so the Avalonia AXAML compiler (Build.Tasks) activates.
+    -->
+    <PackageReference Include="Avalonia"               Version="12.1.0" />
+    <PackageReference Include="Avalonia.Desktop"       Version="12.1.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
+
+    <!-- JPEG decode on CCU side — 3.119.4 required by Avalonia.Desktop 12.1.0 → Avalonia.Skia -->
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+
+    <!-- MVVM — consistent with IPGSUseCam.csproj -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IPGS.RemoteControl.CcuClient\IPGS.RemoteControl.CcuClient.csproj" />
+    <ProjectReference Include="E:\KZTEK\Code_Git\5.BaseUI\KztekComponentAvalonia\KztekComponentAvalonia\KztekComponentAvalonia.csproj" />
+  </ItemGroup>
+
+</Project>

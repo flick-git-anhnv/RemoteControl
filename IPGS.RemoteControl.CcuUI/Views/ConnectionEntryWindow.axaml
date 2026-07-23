@@ -1,0 +1,61 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.ConnectionEntryWindow"
+        Title="iPGS Remote Control — ZCU"
+        Width="460" Height="278"
+        WindowStartupLocation="CenterScreen"
+        CanResize="False">
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- ── Header bar ─────────────────────────────────────────────── -->
+    <Border Grid.Row="0" Background="#251C53" Padding="20,14">
+      <TextBlock Text="Kết nối điều khiển ZCU từ xa"
+                 Foreground="White"
+                 FontSize="15"
+                 FontWeight="SemiBold" />
+    </Border>
+
+    <!-- ── Input fields ───────────────────────────────────────────── -->
+    <Grid Grid.Row="1"
+          RowDefinitions="Auto,Auto,Auto"
+          ColumnDefinitions="130,*"
+          RowSpacing="12"
+          Margin="24,20,24,8">
+
+      <TextBlock Grid.Row="0" Grid.Column="0"
+                 Text="Địa chỉ IP ZCU:"
+                 VerticalAlignment="Center" />
+      <kz:KzTextBox Grid.Row="0" Grid.Column="1"
+                    x:Name="PART_Host"
+                    Watermark="192.168.x.x" />
+
+      <TextBlock Grid.Row="1" Grid.Column="0"
+                 Text="Cổng TCP:"
+                 VerticalAlignment="Center" />
+      <kz:KzTextBox Grid.Row="1" Grid.Column="1"
+                    x:Name="PART_Port"
+                    Text="17600" />
+
+      <TextBlock Grid.Row="2" Grid.Column="0"
+                 Text="Token:"
+                 VerticalAlignment="Center" />
+      <kz:KzTextBox Grid.Row="2" Grid.Column="1"
+                    x:Name="PART_Token"
+                    Watermark="Shared-secret token" />
+    </Grid>
+
+    <!-- ── Buttons ────────────────────────────────────────────────── -->
+    <StackPanel Grid.Row="2"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Spacing="8"
+                Margin="24,0,24,20">
+      <kz:KzButton x:Name="PART_BtnExit"    Content="Thoát" />
+      <kz:KzButton x:Name="PART_BtnConnect" Content="Kết nối"
+                   Classes="kz-primary" />
+    </StackPanel>
+
+  </Grid>
+</Window>
