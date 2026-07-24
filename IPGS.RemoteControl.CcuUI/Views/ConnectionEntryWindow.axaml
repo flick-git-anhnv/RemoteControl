@@ -148,73 +148,76 @@
                 </StackPanel>
 
                 <!-- Actions -->
-                <StackPanel Grid.Column="2"
-                            Orientation="Horizontal"
-                            Spacing="8"
-                            VerticalAlignment="Center">
-                  <kz:KzButton Tag="{Binding}"
-                               Click="OnItemWakeUpClick"
-                               Content="⚡ Bật nguồn"
-                               Classes="kz-outline"
-                               ToolTip.Tip="Bật máy bằng Wake-on-LAN (Magic Packet)"
-                               KzSize="Sm" />
-                  <kz:KzButton Tag="{Binding}"
-                               Click="OnItemConnectClick"
-                               Content="Kết nối"
-                               Classes="kz-primary"
-                               IsEnabled="{Binding AgentReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                               ToolTip.Tip="{Binding AgentStatusTooltip}"
-                               KzSize="Sm" />
-                  <kz:KzButton Tag="{Binding}"
-                               Click="OnItemSetupWizardClick"
-                               Content="⚡ Cài remote"
-                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                               ToolTip.Tip="{Binding SshStatusTooltip}"
-                               KzSize="Sm" />
-                  <kz:KzButton Tag="{Binding}"
-                               Click="OnItemAppInstallClick"
-                               Content="📦 Cài App"
-                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                               ToolTip.Tip="{Binding SshStatusTooltip}"
-                               KzSize="Sm" />
-                  <kz:KzButton Tag="{Binding}"
-                               Click="OnItemFileManagerClick"
-                               Content="📁 Quản lý File"
-                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                               ToolTip.Tip="{Binding SshStatusTooltip}"
-                               KzSize="Sm" />
-                  <kz:KzButton Tag="{Binding}"
-                               Click="OnItemHealthMonitorClick"
-                               Content="📊 Giám sát"
-                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                               ToolTip.Tip="{Binding SshStatusTooltip}"
-                               KzSize="Sm" />
-                  <kz:KzButton Tag="{Binding}"
-                               Click="OnItemCronJobClick"
-                               Content="⏰ Cron Jobs"
-                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                               ToolTip.Tip="{Binding SshStatusTooltip}"
-                               KzSize="Sm" />
-                  <kz:KzButton Tag="{Binding}"
-                               Click="OnItemRunCommandClick"
-                               Content="&gt;_ CMD Shell"
-                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                               ToolTip.Tip="{Binding SshStatusTooltip}"
-                               KzSize="Sm" />
-                  <kz:KzButton Tag="{Binding}"
-                               Click="OnItemKioskDeployClick"
-                               Content="🖥️ Setup"
-                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                               ToolTip.Tip="{Binding SshStatusTooltip}"
-                               KzSize="Sm" />
-                  <kz:KzButton Tag="{Binding}"
-                               Click="OnItemEditClick"
-                               Content="Sửa"
-                               KzSize="Sm" />
-                  <kz:KzButton Tag="{Binding}"
-                               Click="OnItemDeleteClick"
-                               Content="Xóa"
-                               KzSize="Sm" />
+                <StackPanel Grid.Column="2" Orientation="Vertical" Spacing="4" VerticalAlignment="Center">
+                  <!-- Row 1: Basic Operations -->
+                  <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemWakeUpClick"
+                                 Content="⚡ Bật nguồn"
+                                 Classes="kz-outline"
+                                 ToolTip.Tip="Bật máy bằng Wake-on-LAN (Magic Packet)"
+                                 KzSize="Sm" />
+                    <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemConnectClick"
+                                 Content="Kết nối"
+                                 Classes="kz-primary"
+                                 IsEnabled="{Binding AgentReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="{Binding AgentStatusTooltip}"
+                                 KzSize="Sm" />
+                    <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemSetupWizardClick"
+                                 Content="⚡ Cài remote"
+                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="{Binding SshStatusTooltip}"
+                                 KzSize="Sm" />
+                    <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemAppInstallClick"
+                                 Content="📦 Cài App"
+                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="{Binding SshStatusTooltip}"
+                                 KzSize="Sm" />
+                    <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemKioskDeployClick"
+                                 Content="🖥️ Setup"
+                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="{Binding SshStatusTooltip}"
+                                 KzSize="Sm" />
+                    <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemEditClick"
+                                 Content="Sửa"
+                                 KzSize="Sm" />
+                    <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemDeleteClick"
+                                 Content="Xóa"
+                                 KzSize="Sm" />
+                  </StackPanel>
+                  <!-- Row 2: Advanced Management -->
+                  <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemFileManagerClick"
+                                 Content="📁 Quản lý File"
+                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="{Binding SshStatusTooltip}"
+                                 KzSize="Sm" />
+                    <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemHealthMonitorClick"
+                                 Content="📊 Giám sát"
+                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="{Binding SshStatusTooltip}"
+                                 KzSize="Sm" />
+                    <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemCronJobClick"
+                                 Content="⏰ Cron Jobs"
+                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="{Binding SshStatusTooltip}"
+                                 KzSize="Sm" />
+                    <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemRunCommandClick"
+                                 Content=">_ CMD Shell"
+                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="{Binding SshStatusTooltip}"
+                                 KzSize="Sm" />
+                  </StackPanel>
                 </StackPanel>
 
               </Grid>

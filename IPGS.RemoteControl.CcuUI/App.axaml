@@ -4,6 +4,7 @@
              RequestedThemeVariant="Light">
   <Application.Styles>
     <FluentTheme />
+    <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
 
     <!-- Load tokens first so KzButton/KzTextBox styles can resolve kz.brush.* keys -->
     <Styles>
