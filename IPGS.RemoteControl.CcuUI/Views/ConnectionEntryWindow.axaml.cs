@@ -185,6 +185,22 @@ public partial class ConnectionEntryWindow : Window
         dlg.Show();
     }
 
+    public void OnItemAppInstallClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { Tag: ComputerProfile profile }) return;
+
+        var dlg = new RemoteAppInstallWindow(profile);
+        dlg.Show();
+    }
+
+    public void OnItemRunCommandClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { Tag: ComputerProfile profile }) return;
+
+        var dlg = new RemoteCommandWindow(profile);
+        dlg.Show();
+    }
+
     public void OnItemDeleteClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { Tag: ComputerProfile profile })

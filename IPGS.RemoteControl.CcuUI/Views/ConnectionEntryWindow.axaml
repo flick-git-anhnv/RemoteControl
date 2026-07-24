@@ -5,7 +5,7 @@
         xmlns:conv="clr-namespace:IPGS.RemoteControl.CcuUI.Converters"
         x:Class="IPGS.RemoteControl.CcuUI.Views.ConnectionEntryWindow"
         Title="iPGS Remote Control — Danh sách máy tính ZCU"
-        Width="900" Height="560"
+        Width="1100" Height="640"
         WindowStartupLocation="CenterScreen"
         CanResize="True">
 
@@ -96,6 +96,9 @@
                                FontWeight="Bold"
                                FontSize="14"
                                Foreground="#212121"/>
+                  </StackPanel>
+
+                  <StackPanel Orientation="Horizontal" Spacing="8">
                     <Border Background="#E8EAF6" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Host}" FontSize="11" Foreground="#3F51B5" FontWeight="SemiBold"/>
                     </Border>
@@ -147,6 +150,18 @@
                   <kz:KzButton Tag="{Binding}"
                                Click="OnItemSetupWizardClick"
                                Content="⚡ Cài remote"
+                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                               ToolTip.Tip="{Binding SshStatusTooltip}"
+                               KzSize="Sm" />
+                  <kz:KzButton Tag="{Binding}"
+                               Click="OnItemAppInstallClick"
+                               Content="📦 Cài App"
+                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                               ToolTip.Tip="{Binding SshStatusTooltip}"
+                               KzSize="Sm" />
+                  <kz:KzButton Tag="{Binding}"
+                               Click="OnItemRunCommandClick"
+                               Content="📁 File &amp; CMD"
                                IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
                                ToolTip.Tip="{Binding SshStatusTooltip}"
                                KzSize="Sm" />

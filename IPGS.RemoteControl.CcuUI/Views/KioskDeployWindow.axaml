@@ -2,8 +2,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         x:Class="IPGS.RemoteControl.CcuUI.Views.KioskDeployWindow"
-        Title="🖥️ Deploy Kiosk Setup (ẩn Top Bar / autologin / autostart)"
-        Width="1040" Height="800"
+        Title="🖥️ Kiosk Deploy &amp; OS Config"
+        Width="1040" Height="860"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
 
@@ -20,8 +20,8 @@
     </Border>
 
     <!-- ── Content ───────────────────────────────────────────────── -->
-    <ScrollViewer Grid.Row="1" Padding="24,18">
-      <StackPanel Spacing="18">
+    <ScrollViewer Grid.Row="1">
+      <StackPanel Spacing="18" Margin="24,18">
 
         <!-- Target host (chỉ hiển thị, lấy từ hồ sơ máy tính đã lưu — xem "Sửa" để đổi SSH) -->
         <Border Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" CornerRadius="8" Padding="14">
@@ -178,7 +178,7 @@
             <TextBlock Text="💻 Nhật ký Deploy (Console Output):" Foreground="#475569" FontSize="13" FontWeight="SemiBold"/>
             <TextBox x:Name="PART_LogConsole"
                      Height="280"
-                     Padding="12"
+                     Padding="12,12,12,32"
                      IsReadOnly="True"
                      AcceptsReturn="True"
                      TextWrapping="Wrap"

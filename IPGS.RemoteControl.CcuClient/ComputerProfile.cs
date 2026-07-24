@@ -39,6 +39,12 @@ public sealed class ComputerProfile : INotifyPropertyChanged
     /// <summary>Thời điểm kết nối gần nhất (null nếu chưa từng kết nối).</summary>
     public DateTimeOffset? LastConnectedAt { get; set; }
 
+    /// <summary>Đường dẫn file cài đặt app gần nhất (tùy chọn).</summary>
+    public string? LastAppInstallerPath { get; set; }
+
+    /// <summary>Tên package gỡ cài đặt gần nhất (tùy chọn).</summary>
+    public string? LastUninstallPackage { get; set; }
+
     /// <summary>Thời điểm tạo hồ sơ.</summary>
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 

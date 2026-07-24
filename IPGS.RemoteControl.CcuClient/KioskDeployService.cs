@@ -57,6 +57,7 @@ namespace IPGS.RemoteControl.CcuClient
         public bool RunConfigureSystem => true;
 
         public string? ScriptsSourceDir { get; set; }
+
     }
 
     /// <summary>

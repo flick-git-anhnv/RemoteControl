@@ -2,10 +2,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         x:Class="IPGS.RemoteControl.CcuUI.Views.ZcuSetupWizardWindow"
-        Title="⚡ Thiêt lập &amp; Cài đặt ZCU Remote Agent Tự động"
-        Width="680" Height="780"
+        Title="⚡ Cài đặt IPGS Remote Agent lên ZCU (qua SSH)"
+        Width="680" Height="860"
         WindowStartupLocation="CenterOwner"
-        CanResize="False">
+        CanResize="True">
 
   <Grid RowDefinitions="Auto,*,Auto">
 
@@ -20,8 +20,8 @@
     </Border>
 
     <!-- ── Content Tab/Step Area ─────────────────────────────────── -->
-    <ScrollViewer Grid.Row="1" Padding="24,18">
-      <StackPanel Spacing="18">
+    <ScrollViewer Grid.Row="1">
+      <StackPanel Spacing="18" Margin="24,18">
 
         <!-- Target host (chỉ hiển thị, lấy từ hồ sơ máy tính đã lưu — xem "Sửa" để đổi SSH) -->
         <Border Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" CornerRadius="8" Padding="14">
@@ -87,6 +87,7 @@
 
             <TextBox x:Name="PART_LogConsole"
                      Height="120"
+                     Padding="8,8,8,32"
                      IsReadOnly="True"
                      AcceptsReturn="True"
                      TextWrapping="Wrap"

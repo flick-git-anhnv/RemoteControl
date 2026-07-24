@@ -80,6 +80,8 @@ public sealed class ComputerProfileStore : IComputerProfileStore
                 {
                     existing.LastConnectedAt = profile.LastConnectedAt;
                 }
+                existing.LastAppInstallerPath = profile.LastAppInstallerPath;
+                existing.LastUninstallPackage = profile.LastUninstallPackage;
             }
             else
             {
