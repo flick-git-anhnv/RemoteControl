@@ -35,8 +35,8 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
 
     // ── Mouse throttle state ─────────────────────────────────────────────────
     private long _lastMouseMoveSent;
-    private int  _lastMouseX = int.MinValue;
-    private int  _lastMouseY = int.MinValue;
+    private int  _lastMouseX = -99999;
+    private int  _lastMouseY = -99999;
 
     // ── Keyboard pressed-key tracking (TDD §17 — 2-layer stuck-key protection) ─
     // Tracks keysyms currently held down so we can send release-all on
@@ -85,7 +85,7 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         if (now - _lastMouseMoveSent < 16) return;
 
         int cx = (int)controlX, cy = (int)controlY;
-        if (Math.Abs(cx - _lastMouseX) < 2 && Math.Abs(cy - _lastMouseY) < 2) return;
+        if (_lastMouseX >= 0 && Math.Abs(cx - _lastMouseX) < 2 && Math.Abs(cy - _lastMouseY) < 2) return;
 
         _lastMouseMoveSent = now;
         _lastMouseX = cx;

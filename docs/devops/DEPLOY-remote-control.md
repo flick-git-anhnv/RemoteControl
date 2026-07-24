@@ -16,7 +16,39 @@ Chi tiết giao thức TCP, message format, và kiến trúc nội bộ: xem `do
 
 ---
 
-## 1. Tổng quan kiến trúc
+## ⚡ PHƯƠNG ÁN CÀI ĐẶT NHANH (KHUYẾN NGHỊ)
+
+Để đơn giản hóa và loại bỏ các bước cài đặt thủ công phức tạp, hệ thống hỗ trợ 2 công cụ cài đặt **1-Click tự động hóa 100%**:
+
+### 🎯 Cách 1: Sử dụng Giao diện Setup Wizard UI (1-Click từ máy CCU)
+
+1. Mở ứng dụng **`IPGS.RemoteControl.CcuUI`** trên máy CCU (Windows hoặc Linux).
+2. Tại thanh tiêu đề trên cùng, nhấn nút **`⚡ Cài đặt ZCU từ xa...`**.
+3. Nhập thông tin kết nối SSH tới máy ZCU:
+   - **Địa chỉ IP ZCU:** Ví dụ `192.168.1.50`
+   - **Cổng SSH:** `22`
+   - **Tài khoản SSH:** Username & Password (hoặc Key)
+4. Tùy chỉnh tham số ZcuAgent (Cổng TCP `17600`, Nhấn **🎲 Sinh Token** ngẫu nhiên).
+5. Nhấn **🚀 Bắt đầu Cài đặt**:
+   - Wizard sẽ **tự động hoàn toàn**: Cài native X11, cài .NET 8 Runtime, upload ZcuAgent binary, cấu hình `appsettings.json`, đăng ký `systemd user service`, enable lingering, mở cổng firewall `ufw 17600`, và tắt chế độ khoá màn hình tự động GNOME.
+6. Sau khi xong, ZCU sẽ tự động được thêm vào danh sách máy tính để bạn kết nối ngay lập tức!
+
+---
+
+### 📜 Cách 2: Sử dụng Script Cài đặt Tự động 1 Dòng (Chạy trực tiếp trên ZCU)
+
+Nếu bạn đang ngồi trực tiếp tại máy ZCU (hoặc SSH bằng Terminal), chỉ cần chạy kịch bản tự động hoá:
+
+```bash
+# 1. Tải hoặc chạy script setup-zcu-agent.sh
+bash scripts/setup-zcu-agent.sh 17600 "CHUOITOKEN_BAOMAT_32KYTU" "0.0.0.0/0"
+```
+
+Script sẽ thực hiện toàn bộ 7 bước cấu hình hệ thống và khởi chạy `systemd` service cho ZcuAgent.
+
+---
+
+## 1. Tổng quan kiến trúc thủ công (Dành cho Dev / Sysadmin)
 
 ```
 [CCU — Windows hoặc Linux]              [ZCU — Ubuntu 22.04 X11]

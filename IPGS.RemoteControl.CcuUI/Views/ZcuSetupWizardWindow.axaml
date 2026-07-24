@@ -1,0 +1,135 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.ZcuSetupWizardWindow"
+        Title="⚡ Thiêt lập &amp; Cài đặt ZCU Remote Agent Tự động"
+        Width="680" Height="780"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- ── Header ────────────────────────────────────────────────── -->
+    <Border Grid.Row="0" Background="#1E1B4B" Padding="20,16">
+      <StackPanel Spacing="4">
+        <TextBlock Text="⚡ Cài đặt &amp; Thiết lập ZCU Remote Agent Tự động"
+                   Foreground="White" FontSize="16" FontWeight="Bold" />
+        <TextBlock Text="Tự động cài đặt dependencies, cấu hình systemd service, firewall &amp; khoá màn hình qua SSH"
+                   Foreground="#A5B4FC" FontSize="12" />
+      </StackPanel>
+    </Border>
+
+    <!-- ── Content Tab/Step Area ─────────────────────────────────── -->
+    <ScrollViewer Grid.Row="1" Padding="24,18">
+      <StackPanel Spacing="18">
+
+        <!-- STEP 1: SSH Information -->
+        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16">
+          <StackPanel Spacing="12">
+            <TextBlock Text="1️⃣ Thông tin kết nối SSH tới máy ZCU (Ubuntu)" FontWeight="Bold" FontSize="14" Foreground="#334155"/>
+            
+            <Grid ColumnDefinitions="*,120" RowDefinitions="Auto,Auto">
+              <StackPanel Grid.Column="0" Grid.Row="0" Spacing="4" Margin="0,0,10,0">
+                <TextBlock Text="Địa chỉ IP ZCU:" FontSize="12" Foreground="#64748B"/>
+                <kz:KzTextBox x:Name="PART_SshHost" Watermark="192.168.1.x" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Grid.Row="0" Spacing="4">
+                <TextBlock Text="Cổng SSH:" FontSize="12" Foreground="#64748B"/>
+                <kz:KzTextBox x:Name="PART_SshPort" Text="22" />
+              </StackPanel>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
+              <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
+                <TextBlock Text="Tên đăng nhập (Username):" FontSize="12" Foreground="#64748B"/>
+                <kz:KzTextBox x:Name="PART_SshUser" Watermark="zcu / ubuntu" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock Text="Mật khẩu (Password):" FontSize="12" Foreground="#64748B"/>
+                <TextBox x:Name="PART_SshPassword" PasswordChar="•" Watermark="Nhập mật khẩu SSH..." Height="36" VerticalContentAlignment="Center"/>
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- STEP 2: Agent Config -->
+        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16">
+          <StackPanel Spacing="12">
+            <TextBlock Text="2️⃣ Cấu hình tham số ZcuAgent" FontWeight="Bold" FontSize="14" Foreground="#334155"/>
+
+            <Grid ColumnDefinitions="110,*,Auto" RowDefinitions="Auto">
+              <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
+                <TextBlock Text="Cổng TCP Agent:" FontSize="12" Foreground="#64748B"/>
+                <kz:KzTextBox x:Name="PART_AgentPort" Text="17600" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Spacing="4" Margin="0,0,10,0">
+                <TextBlock Text="Token Bảo mật (Shared Secret):" FontSize="12" Foreground="#64748B"/>
+                <kz:KzTextBox x:Name="PART_AgentToken" Watermark="Nhập hoặc tạo Token ngẫu nhiên..." />
+              </StackPanel>
+
+              <kz:KzButton Grid.Column="2" x:Name="PART_BtnGenToken" Content="🎲 Sinh Token" KzSize="Sm" VerticalAlignment="Bottom" Margin="0,0,0,2"/>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
+              <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
+                <TextBlock Text="Mạng/IP Cho Phép Kết Nối (AllowedClientIPs):" FontSize="12" Foreground="#64748B"/>
+                <kz:KzTextBox x:Name="PART_AllowedIPs" Text="0.0.0.0/0" Watermark="Ví dụ: 0.0.0.0/0 hoặc 192.168.1.0/24" />
+              </StackPanel>
+
+              <Grid Grid.Column="1" ColumnDefinitions="*,*" RowDefinitions="Auto">
+                <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,8,0">
+                  <TextBlock Text="FPS (5-30):" FontSize="12" Foreground="#64748B"/>
+                  <kz:KzTextBox x:Name="PART_TargetFps" Text="15" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <TextBlock Text="Chất lượng JPEG (%):" FontSize="12" Foreground="#64748B"/>
+                  <kz:KzTextBox x:Name="PART_JpegQuality" Text="70" />
+                </StackPanel>
+              </Grid>
+            </Grid>
+
+            <CheckBox x:Name="PART_CheckSaveProfile" Content="Tự động lưu máy tính này vào danh sách quản lý sau khi cài đặt thành công" IsChecked="True"/>
+          </StackPanel>
+        </Border>
+
+        <!-- STEP 3: Status & Console Log -->
+        <Border Background="#0F172A" CornerRadius="8" Padding="14">
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="💻 Nhật ký Cài đặt (Console Output):" Foreground="#94A3B8" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock x:Name="PART_ProgressText" Grid.Column="1" Text="Sẵn sàng" Foreground="#38BDF8" FontSize="12"/>
+            </Grid>
+
+            <ProgressBar x:Name="PART_ProgressBar" Value="0" Maximum="100" Height="6" Background="#1E293B" Foreground="#38BDF8"/>
+
+            <TextBox x:Name="PART_LogConsole"
+                     Height="120"
+                     IsReadOnly="True"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     Background="#020617"
+                     Foreground="#4ADE80"
+                     FontFamily="Consolas, Monospace"
+                     FontSize="11"
+                     BorderThickness="0"/>
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- ── Footer ────────────────────────────────────────────────── -->
+    <Border Grid.Row="2" Background="#F8FAFC" Padding="20,12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock x:Name="PART_StatusMsg" Text="" Foreground="#E11D48" VerticalAlignment="Center" FontSize="12"/>
+
+        <kz:KzButton Grid.Column="1" x:Name="PART_BtnTestSsh" Content="🔍 Kiểm tra SSH" Margin="0,0,10,0"/>
+        <kz:KzButton Grid.Column="2" x:Name="PART_BtnStartInstall" Content="🚀 Bắt đầu Cài đặt" Classes="kz-primary"/>
+      </Grid>
+    </Border>
+
+  </Grid>
+</Window>

@@ -20,6 +20,9 @@ public partial class ConnectionEntryWindow : Window
         _store = ComputerProfileStore.Instance;
 
         // Toolbar buttons
+        if (this.FindControl<KzButton>("PART_BtnSetupWizard") is { } btnWizard)
+            btnWizard.Click += OnSetupWizardClick;
+
         if (this.FindControl<KzButton>("PART_BtnAddComputer") is { } btnAdd)
             btnAdd.Click += OnAddComputerClick;
 
@@ -98,6 +101,16 @@ public partial class ConnectionEntryWindow : Window
         if (this.FindControl<StackPanel>("PART_EmptyState") is { } emptyState)
         {
             emptyState.IsVisible = resultList.Count == 0;
+        }
+    }
+
+    private async void OnSetupWizardClick(object? sender, RoutedEventArgs e)
+    {
+        var dlg = new ZcuSetupWizardWindow();
+        var created = await dlg.ShowDialog<ComputerProfile?>(this);
+        if (created != null)
+        {
+            RefreshList();
         }
     }
 

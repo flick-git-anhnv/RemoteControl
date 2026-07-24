@@ -43,6 +43,7 @@ internal sealed class AuthManager
     {
         if (_options.AllowedClientIPs.Count == 0) return true;
         if (!IPAddress.TryParse(remoteIp, out var ip)) return false;
+        if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
 
         foreach (var entry in _options.AllowedClientIPs)
         {
@@ -134,9 +135,14 @@ internal sealed class AuthManager
 
     private static bool IsInRange(IPAddress ip, string cidrOrIp)
     {
+        if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
+
         // Exact match
         if (IPAddress.TryParse(cidrOrIp, out var exact))
+        {
+            if (exact.IsIPv4MappedToIPv6) exact = exact.MapToIPv4();
             return ip.Equals(exact);
+        }
 
         // CIDR  e.g. "192.168.1.0/24"
         var slash = cidrOrIp.IndexOf('/');
@@ -144,6 +150,8 @@ internal sealed class AuthManager
 
         if (!IPAddress.TryParse(cidrOrIp[..slash], out var network)) return false;
         if (!int.TryParse(cidrOrIp[(slash + 1)..], out var prefix))  return false;
+
+        if (network.IsIPv4MappedToIPv6) network = network.MapToIPv4();
 
         var netBytes = network.GetAddressBytes();
         var ipBytes  = ip.GetAddressBytes();

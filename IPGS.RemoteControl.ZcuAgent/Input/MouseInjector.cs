@@ -47,7 +47,7 @@ internal sealed class MouseInjector : IMouseInjector
     public void Move(int x, int y)
     {
         if (!_initialized || _disposed) return;
-        XTest.XTestFakeMotionEvent(_display, _screen, x, y, 0);
+        XTest.XTestFakeMotionEvent(_display, -1, x, y, 0);
         X11.XFlush(_display);
         // XSync forces the X server to process the request and send back any pending
         // error events (e.g. BadAccess if XTest is not permitted on this display).
