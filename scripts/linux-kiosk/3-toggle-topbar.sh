@@ -1,17 +1,17 @@
-﻿#!/bin/bash
-# 3-toggle-topbar.sh â€” áº¨n HOáº¶C hiá»‡n láº¡i Top Bar/Dock GNOME báº¥t ká»³ lÃºc nÃ o,
-# khÃ´ng cáº§n cÃ i láº¡i pháº§n má»m (dÃ¹ng khi cáº§n báº­t láº¡i giao diá»‡n Ä‘áº§y Ä‘á»§ Ä‘á»ƒ debug,
-# báº£o trÃ¬, hoáº·c bÃ n giao mÃ¡y).
+#!/bin/bash
+# 3-toggle-topbar.sh ΓÇö ß║¿n HOß║╢C hiß╗çn lß║íi Top Bar/Dock GNOME bß║Ñt kß╗│ l├║c n├áo,
+# kh├┤ng cß║ºn c├ái lß║íi phß║ºn mß╗üm (d├╣ng khi cß║ºn bß║¡t lß║íi giao diß╗çn ─æß║ºy ─æß╗º ─æß╗â debug,
+# bß║úo tr├¼, hoß║╖c b├án giao m├íy).
 #
-# Cháº¡y:
-#   bash scripts/linux-kiosk/3-toggle-topbar.sh hide   # áº©n top bar + dock + icon desktop
-#   bash scripts/linux-kiosk/3-toggle-topbar.sh show   # hiá»‡n láº¡i nhÆ° máº·c Ä‘á»‹nh Ubuntu
+# Chß║íy:
+#   bash scripts/linux-kiosk/3-toggle-topbar.sh hide   # ß║⌐n top bar + dock + icon desktop
+#   bash scripts/linux-kiosk/3-toggle-topbar.sh show   # hiß╗çn lß║íi nh╞░ mß║╖c ─æß╗ïnh Ubuntu
 
 set -e
 
 MODE="$1"
 if [ "$MODE" != "hide" ] && [ "$MODE" != "show" ]; then
-    echo "CÃ¡ch dÃ¹ng: bash $0 {hide|show}" >&2
+    echo "C├ích d├╣ng: bash $0 {hide|show}" >&2
     exit 1
 fi
 
@@ -22,11 +22,11 @@ SCHEMA_DIR="$EXT_DIR/schemas"
 if [ "$MODE" = "hide" ]; then
     VALUE="false"
     DOCK_ACTION="disable"
-    echo "=== áº¨n Top Bar + Dock + Desktop Icons ==="
+    echo "=== ß║¿n Top Bar + Dock + Desktop Icons ==="
 else
     VALUE="true"
     DOCK_ACTION="enable"
-    echo "=== Hiá»‡n láº¡i Top Bar + Dock + Desktop Icons ==="
+    echo "=== Hiß╗çn lß║íi Top Bar + Dock + Desktop Icons ==="
 fi
 
 if [ -d "$SCHEMA_DIR" ]; then
@@ -34,12 +34,12 @@ if [ -d "$SCHEMA_DIR" ]; then
     gsettings --schemadir "$SCHEMA_DIR" set org.gnome.shell.extensions.just-perfection activities-button $VALUE || true
     gsettings --schemadir "$SCHEMA_DIR" set org.gnome.shell.extensions.just-perfection workspace-switcher-should-show $VALUE || true
     gsettings --schemadir "$SCHEMA_DIR" set org.gnome.shell.extensions.just-perfection dash $VALUE || true
-    echo "  â†’ ÄÃ£ Ä‘áº·t panel/activities-button/workspace-switcher/dash = $VALUE"
+    echo "  ΓåÆ ─É├ú ─æß║╖t panel/activities-button/workspace-switcher/dash = $VALUE"
 else
-    echo "Cáº¢NH BÃO: chÆ°a cÃ i extension Just Perfection (cháº¡y 1-install-software.sh trÆ°á»›c)." >&2
+    echo "Cß║óNH B├üO: ch╞░a c├ái extension Just Perfection (chß║íy 1-install-software.sh tr╞░ß╗¢c)." >&2
 fi
 
-gnome-extensions $DOCK_ACTION ubuntu-dock@ubuntu.com 2>/dev/null || echo "  â†’ ubuntu-dock@ubuntu.com khÃ´ng cÃ³, bá» qua."
-gnome-extensions $DOCK_ACTION ding@rastersoft.com 2>/dev/null || echo "  â†’ ding@rastersoft.com khÃ´ng cÃ³, bá» qua."
+gnome-extensions $DOCK_ACTION ubuntu-dock@ubuntu.com 2>/dev/null || echo "  ΓåÆ ubuntu-dock@ubuntu.com kh├┤ng c├│, bß╗Å qua."
+gnome-extensions $DOCK_ACTION ding@rastersoft.com 2>/dev/null || echo "  ΓåÆ ding@rastersoft.com kh├┤ng c├│, bß╗Å qua."
 
-echo "âœ“ Xong. CÃ³ thá»ƒ Ã¡p dá»¥ng ngay, khÃ´ng cáº§n restart."
+echo "Γ£ô Xong. C├│ thß╗â ├íp dß╗Ñng ngay, kh├┤ng cß║ºn restart."

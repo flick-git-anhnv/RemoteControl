@@ -1,48 +1,48 @@
-﻿#!/bin/bash
-# 2-configure-system.sh â€” CÃ¡c tinh chá»‰nh há»‡ thá»‘ng cÃ²n láº¡i cho kiosk iPGS
-# (KHÃ”NG cÃ i thÃªm pháº§n má»m nÃ o â€” pháº§n cÃ i Ä‘áº·t náº±m á»Ÿ 1-install-software.sh).
+#!/bin/bash
+# 2-configure-system.sh — Các tinh chỉnh hệ thống còn lại cho kiosk iPGS
+# (KHÔNG cài thêm phần mềm nào — phần cài đặt nằm ở 1-install-software.sh).
 #
-# Bao gá»“m:
-#   - Táº¯t hot corner
-#   - Táº¯t notification banner
-#   - Táº¯t khÃ³a mÃ n hÃ¬nh / screensaver
-#   - Táº¯t Ubuntu Dock + desktop icons (dock trÃ¡i, icon Trash/Home) â€” quan trá»ng
-#     vá»›i mÃ¡y má»›i cÃ i Ubuntu Desktop vÃ¬ 2 extension nÃ y báº­t máº·c Ä‘á»‹nh
-#   - Cháº·n suspend/sleep khi cáº¯m Ä‘iá»‡n (trÃ¡nh mÃ n hÃ¬nh táº¯t giá»¯a chá»«ng)
-#   - Táº¯t popup Software Updater (trÃ¡nh giÃ¡n Ä‘oáº¡n kiosk khi cÃ³ báº£n vÃ¡ má»›i)
-#   - Bá» qua mÃ n hÃ¬nh gnome-initial-setup (há»¯u Ã­ch khi user kiosk vá»«a táº¡o má»›i)
+# Bao gồm:
+#   - Tắt hot corner
+#   - Tắt notification banner
+#   - Tắt khóa màn hình / screensaver
+#   - Tắt Ubuntu Dock + desktop icons (dock trái, icon Trash/Home) — quan trọng
+#     với máy mới cài Ubuntu Desktop vì 2 extension này bật mặc định
+#   - Chặn suspend/sleep khi cắm điện (tránh màn hình tắt giữa chừng)
+#   - Tắt popup Software Updater (tránh gián đoạn kiosk khi có bản vá mới)
+#   - Bỏ qua màn hình gnome-initial-setup (hữu ích khi user kiosk vừa tạo mới)
 #   - Autologin GDM cho user kiosk
-#   - Autostart app iPGS fullscreen + unclutter khi vÃ o desktop
+#   - Autostart app iPGS fullscreen + unclutter khi vào desktop
 #
-# Báº®T BUá»˜C cháº¡y SAU khi Ä‘Ã£ cháº¡y xong 1-install-software.sh (cáº§n unclutter Ä‘Ã£
-# cÃ i Ä‘á»ƒ autostart unclutter.desktop hoáº¡t Ä‘á»™ng).
+# BẮT BUỘC chạy SAU khi đã chạy xong 1-install-software.sh (cần unclutter đã
+# cài để autostart unclutter.desktop hoạt động).
 #
-# Cháº¡y (máº·c Ä‘á»‹nh báº­t táº¥t cáº£):
+# Chạy (mặc định bật tất cả):
 #   bash scripts/linux-kiosk/2-configure-system.sh [kiosk_user] [app_exec]
 #
-# Cháº¡y cÃ³ chá»n lá»c tá»«ng má»¥c (tham sá»‘ 3-9: 1=báº­t, 0=bá» qua, máº·c Ä‘á»‹nh 1 náº¿u khÃ´ng truyá»n):
+# Chạy có chọn lọc từng mục (tham số 3-9: 1=bật, 0=bỏ qua, mặc định 1 nếu không truyền):
 #   bash scripts/linux-kiosk/2-configure-system.sh <kiosk_user> <app_exec> \
 #        <disable_hotcorner> <disable_dock_icons> <block_sleep> \
 #        <skip_initial_setup> <enable_autologin> <disable_sw_update> <enable_autostart>
 #
-# Tham sá»‘ (Ä‘á»u cÃ³ default):
-#   kiosk_user          Máº·c Ä‘á»‹nh: kztek â€” user dÃ¹ng Ä‘á»ƒ autologin GDM.
-#   app_exec            Máº·c Ä‘á»‹nh: ipgskioskavalonia (lá»‡nh cÃ³ sáºµn trong PATH sau khi
-#                       cÃ i .deb tá»« scripts/linux-deb/build-deb.sh)
-#   disable_hotcorner   Táº¯t hot corner/notification banner/khÃ³a mÃ n hÃ¬nh/idle-delay
-#   disable_dock_icons  Táº¯t Ubuntu Dock + Desktop Icons
-#   block_sleep         Cháº·n suspend/sleep khi cáº¯m Ä‘iá»‡n
-#   skip_initial_setup  Bá» qua mÃ n hÃ¬nh gnome-initial-setup
+# Tham số (đều có default):
+#   kiosk_user          Mặc định: kztek — user dùng để autologin GDM.
+#   app_exec            Mặc định: ipgskioskavalonia (lệnh có sẵn trong PATH sau khi
+#                       cài .deb từ scripts/linux-deb/build-deb.sh)
+#   disable_hotcorner   Tắt hot corner/notification banner/khóa màn hình/idle-delay
+#   disable_dock_icons  Tắt Ubuntu Dock + Desktop Icons
+#   block_sleep         Chặn suspend/sleep khi cắm điện
+#   skip_initial_setup  Bỏ qua màn hình gnome-initial-setup
 #   enable_autologin    Autologin GDM cho kiosk_user
-#   disable_sw_update   Táº¯t popup + auto-download Software Updater
-#   enable_autostart    Autostart app iPGS + unclutter khi vÃ o desktop
-#   lock_single_workspace  KhÃ³a cÃ²n 1 workspace tÄ©nh (tham sá»‘ 10) â€” cháº·n triá»‡t Ä‘á»ƒ lá»—i
-#                       cá»­ chá»‰ 2/3 ngÃ³n trÃªn mÃ n cáº£m á»©ng bá»‹ Mutter hiá»ƒu thÃ nh gesture
-#                       chuyá»ƒn workspace, lÃ m app fullscreen "biáº¿n máº¥t" sang workspace
-#                       khÃ¡c. Set dynamic-workspaces=false + num-workspaces=1 thÃ¬
-#                       gesture váº«n kÃ­ch hoáº¡t nhÆ°ng khÃ´ng cÃ²n workspace nÃ o Ä‘á»ƒ chuyá»ƒn tá»›i.
+#   disable_sw_update   Tắt popup + auto-download Software Updater
+#   enable_autostart    Autostart app iPGS + unclutter khi vào desktop
+#   lock_single_workspace  Khóa còn 1 workspace tĩnh (tham số 10) — chặn triệt để lỗi
+#                       cử chỉ 2/3 ngón trên màn cảm ứng bị Mutter hiểu thành gesture
+#                       chuyển workspace, làm app fullscreen "biến mất" sang workspace
+#                       khác. Set dynamic-workspaces=false + num-workspaces=1 thì
+#                       gesture vẫn kích hoạt nhưng không còn workspace nào để chuyển tới.
 #
-# VÃ­ dá»¥:
+# Ví dụ:
 #   bash scripts/linux-kiosk/2-configure-system.sh
 #   bash scripts/linux-kiosk/2-configure-system.sh kztek /opt/kztek/ipgskioskavalonia/run.sh
 
@@ -59,133 +59,144 @@ DISABLE_SW_UPDATE="${8:-1}"
 ENABLE_AUTOSTART="${9:-1}"
 LOCK_SINGLE_WORKSPACE="${10:-1}"
 
-echo "=== [2] Cáº¥u hÃ¬nh há»‡ thá»‘ng cho Kiosk iPGS â€” Ubuntu 22.04 ==="
+# Helper sudo cho SSH session không có TTY.
+# C# truyền KIOSK_SUDO_PASS qua môi trường; nếu không có thì dùng sudo bình thường
+# (sẽ hỏi password nếu có TTY, hoặc fail nếu không có TTY).
+_sudo() {
+    if [ -n "${KIOSK_SUDO_PASS:-}" ]; then
+        echo "$KIOSK_SUDO_PASS" | sudo -S "$@" 2>/dev/null
+    else
+        sudo "$@"
+    fi
+}
+
+echo "=== [2] Cấu hình hệ thống cho Kiosk iPGS — Ubuntu 22.04 ==="
 echo "  Kiosk user : $KIOSK_USER"
 echo "  App exec   : $APP_EXEC"
 echo "  HotCorner=$DISABLE_HOTCORNER DockIcons=$DISABLE_DOCK_ICONS Sleep=$BLOCK_SLEEP InitialSetup=$SKIP_INITIAL_SETUP Autologin=$ENABLE_AUTOLOGIN SwUpdate=$DISABLE_SW_UPDATE Autostart=$ENABLE_AUTOSTART LockWorkspace=$LOCK_SINGLE_WORKSPACE"
 echo ""
 
 if [ "$EUID" -eq 0 ]; then
-    echo "Lá»–I: Ä‘á»«ng cháº¡y script báº±ng 'sudo bash ...' hay user root." >&2
-    echo "     Cháº¡y trá»±c tiáº¿p: bash scripts/linux-kiosk/2-configure-system.sh" >&2
+    echo "LỖI: đừng chạy script bằng 'sudo bash ...' hay user root." >&2
+    echo "     Chạy trực tiếp: bash scripts/linux-kiosk/2-configure-system.sh" >&2
     exit 1
 fi
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# 2 chiá»u: 1 = táº¯t/áº©n, 0 = báº­t/hiá»‡n láº¡i nhÆ° máº·c Ä‘á»‹nh GNOME
+# ─────────────────────────────────────────────────────────────
+# 2 chiều: 1 = tắt/ẩn, 0 = bật/hiện lại như mặc định GNOME
 if [ "$DISABLE_HOTCORNER" = "1" ]; then
-    echo "=== [1/8] Táº¯t hot corner, notification banner, screensaver/lock ==="
+    echo "=== [1/8] Tắt hot corner, notification banner, screensaver/lock ==="
     gsettings set org.gnome.desktop.interface enable-hot-corners false
     gsettings set org.gnome.desktop.notifications show-banners false
     gsettings set org.gnome.desktop.screensaver lock-enabled false
     gsettings set org.gnome.desktop.session idle-delay 0
 else
-    echo "=== [1/8] Báº­t láº¡i hot corner, notification banner, screensaver/lock (máº·c Ä‘á»‹nh) ==="
+    echo "=== [1/8] Bật lại hot corner, notification banner, screensaver/lock (mặc định) ==="
     gsettings set org.gnome.desktop.interface enable-hot-corners true
     gsettings set org.gnome.desktop.notifications show-banners true
     gsettings set org.gnome.desktop.screensaver lock-enabled true
     gsettings set org.gnome.desktop.session idle-delay 300
 fi
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 if [ "$LOCK_SINGLE_WORKSPACE" = "1" ]; then
-    echo "=== [2/8] KhÃ³a cÃ²n 1 workspace tÄ©nh (cháº·n gesture 2/3 ngÃ³n chuyá»ƒn workspace) ==="
+    echo "=== [2/8] Khóa còn 1 workspace tĩnh (chặn gesture 2/3 ngón chuyển workspace) ==="
     gsettings set org.gnome.mutter dynamic-workspaces false
     gsettings set org.gnome.desktop.wm.preferences num-workspaces 1 2>/dev/null || true
     gsettings set org.gnome.shell.overrides workspaces-only-on-primary true 2>/dev/null || true
 else
-    echo "=== [2/8] Báº­t láº¡i workspace Ä‘á»™ng (máº·c Ä‘á»‹nh GNOME) ==="
+    echo "=== [2/8] Bật lại workspace động (mặc định GNOME) ==="
     gsettings set org.gnome.mutter dynamic-workspaces true
     gsettings reset org.gnome.desktop.wm.preferences num-workspaces 2>/dev/null || true
     gsettings reset org.gnome.shell.overrides workspaces-only-on-primary 2>/dev/null || true
 fi
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 if [ "$DISABLE_DOCK_ICONS" = "1" ]; then
-    echo "=== [3/8] Táº¯t Ubuntu Dock + Desktop Icons (máº·c Ä‘á»‹nh báº­t trÃªn mÃ¡y má»›i) ==="
-    gnome-extensions disable ubuntu-dock@ubuntu.com 2>/dev/null || echo "  â†’ ubuntu-dock@ubuntu.com khÃ´ng cÃ³/Ä‘Ã£ táº¯t, bá» qua."
-    gnome-extensions disable ding@rastersoft.com 2>/dev/null || echo "  â†’ ding@rastersoft.com khÃ´ng cÃ³/Ä‘Ã£ táº¯t, bá» qua."
+    echo "=== [3/8] Tắt Ubuntu Dock + Desktop Icons (mặc định bật trên máy mới) ==="
+    gnome-extensions disable ubuntu-dock@ubuntu.com 2>/dev/null || echo "  → ubuntu-dock@ubuntu.com không có/đã tắt, bỏ qua."
+    gnome-extensions disable ding@rastersoft.com 2>/dev/null || echo "  → ding@rastersoft.com không có/đã tắt, bỏ qua."
 else
-    echo "=== [3/8] Báº­t láº¡i Ubuntu Dock + Desktop Icons ==="
-    gnome-extensions enable ubuntu-dock@ubuntu.com 2>/dev/null || echo "  â†’ ubuntu-dock@ubuntu.com khÃ´ng cÃ³, bá» qua."
-    gnome-extensions enable ding@rastersoft.com 2>/dev/null || echo "  â†’ ding@rastersoft.com khÃ´ng cÃ³, bá» qua."
+    echo "=== [3/8] Bật lại Ubuntu Dock + Desktop Icons ==="
+    gnome-extensions enable ubuntu-dock@ubuntu.com 2>/dev/null || echo "  → ubuntu-dock@ubuntu.com không có, bỏ qua."
+    gnome-extensions enable ding@rastersoft.com 2>/dev/null || echo "  → ding@rastersoft.com không có, bỏ qua."
 fi
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 if [ "$BLOCK_SLEEP" = "1" ]; then
-    echo "=== [4/8] Cháº·n suspend/sleep khi cáº¯m Ä‘iá»‡n (trÃ¡nh mÃ n hÃ¬nh táº¯t giá»¯a chá»«ng) ==="
+    echo "=== [4/8] Chặn suspend/sleep khi cắm điện (tránh màn hình tắt giữa chừng) ==="
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing' 2>/dev/null || true
 else
-    echo "=== [4/8] Báº­t láº¡i suspend/sleep máº·c Ä‘á»‹nh ==="
+    echo "=== [4/8] Bật lại suspend/sleep mặc định ==="
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'suspend'
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'suspend' 2>/dev/null || true
 fi
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 if [ "$SKIP_INITIAL_SETUP" = "1" ]; then
-    echo "=== [5/8] Bá» qua mÃ n hÃ¬nh gnome-initial-setup (náº¿u user vá»«a táº¡o má»›i) ==="
+    echo "=== [5/8] Bỏ qua màn hình gnome-initial-setup (nếu user vừa tạo mới) ==="
     mkdir -p "$HOME/.config"
     touch "$HOME/.config/gnome-initial-setup-done"
-    echo "  â†’ ÄÃ£ Ä‘Ã¡nh dáº¥u gnome-initial-setup-done cho '$KIOSK_USER'."
+    echo "  → Đã đánh dấu gnome-initial-setup-done cho '$KIOSK_USER'."
 else
-    echo "=== [5/8] Bá» Ä‘Ã¡nh dáº¥u gnome-initial-setup-done (mÃ n hÃ¬nh initial-setup sáº½ hiá»‡n láº¡i) ==="
+    echo "=== [5/8] Bỏ đánh dấu gnome-initial-setup-done (màn hình initial-setup sẽ hiện lại) ==="
     rm -f "$HOME/.config/gnome-initial-setup-done"
 fi
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 if [ "$ENABLE_AUTOLOGIN" = "1" ]; then
     echo "=== [6/8] Autologin GDM cho user '$KIOSK_USER' ==="
     GDM_CONF="/etc/gdm3/custom.conf"
     if [ -f "$GDM_CONF" ]; then
-        sudo cp "$GDM_CONF" "$GDM_CONF.bak-$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
-        if sudo grep -q "^AutomaticLoginEnable" "$GDM_CONF"; then
-            sudo sed -i "s/^AutomaticLoginEnable.*/AutomaticLoginEnable = true/" "$GDM_CONF"
+        _sudo cp "$GDM_CONF" "$GDM_CONF.bak-$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+        if _sudo grep -q "^AutomaticLoginEnable" "$GDM_CONF"; then
+            _sudo sed -i "s/^AutomaticLoginEnable.*/AutomaticLoginEnable = true/" "$GDM_CONF"
         else
-            sudo sed -i "/^\[daemon\]/a AutomaticLoginEnable = true" "$GDM_CONF"
+            _sudo sed -i "/^\[daemon\]/a AutomaticLoginEnable = true" "$GDM_CONF"
         fi
-        if sudo grep -q "^AutomaticLogin " "$GDM_CONF"; then
-            sudo sed -i "s/^AutomaticLogin .*/AutomaticLogin = $KIOSK_USER/" "$GDM_CONF"
+        if _sudo grep -q "^AutomaticLogin " "$GDM_CONF"; then
+            _sudo sed -i "s/^AutomaticLogin .*/AutomaticLogin = $KIOSK_USER/" "$GDM_CONF"
         else
-            sudo sed -i "/^AutomaticLoginEnable/a AutomaticLogin = $KIOSK_USER" "$GDM_CONF"
+            _sudo sed -i "/^AutomaticLoginEnable/a AutomaticLogin = $KIOSK_USER" "$GDM_CONF"
         fi
-        echo "  â†’ ÄÃ£ cáº­p nháº­t $GDM_CONF (backup: $GDM_CONF.bak-*)"
+        echo "  → Đã cập nhật $GDM_CONF (backup: $GDM_CONF.bak-*)"
     else
-        echo "Cáº¢NH BÃO: khÃ´ng tÃ¬m tháº¥y $GDM_CONF â€” bá» qua bÆ°á»›c autologin, cáº¥u hÃ¬nh thá»§ cÃ´ng sau." >&2
+        echo "CẢNH BÁO: không tìm thấy $GDM_CONF — bỏ qua bước autologin, cấu hình thủ công sau." >&2
     fi
 else
-    echo "=== [6/8] Táº¯t autologin GDM ==="
+    echo "=== [6/8] Tắt autologin GDM ==="
     GDM_CONF="/etc/gdm3/custom.conf"
     if [ -f "$GDM_CONF" ]; then
-        sudo cp "$GDM_CONF" "$GDM_CONF.bak-$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
-        sudo sed -i "s/^AutomaticLoginEnable.*/AutomaticLoginEnable = false/" "$GDM_CONF" 2>/dev/null || true
-        echo "  â†’ ÄÃ£ táº¯t autologin trong $GDM_CONF (backup: $GDM_CONF.bak-*)"
+        _sudo cp "$GDM_CONF" "$GDM_CONF.bak-$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+        _sudo sed -i "s/^AutomaticLoginEnable.*/AutomaticLoginEnable = false/" "$GDM_CONF" 2>/dev/null || true
+        echo "  → Đã tắt autologin trong $GDM_CONF (backup: $GDM_CONF.bak-*)"
     else
-        echo "Cáº¢NH BÃO: khÃ´ng tÃ¬m tháº¥y $GDM_CONF â€” bá» qua." >&2
+        echo "CẢNH BÁO: không tìm thấy $GDM_CONF — bỏ qua." >&2
     fi
 fi
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 if [ "$DISABLE_SW_UPDATE" = "1" ]; then
-    echo "=== [7/8] Táº¯t popup Software Updater ==="
+    echo "=== [7/8] Tắt popup Software Updater ==="
     mkdir -p "$HOME/.config/autostart"
     if [ -f /etc/xdg/autostart/update-notifier.desktop ]; then
         cat > "$HOME/.config/autostart/update-notifier.desktop" <<EOF
 [Desktop Entry]
 Hidden=true
 EOF
-        echo "  â†’ ÄÃ£ áº©n autostart update-notifier cho user hiá»‡n táº¡i."
+        echo "  → Đã ẩn autostart update-notifier cho user hiện tại."
     else
-        echo "  â†’ KhÃ´ng tháº¥y update-notifier.desktop, bá» qua."
+        echo "  → Không thấy update-notifier.desktop, bỏ qua."
     fi
     gsettings set org.gnome.software download-updates false 2>/dev/null || true
 else
-    echo "=== [7/8] Bá» qua (khÃ´ng chá»n) ==="
+    echo "=== [7/8] Bỏ qua (không chọn) ==="
 fi
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 if [ "$ENABLE_AUTOSTART" = "1" ]; then
-    echo "=== [8/8] Autostart app iPGS fullscreen + unclutter khi vÃ o desktop ==="
+    echo "=== [8/8] Autostart app iPGS fullscreen + unclutter khi vào desktop ==="
     mkdir -p "$HOME/.config/autostart"
 
     cat > "$HOME/.config/autostart/ipgs-kiosk.desktop" <<EOF
@@ -195,8 +206,8 @@ Name=iPGS Kiosk
 Exec=$APP_EXEC
 X-GNOME-Autostart-enabled=true
 EOF
-    echo "  â†’ ÄÃ£ táº¡o $HOME/.config/autostart/ipgs-kiosk.desktop (Exec=$APP_EXEC)"
-    echo "    Náº¿u \$APP_EXEC chÆ°a Ä‘Ãºng, sá»­a láº¡i field Exec= trong file trÃªn."
+    echo "  → Đã tạo $HOME/.config/autostart/ipgs-kiosk.desktop (Exec=$APP_EXEC)"
+    echo "    Nếu \$APP_EXEC chưa đúng, sửa lại field Exec= trong file trên."
 
     if command -v unclutter >/dev/null 2>&1; then
         cat > "$HOME/.config/autostart/unclutter.desktop" <<EOF
@@ -206,17 +217,17 @@ Name=Unclutter
 Exec=unclutter -idle 1
 X-GNOME-Autostart-enabled=true
 EOF
-        echo "  â†’ ÄÃ£ táº¡o $HOME/.config/autostart/unclutter.desktop"
+        echo "  → Đã tạo $HOME/.config/autostart/unclutter.desktop"
     else
-        echo "Cáº¢NH BÃO: chÆ°a tháº¥y lá»‡nh 'unclutter' â€” cháº¡y 1-install-software.sh trÆ°á»›c khi cháº¡y script nÃ y." >&2
+        echo "CẢNH BÁO: chưa thấy lệnh 'unclutter' — chạy 1-install-software.sh trước khi chạy script này." >&2
     fi
 else
-    echo "=== [8/8] Bá» qua (khÃ´ng chá»n) ==="
+    echo "=== [8/8] Bỏ qua (không chọn) ==="
 fi
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────────
 echo ""
-echo "âœ“ HOÃ€N THÃ€NH. Cáº§n LOG OUT / RESTART Ä‘á»ƒ Ã¡p dá»¥ng Ä‘áº§y Ä‘á»§ (Ä‘áº·c biá»‡t autologin GDM + autostart)."
-echo "  Kiá»ƒm tra sau khi restart:"
-echo "    - MÃ¡y tá»± vÃ o tháº³ng user '$KIOSK_USER' khÃ´ng cáº§n Ä‘Äƒng nháº­p"
-echo "    - App '$APP_EXEC' tá»± cháº¡y fullscreen"
+echo "✓ HOÀN THÀNH. Cần LOG OUT / RESTART để áp dụng đầy đủ (đặc biệt autologin GDM + autostart)."
+echo "  Kiểm tra sau khi restart:"
+echo "    - Máy tự vào thẳng user '$KIOSK_USER' không cần đăng nhập"
+echo "    - App '$APP_EXEC' tự chạy fullscreen"

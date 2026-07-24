@@ -121,6 +121,7 @@ namespace IPGS.RemoteControl.CcuClient
                 if (!ssh.IsConnected)
                     throw new Exception("Không thể mở kết nối SSH tới máy kiosk.");
 
+                // ── Bước 1: Upload scripts ────────────────────────────────────────
                 Log("--- [1/2] Tải script lên máy kiosk qua SFTP ---");
                 using (var sftp = new SftpClient(options.Host, options.SshPort, options.Username, options.Password))
                 {
@@ -130,18 +131,23 @@ namespace IPGS.RemoteControl.CcuClient
                     sftp.Disconnect();
                 }
 
+                // ── Bước 2: Chạy scripts ─────────────────────────────────────────
                 Log("--- [2/2] Chạy setup trên máy kiosk (có thể mất vài phút) ---");
 
                 RunCommand(ssh, "chmod +x ~/1-install-software.sh ~/2-configure-system.sh 2>/dev/null; true", Log);
-                RunCommand(ssh, "export DISPLAY=:0; export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus", Log, silent: true);
 
-                if (!string.IsNullOrEmpty(options.SudoPassword))
-                {
-                    string escapedSudo = options.SudoPassword.Replace("'", "'\\''");
-                    RunCommand(ssh, $"echo '{escapedSudo}' | sudo -S -v 2>&1 && echo SUDO_CACHED_OK", Log);
-                }
-
-                string envPrefix = "export DISPLAY=:0; export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus; ";
+                // Truyền sudo password qua biến môi trường KIOSK_SUDO_PASS.
+                // Lý do KHÔNG dùng "sudo -S -v" để cache:
+                //   SSH.NET tạo SSH channel độc lập cho mỗi RunCommand — sudo timestamp
+                //   cache (/var/run/sudo/ts/...) không persist qua channel mới vì khác tty/pts.
+                //   Hàm _sudo() trong script dùng "echo $KIOSK_SUDO_PASS | sudo -S" để cấp
+                //   password inline cho mỗi lần gọi sudo, không cần TTY.
+                string escapedSudoPass = options.SudoPassword
+                    .Replace("\\", "\\\\")
+                    .Replace("'", "'\\''");
+                string envPrefix = "export DISPLAY=:0; " +
+                                   "export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus; " +
+                                   $"export KIOSK_SUDO_PASS='{escapedSudoPass}'; ";
 
                 if (options.RunInstallSoftware)
                 {
@@ -173,24 +179,32 @@ namespace IPGS.RemoteControl.CcuClient
             string fileName = Path.GetFileName(localPath);
             string remotePath = $"/home/{username}/{fileName}";
 
-            // Normalize CRLF → LF trước khi upload lên Linux.
-            // File .sh chỉnh sửa trên Windows có thể có CRLF, khiến bash báo lỗi
-            // "$'\r': command not found" hoặc "unexpected end of file".
+            // Đọc file — Encoding.UTF8 tự strip BOM khi đọc nếu có.
             string content = File.ReadAllText(localPath, Encoding.UTF8);
-            bool hadCrlf = content.Contains("\r\n");
-            if (hadCrlf) content = content.Replace("\r\n", "\n");
-            // Cũng xử lý \r đơn lẻ (Mac CR cũ) nếu có
-            content = content.Replace("\r", "\n");
 
-            byte[] bytes = Encoding.UTF8.GetBytes(content);
+            // Strip BOM thủ công phòng trường hợp ReadAllText không xử lý
+            // (PowerShell 5 viết UTF-8 with BOM; BOM trước #!/bin/bash khiến bash lỗi
+            // "No such file or directory" trên line 1).
+            if (content.Length > 0 && content[0] == '\uFEFF')
+                content = content.Substring(1);
+
+            bool hadCrlf = content.Contains("\r\n");
+            // Normalize CRLF→LF và CR đơn lẻ (tránh "$'\r': command not found")
+            content = content.Replace("\r\n", "\n").Replace("\r", "\n");
+
+            // Ghi không BOM (UTF8Encoding(false)) — bắt buộc cho shell script trên Linux.
+            byte[] bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(content);
             using var ms = new MemoryStream(bytes);
             sftp.UploadFile(ms, remotePath, true);
-            log($"📤 Đã tải {fileName} lên {remotePath}" + (hadCrlf ? " (đã convert CRLF→LF)" : ""));
+            string note = hadCrlf ? " (CRLF→LF)" : "";
+            log($"📤 Đã tải {fileName} lên {remotePath}{note}");
         }
 
         private static void RunCommand(SshClient ssh, string commandText, Action<string> log, bool silent = false)
         {
-            using var cmd = ssh.CreateCommand(commandText);
+            // Dùng UTF-8 để decode output — mặc định SSH.NET là ASCII gây garbled text
+            // với ký tự tiếng Việt (UTF-8 bytes bị decode thành Latin-1 → "CÃ i" thay vì "Cài").
+            using var cmd = ssh.CreateCommand(commandText, Encoding.UTF8);
             cmd.Execute();
 
             if (silent) return;
