@@ -239,6 +239,15 @@ public partial class ConnectionEntryWindow : Window
         }
     }
 
+    private void OnItemCronJobClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: ComputerProfile profile })
+        {
+            var win = new CronJobWindow(profile);
+            win.ShowDialog(this);
+        }
+    }
+
     public void OnItemRunCommandClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control { Tag: ComputerProfile profile }) return;

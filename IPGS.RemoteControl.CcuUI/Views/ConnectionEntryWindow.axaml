@@ -190,6 +190,12 @@
                                ToolTip.Tip="{Binding SshStatusTooltip}"
                                KzSize="Sm" />
                   <kz:KzButton Tag="{Binding}"
+                               Click="OnItemCronJobClick"
+                               Content="⏰ Cron Jobs"
+                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                               ToolTip.Tip="{Binding SshStatusTooltip}"
+                               KzSize="Sm" />
+                  <kz:KzButton Tag="{Binding}"
                                Click="OnItemRunCommandClick"
                                Content="&gt;_ CMD Shell"
                                IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"

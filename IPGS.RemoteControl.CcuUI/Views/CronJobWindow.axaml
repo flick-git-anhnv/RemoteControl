@@ -1,0 +1,80 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        xmlns:local="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.CronJobWindow"
+        Title="Quản Lý Cron Jobs"
+        Width="700" Height="500"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto">
+    <!-- Header -->
+    <Border Grid.Row="0" Background="#1E293B" Padding="20,16">
+      <TextBlock x:Name="PART_TitleText" Text="Quản Lý Cron Jobs" Foreground="White" FontSize="16" FontWeight="SemiBold"/>
+    </Border>
+
+    <!-- Main Content -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,300" Margin="10">
+      
+      <!-- List of Jobs -->
+      <Border Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Margin="0,0,10,0">
+        <Grid RowDefinitions="Auto,*">
+          <Border Background="#F8FAFC" Padding="10" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal">
+              <kz:KzButton x:Name="PART_BtnRefresh" Content="🔄 Tải lại" KzSize="Sm" Classes="kz-outline" Margin="0,0,10,0" />
+              <kz:KzButton x:Name="PART_BtnDelete" Content="🗑 Xóa mục chọn" KzSize="Sm" Classes="kz-danger" />
+            </StackPanel>
+          </Border>
+          <DataGrid Grid.Row="1" x:Name="PART_JobList" 
+                    AutoGenerateColumns="False" 
+                    CanUserSortColumns="False" 
+                    IsReadOnly="True" 
+                    GridLinesVisibility="All" 
+                    HeadersVisibility="Column"
+                    x:DataType="local:CronJobItem">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Lịch trình" Binding="{Binding Schedule}" Width="120" />
+              <DataGridTextColumn Header="Lệnh" Binding="{Binding Command}" Width="*" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </Border>
+
+      <!-- Add New Job -->
+      <Border Grid.Column="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="15">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Thêm Cron Job Mới" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,10"/>
+          
+          <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="80,*" Margin="0,0,0,15">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Phút:" VerticalAlignment="Center" />
+            <kz:KzTextBox Grid.Row="0" Grid.Column="1" x:Name="PART_TxtMin" Text="*" Margin="0,0,0,5" />
+            
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Giờ:" VerticalAlignment="Center" />
+            <kz:KzTextBox Grid.Row="1" Grid.Column="1" x:Name="PART_TxtHour" Text="*" Margin="0,0,0,5" />
+            
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Ngày:" VerticalAlignment="Center" />
+            <kz:KzTextBox Grid.Row="2" Grid.Column="1" x:Name="PART_TxtDay" Text="*" Margin="0,0,0,5" />
+            
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Tháng:" VerticalAlignment="Center" />
+            <kz:KzTextBox Grid.Row="3" Grid.Column="1" x:Name="PART_TxtMonth" Text="*" Margin="0,0,0,5" />
+            
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="Thứ:" VerticalAlignment="Center" />
+            <kz:KzTextBox Grid.Row="4" Grid.Column="1" x:Name="PART_TxtDow" Text="*" />
+          </Grid>
+
+          <TextBlock Text="Lệnh (Command):" />
+          <kz:KzTextBox x:Name="PART_TxtCommand" Text="/path/to/script.sh" />
+
+          <kz:KzButton x:Name="PART_BtnAdd" Content="➕ Thêm Job" KzSize="Md" Classes="kz-primary" Margin="0,15,0,0" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- Footer -->
+    <Border Grid.Row="2" Background="#F8FAFC" Padding="12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock x:Name="PART_StatusMsg" Text="Sẵn sàng" VerticalAlignment="Center" Foreground="#64748B" />
+        <kz:KzButton Grid.Column="1" x:Name="PART_BtnClose" Content="Đóng" KzSize="Sm" Classes="kz-outline" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>
