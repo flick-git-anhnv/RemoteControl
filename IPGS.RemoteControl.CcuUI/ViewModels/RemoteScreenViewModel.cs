@@ -24,6 +24,7 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     [ObservableProperty] private string   _statusText    = "Chưa kết nối";
     [ObservableProperty] private bool     _isStreaming;
     [ObservableProperty] private bool     _isFaulted;
+    [ObservableProperty] private bool     _showSshHelp;
     [ObservableProperty] private string?  _errorMessage;
     /// <summary>Colour of the status dot in the window toolbar.</summary>
     [ObservableProperty] private IBrush   _statusBrush   = Brushes.Gray;

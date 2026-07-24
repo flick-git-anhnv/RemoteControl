@@ -32,13 +32,16 @@ public partial class RemoteScreenWindow : Window
     /// <param name="host">ZCU hostname or IP address.</param>
     /// <param name="port">TCP port (default <see cref="RemoteControlConstants.DefaultPort"/> = 17600).</param>
     /// <param name="token">Shared secret token (must match ZcuAgent appsettings.json).</param>
-    public RemoteScreenWindow(string host, int port, string token)
+    public RemoteScreenWindow(string host, int port, string token, bool showSshHelp = false)
     {
         _host  = host;
         _port  = port;
         _token = token;
 
-        _vm = new RemoteScreenViewModel();
+        _vm = new RemoteScreenViewModel
+        {
+            ShowSshHelp = showSshHelp
+        };
 
         InitializeComponent();
 

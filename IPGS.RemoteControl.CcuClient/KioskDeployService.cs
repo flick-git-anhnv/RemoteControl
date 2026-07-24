@@ -136,24 +136,37 @@ namespace IPGS.RemoteControl.CcuClient
 
                 RunCommand(ssh, "chmod +x ~/1-install-software.sh ~/2-configure-system.sh 2>/dev/null; true", Log);
 
-                // Truyền sudo password qua biến môi trường KIOSK_SUDO_PASS.
-                // Lý do KHÔNG dùng "sudo -S -v" để cache:
-                //   SSH.NET tạo SSH channel độc lập cho mỗi RunCommand — sudo timestamp
-                //   cache (/var/run/sudo/ts/...) không persist qua channel mới vì khác tty/pts.
-                //   Hàm _sudo() trong script dùng "echo $KIOSK_SUDO_PASS | sudo -S" để cấp
-                //   password inline cho mỗi lần gọi sudo, không cần TTY.
+                // ── Truyền sudo password qua biến môi trường KIOSK_SUDO_PASS ──────
+                //
+                // VẤN ĐỀ GỐC: SSH.NET exec channel gọi execve() trực tiếp, KHÔNG qua shell.
+                // Vì vậy dấu ';' và 'export' trong command string bị ignore hoàn toàn.
+                // Ví dụ: "export KIOSK_SUDO_PASS='pw'; bash ~/script.sh" — exec channel
+                // nhận chuỗi này như 1 file/program tên "export KIOSK_SUDO_PASS=..." → fail.
+                //
+                // FIX: Dùng lệnh `env VAR=val bash ~/script.sh` vì:
+                //   - `env` là binary (/usr/bin/env), exec trực tiếp được, không cần shell.
+                //   - `env` thiết lập biến môi trường RỒI exec bash — bash con kế thừa biến.
+                //   - Script bash con chạy `bash ~/script.sh` cũng kế thừa từ bash cha.
+                //   - Hàm _sudo() trong script dùng: echo "$KIOSK_SUDO_PASS" | sudo -S cmd
+                //     → sudo đọc password từ stdin, không cần TTY.
+                //
+                // Escape password để an toàn trong env VAR='...' syntax:
+                //   - Single-quote bao quanh giá trị
+                //   - ' bên trong → '\'' (đóng quote, escaped quote, mở quote lại)
                 string escapedSudoPass = options.SudoPassword
-                    .Replace("\\", "\\\\")
-                    .Replace("'", "'\\''");
-                string envPrefix = "export DISPLAY=:0; " +
-                                   "export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus; " +
-                                   $"export KIOSK_SUDO_PASS='{escapedSudoPass}'; ";
+                    .Replace("'", "'\\''")
+                    .Replace("\n", "")
+                    .Replace("\r", "");
+
+                // env command syntax: env VAR1=val1 VAR2=val2 command [args...]
+                // Không cần shell để parse — env exec trực tiếp.
+                string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS='{escapedSudoPass}'";
 
                 if (options.RunInstallSoftware)
                 {
                     Log("🔄 Đang chạy 1-install-software.sh (Config máy tính — phần extension/unclutter/bàn phím ảo)...");
                     string args1 = $"{B(options.HideTopBar)} {B(options.HideActivities)} {B(options.HideWorkspaceSwitcher)} {B(options.HideDash)} {B(options.InstallUnclutter)} {B(options.HideVirtualKeyboard)}";
-                    RunCommand(ssh, envPrefix + $"bash ~/1-install-software.sh {args1}", Log);
+                    RunCommand(ssh, $"{envCmd} bash ~/1-install-software.sh {args1}", Log);
                 }
 
                 if (options.RunConfigureSystem)
@@ -161,7 +174,7 @@ namespace IPGS.RemoteControl.CcuClient
                     Log("🔄 Đang chạy 2-configure-system.sh (Config máy tính — phần hệ thống + Config phần mềm — update/autostart)...");
                     string kioskUser = string.IsNullOrEmpty(options.KioskUser) ? options.Username : options.KioskUser;
                     string args2 = $"{B(options.DisableHotCorner)} {B(options.DisableDockIcons)} {B(options.BlockSleep)} {B(options.SkipInitialSetup)} {B(options.EnableAutologin)} {B(options.DisableSoftwareUpdate)} {B(options.EnableAutostart)} {B(options.LockSingleWorkspace)}";
-                    RunCommand(ssh, envPrefix + $"bash ~/2-configure-system.sh '{kioskUser}' '{options.AppExec}' {args2}", Log);
+                    RunCommand(ssh, $"{envCmd} bash ~/2-configure-system.sh '{kioskUser}' '{options.AppExec}' {args2}", Log);
                 }
 
                 ssh.Disconnect();

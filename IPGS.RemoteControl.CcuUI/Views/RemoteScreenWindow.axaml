@@ -10,7 +10,7 @@
         MinWidth="640" MinHeight="480"
         Background="#1A1A2E">
 
-  <Grid RowDefinitions="Auto,Auto,*">
+  <Grid RowDefinitions="Auto,Auto,Auto,*">
 
     <!-- ─── Row 0: Status / control bar ─────────────────────────────── -->
     <Border Grid.Row="0"
@@ -43,8 +43,36 @@
       </Grid>
     </Border>
 
-    <!-- ─── Row 1: Error banner — visible when Faulted ───────────────── -->
+    <!-- ─── Row 1: SSH Installation Guide ────────────────────────────── -->
     <Border Grid.Row="1"
+            Background="#F0F9FF"
+            BorderBrush="#BAE6FD"
+            BorderThickness="0,0,0,1"
+            Padding="12,8"
+            IsVisible="{Binding ShowSshHelp}">
+      <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+        <TextBlock Text="💡 Cài SSH (nếu máy chưa có):"
+                   Foreground="#0369A1"
+                   FontWeight="SemiBold"
+                   VerticalAlignment="Center" />
+        <TextBlock Text="Mở Terminal trên màn hình Kiosk bên dưới và gõ:"
+                   Foreground="#0284C7"
+                   VerticalAlignment="Center" />
+        <TextBox Text="sudo apt update &amp;&amp; sudo apt install openssh-server -y"
+                 IsReadOnly="True"
+                 Background="#FFFFFF"
+                 Foreground="#0F172A"
+                 BorderBrush="#BAE6FD"
+                 BorderThickness="1"
+                 CornerRadius="4"
+                 Padding="8,4"
+                 FontFamily="Consolas, Cascadia Code, Monospace"
+                 VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <!-- ─── Row 2: Error banner — visible when Faulted ───────────────── -->
+    <Border Grid.Row="2"
             Background="#C0390B"
             Padding="12,8"
             IsVisible="{Binding IsFaulted}">
@@ -61,12 +89,12 @@
       </StackPanel>
     </Border>
 
-    <!-- ─── Row 2: Remote screen (fills remaining space) ─────────────── -->
+    <!-- ─── Row 3: Remote screen (fills remaining space) ─────────────── -->
     <!--
       DataContext is inherited from the Window (RemoteScreenViewModel),
       so RemoteScreenControl receives the same ViewModel automatically.
     -->
-    <views:RemoteScreenControl Grid.Row="2"
+    <views:RemoteScreenControl Grid.Row="3"
                                HorizontalAlignment="Stretch"
                                VerticalAlignment="Stretch" />
 

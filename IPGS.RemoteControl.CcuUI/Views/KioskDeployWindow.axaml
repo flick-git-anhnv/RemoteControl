@@ -61,24 +61,82 @@
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="28" Margin="0,4,0,0">
                   <StackPanel Grid.Column="0" Spacing="10">
                     <TextBlock Text="① Ẩn giao diện GNOME (cần cài extension Just Perfection):" FontSize="11" Foreground="#94A3B8" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                    <CheckBox x:Name="PART_ChkHideTopBar" Content="Ẩn Top Bar (thanh trên cùng GNOME)" IsChecked="True"/>
-                    <CheckBox x:Name="PART_ChkHideActivities" Content="Ẩn nút Activities" IsChecked="True"/>
-                    <CheckBox x:Name="PART_ChkHideWorkspace" Content="Ẩn Workspace Switcher" IsChecked="True"/>
-                    <CheckBox x:Name="PART_ChkHideDash" Content="Ẩn Dash (icon ứng dụng trong Overview)" IsChecked="True"/>
-                    <CheckBox x:Name="PART_ChkHideDockIcons" Content="Tắt Ubuntu Dock + Desktop Icons" IsChecked="True"/>
+                    <CheckBox x:Name="PART_ChkHideTopBar" IsChecked="True">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Ẩn Top Bar (thanh trên cùng GNOME)" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Ẩn thanh menu ngang trên cùng của màn hình GNOME để phần mềm Kiosk tràn viền không bị vướng." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="PART_ChkHideActivities" IsChecked="True">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Ẩn nút Activities" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Ẩn nút Activities (hoặc chữ Activities) góc trên bên trái, tránh người dùng bấm vào thoát ra màn hình overview." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="PART_ChkHideWorkspace" IsChecked="True">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Ẩn Workspace Switcher" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Ẩn thanh chuyển đổi không gian làm việc (Workspace) khi vào chế độ overview." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="PART_ChkHideDash" IsChecked="True">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Ẩn Dash (icon ứng dụng trong Overview)" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Ẩn thanh dock chứa các ứng dụng khi mở menu, tránh người dùng mở app ngoài luồng." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="PART_ChkHideDockIcons" IsChecked="True">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Tắt Ubuntu Dock + Desktop Icons" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Tắt hoàn toàn thanh dock (taskbar) mặc định của Ubuntu và các icon trên màn hình nền." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
                   </StackPanel>
 
                   <StackPanel Grid.Column="1" Spacing="10">
                     <TextBlock Text="② Hành vi máy / màn hình:" FontSize="11" Foreground="#94A3B8" FontWeight="SemiBold"/>
-                    <CheckBox x:Name="PART_ChkInstallUnclutter" Content="Cài unclutter (tự ẩn con trỏ chuột khi không dùng)" IsChecked="True"/>
-                    <CheckBox x:Name="PART_ChkHideKeyboard" Content="Tắt bàn phím ảo GNOME (on-screen keyboard)" IsChecked="True"/>
-                    <CheckBox x:Name="PART_ChkHotCorner" Content="Tắt hot corner / notification banner / khóa màn hình" IsChecked="True"/>
-                    <CheckBox x:Name="PART_ChkBlockSleep" Content="Chặn suspend/sleep khi cắm điện" IsChecked="True"/>
-                    <CheckBox x:Name="PART_ChkInitialSetup" Content="Bỏ qua màn hình gnome-initial-setup" IsChecked="True"/>
-                    <CheckBox x:Name="PART_ChkAutologin" Content="Autologin GDM cho Kiosk user ở trên" IsChecked="True"/>
+                    <CheckBox x:Name="PART_ChkInstallUnclutter" IsChecked="True">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Cài unclutter (tự ẩn con trỏ chuột khi không dùng)" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Cài đặt công cụ giúp tự động làm mờ/ẩn con trỏ chuột khi không di chuyển, giúp màn hình Kiosk gọn gàng." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="PART_ChkHideKeyboard" IsChecked="True">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Tắt bàn phím ảo GNOME (on-screen keyboard)" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Ngăn chặn bàn phím ảo mặc định tự bật lên khi chạm vào ô nhập liệu (hữu ích nếu Kiosk không cần nhập liệu hoặc có bàn phím riêng)." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="PART_ChkHotCorner" IsChecked="True">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Tắt hot corner / notification banner / khóa màn hình" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Vô hiệu hóa tính năng di chuột góc màn hình để mở menu, tắt các popup thông báo và chặn tự động khóa màn hình." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="PART_ChkBlockSleep" IsChecked="True">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Chặn suspend/sleep khi cắm điện" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Ngăn hệ thống tự động rơi vào chế độ ngủ (Sleep/Suspend) hoặc tắt màn hình, đảm bảo Kiosk luôn sáng 24/7." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="PART_ChkInitialSetup" IsChecked="True">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Bỏ qua màn hình gnome-initial-setup" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Bỏ qua màn hình thiết lập ban đầu (chọn ngôn ngữ, wifi...) thường tự mở ra ở lần chạy đầu tiên." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="PART_ChkAutologin" IsChecked="True">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Autologin GDM cho Kiosk user ở trên" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Cấu hình hệ thống tự động đăng nhập vào tài khoản Kiosk ngay khi khởi động mà không cần gõ mật khẩu." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
                     <CheckBox x:Name="PART_ChkLockWorkspace" IsChecked="True">
                       <StackPanel Spacing="1">
-                        <TextBlock Text="Khóa còn 1 workspace tĩnh" FontWeight="Normal"/>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock Text="Khóa còn 1 workspace tĩnh" FontWeight="Normal" VerticalAlignment="Center"/>
+                          <TextBlock Text="❓" ToolTip.Tip="Ngăn chặn hệ điều hành tạo thêm workspace động, giữ cố định 1 workspace để Kiosk không bị chuyển qua trang trống." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        </StackPanel>
                         <TextBlock Text="Chặn gesture 2/3 ngón trên màn cảm ứng bị hiểu thành chuyển workspace, làm app fullscreen &quot;biến mất&quot;"
                                    FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap"/>
                       </StackPanel>
@@ -96,8 +154,18 @@
                   <kz:KzTextBox x:Name="PART_AppExec" Text="ipgskioskavalonia" />
                 </StackPanel>
 
-                <CheckBox x:Name="PART_ChkSwUpdate" Content="Tắt popup + auto-download Software Updater" IsChecked="True"/>
-                <CheckBox x:Name="PART_ChkAutostart" Content="Autostart app iPGS + unclutter khi vào desktop" IsChecked="True"/>
+                <CheckBox x:Name="PART_ChkSwUpdate" IsChecked="True">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="Tắt popup + auto-download Software Updater" VerticalAlignment="Center"/>
+                    <TextBlock Text="❓" ToolTip.Tip="Vô hiệu hóa trình cập nhật phần mềm tự động của hệ điều hành để tránh hiện thông báo che khuất giao diện Kiosk." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </CheckBox>
+                <CheckBox x:Name="PART_ChkAutostart" IsChecked="True">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="Autostart app iPGS + unclutter khi vào desktop" VerticalAlignment="Center"/>
+                    <TextBlock Text="❓" ToolTip.Tip="Tự động mở phần mềm iPGS và công cụ ẩn con trỏ chuột (unclutter) ngay khi máy tính khởi động vào màn hình chính." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </CheckBox>
               </StackPanel>
             </TabItem>
 
@@ -105,19 +173,22 @@
         </Border>
 
         <!-- STEP 3: Console log -->
-        <Border Background="#0F172A" CornerRadius="8" Padding="14">
+        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14">
           <StackPanel Spacing="8">
-            <TextBlock Text="💻 Nhật ký Deploy (Console Output):" Foreground="#94A3B8" FontSize="12" FontWeight="SemiBold"/>
+            <TextBlock Text="💻 Nhật ký Deploy (Console Output):" Foreground="#475569" FontSize="13" FontWeight="SemiBold"/>
             <TextBox x:Name="PART_LogConsole"
-                     Height="200"
+                     Height="280"
+                     Padding="12"
                      IsReadOnly="True"
                      AcceptsReturn="True"
                      TextWrapping="Wrap"
-                     Background="#020617"
-                     Foreground="#4ADE80"
-                     FontFamily="Consolas, Monospace"
-                     FontSize="11"
-                     BorderThickness="0"/>
+                     Background="#FFFFFF"
+                     Foreground="#334155"
+                     FontFamily="Consolas, Cascadia Code, Monospace"
+                     FontSize="13"
+                     BorderThickness="1"
+                     BorderBrush="#CBD5E1"
+                     CornerRadius="6"/>
           </StackPanel>
         </Border>
 

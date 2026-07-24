@@ -198,7 +198,7 @@ public partial class ConnectionEntryWindow : Window
     {
         if (sender is Control { Tag: ComputerProfile profile })
         {
-            StartRemoteControl(profile.Host, profile.Port, profile.Token, profile.Name);
+            StartRemoteControl(profile.Host, profile.Port, profile.Token, profile.Name, profile.SshReachable);
         }
     }
 
@@ -206,7 +206,7 @@ public partial class ConnectionEntryWindow : Window
     {
         if (this.FindControl<ListBox>("PART_ComputerListBox") is { SelectedItem: ComputerProfile profile })
         {
-            StartRemoteControl(profile.Host, profile.Port, profile.Token, profile.Name);
+            StartRemoteControl(profile.Host, profile.Port, profile.Token, profile.Name, profile.SshReachable);
         }
     }
 
@@ -226,7 +226,7 @@ public partial class ConnectionEntryWindow : Window
             _store.RecordConnection(host, port, token);
         }
 
-        StartRemoteControl(host, port, token, null);
+        StartRemoteControl(host, port, token, null, null);
     }
 
     private void OnScanNetworkClick(object? sender, RoutedEventArgs e)
@@ -247,12 +247,14 @@ public partial class ConnectionEntryWindow : Window
         multiWin.Show();
     }
 
-    private void StartRemoteControl(string host, int port, string token, string? name)
+    private void StartRemoteControl(string host, int port, string token, string? name, bool? isSshReachable)
     {
         // Ghi nhận lịch sử kết nối
         _store.RecordConnection(host, port, token, name);
 
-        var screenWin = new RemoteScreenWindow(host, port, token);
+        // Hiển thị HD cài SSH nếu đã thăm dò và chắc chắn không kết nối được
+        bool showSshHelp = isSshReachable == false;
+        var screenWin = new RemoteScreenWindow(host, port, token, showSshHelp);
 
         screenWin.Closed += (_, _) =>
         {
