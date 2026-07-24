@@ -46,7 +46,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             string sudoPass = string.IsNullOrEmpty(PART_SudoPassword.Text) ? _sshPassword : PART_SudoPassword.Text;
             string kioskUser = PART_KioskUser.Text?.Trim() ?? "";
-            string appExec = PART_AppExec.Text?.Trim() ?? "ipgskioskavalonia";
+            string appExec = PART_AppExec.Text?.Trim() ?? "kioskapp";
 
             // Tab 1 — Config máy tính
             bool hideTopBar = PART_ChkHideTopBar.IsChecked == true;

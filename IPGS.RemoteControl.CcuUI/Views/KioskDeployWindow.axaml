@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         x:Class="IPGS.RemoteControl.CcuUI.Views.KioskDeployWindow"
@@ -12,7 +12,7 @@
     <!-- ── Header ────────────────────────────────────────────────── -->
     <Border Grid.Row="0" Background="#251C53" Padding="20,16">
       <StackPanel Spacing="4">
-        <TextBlock Text="🖥️ Deploy Kiosk Setup iPGS"
+        <TextBlock Text="🖥️ Deploy Kiosk Setup"
                    Foreground="White" FontSize="16" FontWeight="Bold" />
         <TextBlock Text="Cấu hình TỪ XA qua SSH: ẩn Top Bar/Dock, autologin, autostart app kiosk — không cần cài PuTTY"
                    Foreground="#B8B3D6" FontSize="12" />
@@ -150,8 +150,8 @@
             <TabItem Header="⚙️ Config phần mềm">
               <StackPanel Spacing="12" Margin="12,14,12,10">
                 <StackPanel Spacing="4">
-                  <TextBlock Text="App exec (lệnh autostart app iPGS):" FontSize="12" Foreground="#64748B"/>
-                  <kz:KzTextBox x:Name="PART_AppExec" Text="ipgskioskavalonia" />
+                  <TextBlock Text="App exec (lệnh autostart app):" FontSize="12" Foreground="#64748B"/>
+                  <kz:KzTextBox x:Name="PART_AppExec" Text="kioskapp" />
                 </StackPanel>
 
                 <CheckBox x:Name="PART_ChkSwUpdate" IsChecked="True">
@@ -162,8 +162,8 @@
                 </CheckBox>
                 <CheckBox x:Name="PART_ChkAutostart" IsChecked="True">
                   <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="Autostart app iPGS + unclutter khi vào desktop" VerticalAlignment="Center"/>
-                    <TextBlock Text="❓" ToolTip.Tip="Tự động mở phần mềm iPGS và công cụ ẩn con trỏ chuột (unclutter) ngay khi máy tính khởi động vào màn hình chính." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                    <TextBlock Text="Autostart app + unclutter khi vào desktop" VerticalAlignment="Center"/>
+                    <TextBlock Text="❓" ToolTip.Tip="Tự động mở phần mềm và công cụ ẩn con trỏ chuột (unclutter) ngay khi máy tính khởi động vào màn hình chính." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                   </StackPanel>
                 </CheckBox>
               </StackPanel>
@@ -205,3 +205,6 @@
 
   </Grid>
 </Window>
+
+
+

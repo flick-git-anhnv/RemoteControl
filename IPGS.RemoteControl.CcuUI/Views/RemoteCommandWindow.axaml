@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         xmlns:views="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
@@ -72,7 +72,7 @@
           <Border Grid.Row="0" Background="#FFF9C4" BorderBrush="#FFF59D" BorderThickness="1" CornerRadius="4" Padding="12,8" Margin="0,0,0,8">
             <StackPanel Orientation="Vertical" Spacing="4">
               <TextBlock Text="💡 Quản lý File Chuyên Sâu: Duyệt file hiển thị theo dạng danh sách tương tự File Explorer. Đã hỗ trợ Drag &amp; Drop (Kéo/Thả) nhiều file cùng lúc thẳng từ máy cá nhân vào thư mục đích." TextWrapping="Wrap" FontSize="12" Foreground="#E65100"/>
-              <TextBlock Text="🔄 Đồng Bộ Folder (Sync): Bấm nút để chọn một thư mục trên máy trạm của bạn, phần mềm sẽ đối chiếu và cập nhật những file bị thay đổi lên đúng thư mục trên máy đích (ZCU)." TextWrapping="Wrap" FontSize="12" Foreground="#E65100"/>
+              <TextBlock Text="🔄 Đồng Bộ Folder (Sync): Bấm nút để chọn một thư mục trên máy trạm của bạn, phần mềm sẽ đối chiếu và cập nhật những file bị thay đổi lên đúng thư mục trên máy đích (Máy khách)." TextWrapping="Wrap" FontSize="12" Foreground="#E65100"/>
             </StackPanel>
           </Border>
 
@@ -82,10 +82,10 @@
             <TextBox x:Name="PART_FileCurrentPath" Grid.Column="1" Margin="0,0,8,0" KeyDown="OnFileCurrentPathKeyDown" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                <Button x:Name="PART_BtnFileRefresh" Content="🔄 Tải lại" ToolTip.Tip="Làm mới danh sách file/thư mục (F5)" />
-               <Button x:Name="PART_BtnFileSync" Content="🔄 Sync (Local &gt; Remote)" Background="#8B5CF6" Foreground="White" ToolTip.Tip="Đồng bộ tất cả các file có thay đổi từ máy trạm lên thư mục đích trên ZCU" />
-               <Button x:Name="PART_BtnFileUpload" Content="📤 Upload File" Background="#10B981" Foreground="White" ToolTip.Tip="Tải file từ máy tính của bạn lên thư mục hiện tại trên ZCU (Có thể kéo thả)" />
-               <Button x:Name="PART_BtnFileDownload" Content="📥 Download" Background="#3B82F6" Foreground="White" ToolTip.Tip="Tải file/thư mục đang chọn từ ZCU về máy tính của bạn" />
-               <Button x:Name="PART_BtnFileDelete" Content="🗑️ Xóa" Background="#EF4444" Foreground="White" ToolTip.Tip="Xóa các file/thư mục đang chọn khỏi ZCU (Delete)" />
+               <Button x:Name="PART_BtnFileSync" Content="🔄 Sync (Local &gt; Remote)" Background="#8B5CF6" Foreground="White" ToolTip.Tip="Đồng bộ tất cả các file có thay đổi từ máy trạm lên thư mục đích trên Máy khách" />
+               <Button x:Name="PART_BtnFileUpload" Content="📤 Upload File" Background="#10B981" Foreground="White" ToolTip.Tip="Tải file từ máy tính của bạn lên thư mục hiện tại trên Máy khách (Có thể kéo thả)" />
+               <Button x:Name="PART_BtnFileDownload" Content="📥 Download" Background="#3B82F6" Foreground="White" ToolTip.Tip="Tải file/thư mục đang chọn từ Máy khách về máy tính của bạn" />
+               <Button x:Name="PART_BtnFileDelete" Content="🗑️ Xóa" Background="#EF4444" Foreground="White" ToolTip.Tip="Xóa các file/thư mục đang chọn khỏi Máy khách (Delete)" />
             </StackPanel>
           </Grid>
 
@@ -119,3 +119,6 @@
     </Border>
   </Grid>
 </Window>
+
+
+

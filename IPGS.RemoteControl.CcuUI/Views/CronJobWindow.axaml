@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         xmlns:local="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
@@ -78,3 +78,6 @@
     </Border>
   </Grid>
 </Window>
+
+
+

@@ -1,9 +1,9 @@
-<Window xmlns="https://github.com/avaloniaui"
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         xmlns:views="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
         x:Class="IPGS.RemoteControl.CcuUI.Views.MultiRemoteWindow"
-        Title="iPGS Remote Control — Multi-Remote Dashboard (Nhiều máy cùng lúc)"
+        Title="Remote Control — Multi-Remote Dashboard (Nhiều máy cùng lúc)"
         Width="1280" Height="800"
         WindowStartupLocation="CenterScreen"
         CanResize="True"
@@ -78,7 +78,7 @@
         <TextBlock Text="💻" FontSize="56" HorizontalAlignment="Center"/>
         <TextBlock Text="Chưa có máy tính nào trong phiên Remote Multi-Dashboard"
                    Foreground="#A6ADC8" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-        <TextBlock Text="Nhấn '+ Thêm máy' để chọn các máy ZCU cần theo dõi song song."
+        <TextBlock Text="Nhấn '+ Thêm máy' để chọn các máy Máy khách cần theo dõi song song."
                    Foreground="#7F849C" FontSize="13" HorizontalAlignment="Center"/>
       </StackPanel>
 
@@ -86,3 +86,6 @@
 
   </Grid>
 </Window>
+
+
+

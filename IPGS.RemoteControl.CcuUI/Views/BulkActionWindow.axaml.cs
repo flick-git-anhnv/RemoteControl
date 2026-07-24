@@ -107,7 +107,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     "🔍 Kiểm tra IP & Mạng",
                     "🛠 Khởi động lại SSH (Restart SSH)",
                     "📋 Xem log hệ thống (syslog)",
-                    "💾 Cập nhật IPGS App",
+                    "💾 Cập nhật Remote App",
                     "🧹 Xóa log cũ"
                 };
             }
@@ -134,7 +134,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 else if (text.Contains("IP & Mạng")) input.Text = "ip a && ping -c 4 8.8.8.8";
                 else if (text.Contains("Restart SSH")) input.Text = "sudo systemctl restart ssh";
                 else if (text.Contains("syslog")) input.Text = "tail -n 50 /var/log/syslog";
-                else if (text.Contains("Cập nhật IPGS App")) input.Text = "sudo apt update && sudo apt install -y ipgs-app";
+                else if (text.Contains("Cập nhật Remote App")) input.Text = "sudo apt update && sudo apt install -y remote-app";
                 else if (text.Contains("Xóa log cũ")) input.Text = "sudo rm -rf /var/log/ipgs/*.log";
             }
         }

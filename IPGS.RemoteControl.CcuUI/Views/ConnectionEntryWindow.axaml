@@ -1,10 +1,10 @@
-<Window xmlns="https://github.com/avaloniaui"
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         xmlns:ccu="clr-namespace:IPGS.RemoteControl.CcuClient;assembly=IPGS.RemoteControl.CcuClient"
         xmlns:conv="clr-namespace:IPGS.RemoteControl.CcuUI.Converters"
         x:Class="IPGS.RemoteControl.CcuUI.Views.ConnectionEntryWindow"
-        Title="iPGS Remote Control — Danh sách máy tính ZCU"
+        Title="Remote Control — Danh sách máy tính Máy khách"
         Width="1200" Height="760"
         WindowStartupLocation="CenterScreen"
         CanResize="True">
@@ -21,11 +21,11 @@
     <Border Grid.Row="0" Background="#251C53" Padding="20,14">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="2">
-          <TextBlock Text="iPGS Remote Control"
+          <TextBlock Text="Remote Control"
                      Foreground="White"
                      FontSize="16"
                      FontWeight="Bold" />
-          <TextBlock Text="Quản lý danh sách máy tính &amp; Kết nối điều khiển ZCU"
+          <TextBlock Text="Quản lý danh sách máy tính &amp; Kết nối điều khiển Máy khách"
                      Foreground="#D1C4E9"
                      FontSize="12" />
         </StackPanel>
@@ -238,7 +238,7 @@
                    FontWeight="SemiBold"
                    Foreground="#757575"
                    HorizontalAlignment="Center"/>
-        <TextBlock Text="Nhấn '+ Thêm máy tính' để lưu thông tin ZCU mới."
+        <TextBlock Text="Nhấn '+ Thêm máy tính' để lưu thông tin Máy khách mới."
                    FontSize="12"
                    Foreground="#9E9E9E"
                    HorizontalAlignment="Center"/>
@@ -269,3 +269,6 @@
 
   </Grid>
 </Window>
+
+
+

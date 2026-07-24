@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         x:Class="IPGS.RemoteControl.CcuUI.Views.RemoteAppInstallWindow"
@@ -47,7 +47,7 @@
 
         <!-- Uninstall -->
         <StackPanel Spacing="4">
-          <TextBlock Text="Gỡ cài đặt (nhập tên package, VD: kztek-ipgsusecam):" FontSize="12" Foreground="#64748B"/>
+          <TextBlock Text="Gỡ cài đặt (nhập tên package, VD: kztek-app):" FontSize="12" Foreground="#64748B"/>
           <Grid ColumnDefinitions="*,Auto,Auto">
             <AutoCompleteBox x:Name="PART_UninstallPackageName" MinimumPrefixLength="0" Watermark="Tên package cần gỡ (gõ để tìm)..." Grid.Column="0" Margin="0,0,4,0" Height="36" FilterMode="Contains" />
             <Button x:Name="PART_BtnShowAll" Content="▼" Grid.Column="1" Margin="0,0,8,0" Height="36" Width="36" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" />
@@ -88,3 +88,6 @@
 
   </Grid>
 </Window>
+
+
+

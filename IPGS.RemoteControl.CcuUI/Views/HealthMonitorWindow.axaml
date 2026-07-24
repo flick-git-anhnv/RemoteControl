@@ -1,15 +1,15 @@
-<Window xmlns="https://github.com/avaloniaui"
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         xmlns:local="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
         x:Class="IPGS.RemoteControl.CcuUI.Views.HealthMonitorWindow"
-        Title="Dashboard - Giám Sát Sức Khỏe ZCU"
+        Title="Dashboard - Giám Sát Sức Khỏe Máy khách"
         Width="600" Height="500"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,*,Auto">
     <!-- Header -->
     <Border Grid.Row="0" Background="#1E293B" Padding="20,16">
-      <TextBlock x:Name="PART_TitleText" Text="Giám Sát Sức Khỏe - ZCU" Foreground="White" FontSize="16" FontWeight="SemiBold"/>
+      <TextBlock x:Name="PART_TitleText" Text="Giám Sát Sức Khỏe - Máy khách" Foreground="White" FontSize="16" FontWeight="SemiBold"/>
     </Border>
 
     <!-- Main Content -->
@@ -80,3 +80,6 @@
     </Border>
   </Grid>
 </Window>
+
+
+

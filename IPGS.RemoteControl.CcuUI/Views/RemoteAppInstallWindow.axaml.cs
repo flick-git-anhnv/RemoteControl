@@ -86,8 +86,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     var allPackages = result.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
                     var packages = System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Where(allPackages, p => 
                         p.Contains("kztek", StringComparison.OrdinalIgnoreCase) || 
-                        p.Contains("ipgs", StringComparison.OrdinalIgnoreCase) || 
-                        p.Contains("zcu", StringComparison.OrdinalIgnoreCase) || 
+                        p.Contains("remote", StringComparison.OrdinalIgnoreCase) || 
+                        p.Contains("agent", StringComparison.OrdinalIgnoreCase) || 
                         p.Contains("kiosk", StringComparison.OrdinalIgnoreCase)));
 
                     Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -196,7 +196,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             if (string.IsNullOrEmpty(packageName))
             {
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
-                PART_StatusMsg.Text = "Vui lòng nhập tên package cần gỡ (Ví dụ: kztek-ipgsusecam).";
+                PART_StatusMsg.Text = "Vui lòng nhập tên package cần gỡ (Ví dụ: kztek-app).";
                 return;
             }
 

@@ -1,11 +1,11 @@
-<Window xmlns="https://github.com/avaloniaui"
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:IPGS.RemoteControl.CcuUI.ViewModels"
         xmlns:views="using:IPGS.RemoteControl.CcuUI.Views"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         x:Class="IPGS.RemoteControl.CcuUI.Views.RemoteScreenWindow"
         x:DataType="vm:RemoteScreenViewModel"
-        Title="Remote Control — ZCU"
+        Title="Remote Control — Máy khách"
         Width="1280" Height="800"
         MinWidth="640" MinHeight="480"
         Background="#1A1A2E">
@@ -101,3 +101,6 @@
   </Grid>
 
 </Window>
+
+
+

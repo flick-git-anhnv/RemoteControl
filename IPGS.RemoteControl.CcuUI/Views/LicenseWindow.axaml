@@ -1,0 +1,55 @@
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.LicenseWindow"
+        Title="Kích hoạt bản quyền Remote Control"
+        Width="600" Height="450"
+        WindowStartupLocation="CenterScreen"
+        CanResize="False"
+        Background="#F8FAFC">
+  
+  <Grid RowDefinitions="Auto,*,Auto">
+    <!-- Header -->
+    <Border Grid.Row="0" Background="#251C53" Padding="20,16">
+      <StackPanel>
+        <TextBlock Text="🛡️ Kích hoạt bản quyền phần mềm" Foreground="White" FontSize="18" FontWeight="Bold"/>
+        <TextBlock Text="Vui lòng cung cấp Hardware ID cho nhà cung cấp để nhận Key kích hoạt." Foreground="#D1C4E9" FontSize="12" Margin="0,4,0,0"/>
+      </StackPanel>
+    </Border>
+
+    <!-- Content -->
+    <StackPanel Grid.Row="1" Margin="24" Spacing="16">
+      
+      <!-- Hardware ID -->
+      <StackPanel Spacing="6">
+        <TextBlock Text="Mã thiết bị (Hardware ID):" FontWeight="SemiBold" Foreground="#334155"/>
+        <Grid ColumnDefinitions="*,Auto">
+          <kz:KzTextBox Grid.Column="0" x:Name="PART_HardwareId" IsReadOnly="True" FontSize="14" FontWeight="Bold" Foreground="#1E293B" Background="#E2E8F0"/>
+          <kz:KzButton Grid.Column="1" x:Name="PART_BtnCopyHwId" Content="📋 Copy" Classes="kz-outline" Margin="8,0,0,0" ToolTip.Tip="Sao chép Hardware ID"/>
+        </Grid>
+      </StackPanel>
+
+      <Border Background="#E2E8F0" Height="1" Margin="0,8" />
+
+      <!-- License Key Input -->
+      <StackPanel Spacing="6">
+        <TextBlock Text="Nhập mã kích hoạt (License Key):" FontWeight="SemiBold" Foreground="#334155"/>
+        <kz:KzTextBox x:Name="PART_LicenseKeyInput" AcceptsReturn="True" TextWrapping="Wrap" Height="100" Watermark="Dán mã bản quyền vào đây..." FontFamily="Consolas, Monospace" FontSize="12"/>
+      </StackPanel>
+
+      <!-- Status Message -->
+      <TextBlock x:Name="PART_StatusMsg" Text="" Foreground="#DC2626" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"/>
+
+    </StackPanel>
+
+    <!-- Footer -->
+    <Border Grid.Row="2" Background="#E2E8F0" Padding="16" BorderThickness="0,1,0,0" BorderBrush="#CBD5E1">
+      <Grid ColumnDefinitions="*,Auto">
+        <kz:KzButton Grid.Column="1" x:Name="PART_BtnActivate" Content="Kích hoạt" Classes="kz-primary" Width="120"/>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>
+
+
+

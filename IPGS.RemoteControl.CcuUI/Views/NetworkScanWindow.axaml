@@ -1,10 +1,10 @@
-<Window xmlns="https://github.com/avaloniaui"
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         xmlns:ccu="clr-namespace:IPGS.RemoteControl.CcuClient;assembly=IPGS.RemoteControl.CcuClient"
         xmlns:views="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
         x:Class="IPGS.RemoteControl.CcuUI.Views.NetworkScanWindow"
-        Title="🔍 Quét mạng — Tìm máy đã cài ZcuAgent"
+        Title="🔍 Quét mạng — Tìm máy đã cài Remote Agent"
         Width="620" Height="640"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
@@ -14,7 +14,7 @@
     <!-- ── Header ────────────────────────────────────────────────── -->
     <Border Grid.Row="0" Background="#251C53" Padding="20,16">
       <StackPanel Spacing="4">
-        <TextBlock Text="🔍 Quét mạng LAN — Tìm máy đã cài ZcuAgent"
+        <TextBlock Text="🔍 Quét mạng LAN — Tìm máy đã cài Remote Agent"
                    Foreground="White" FontSize="16" FontWeight="Bold" />
         <TextBlock Text="Xác nhận bằng bắt tay giao thức thật (HELLO), không chỉ dò cổng mở"
                    Foreground="#B8B3D6" FontSize="12" />
@@ -100,3 +100,6 @@
 
   </Grid>
 </Window>
+
+
+

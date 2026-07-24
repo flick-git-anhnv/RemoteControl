@@ -1,8 +1,8 @@
-<Window xmlns="https://github.com/avaloniaui"
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         x:Class="IPGS.RemoteControl.CcuUI.Views.ZcuSetupWizardWindow"
-        Title="⚡ Cài đặt IPGS Remote Agent lên ZCU (qua SSH)"
+        Title="⚡ Cài đặt IPGS Remote Agent lên Máy khách (qua SSH)"
         Width="680" Height="860"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
@@ -12,7 +12,7 @@
     <!-- ── Header ────────────────────────────────────────────────── -->
     <Border Grid.Row="0" Background="#1E1B4B" Padding="20,16">
       <StackPanel Spacing="4">
-        <TextBlock Text="⚡ Cài đặt &amp; Thiết lập ZCU Remote Agent Tự động"
+        <TextBlock Text="⚡ Cài đặt &amp; Thiết lập Máy khách Remote Agent Tự động"
                    Foreground="White" FontSize="16" FontWeight="Bold" />
         <TextBlock Text="Tự động cài đặt dependencies, cấu hình systemd service, firewall &amp; khoá màn hình qua SSH"
                    Foreground="#A5B4FC" FontSize="12" />
@@ -37,7 +37,7 @@
         <!-- STEP 1: Agent Config -->
         <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16">
           <StackPanel Spacing="12">
-            <TextBlock Text="1️⃣ Cấu hình tham số ZcuAgent" FontWeight="Bold" FontSize="14" Foreground="#334155"/>
+            <TextBlock Text="1️⃣ Cấu hình tham số Remote Agent" FontWeight="Bold" FontSize="14" Foreground="#334155"/>
 
             <Grid ColumnDefinitions="110,*,Auto" RowDefinitions="Auto">
               <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
@@ -112,3 +112,6 @@
 
   </Grid>
 </Window>
+
+
+
