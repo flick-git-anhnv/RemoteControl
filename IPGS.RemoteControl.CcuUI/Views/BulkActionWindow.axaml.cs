@@ -139,7 +139,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             }
         }
 
-        private void OnSnippetComboGotFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        private void OnSnippetComboTapped(object? sender, Avalonia.Input.TappedEventArgs e)
         {
             if (sender is AutoCompleteBox combo)
             {
