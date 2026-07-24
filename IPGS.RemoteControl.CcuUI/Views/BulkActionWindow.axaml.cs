@@ -136,11 +136,6 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 else if (text.Contains("syslog")) input.Text = "tail -n 50 /var/log/syslog";
                 else if (text.Contains("Cập nhật IPGS App")) input.Text = "sudo apt update && sudo apt install -y ipgs-app";
                 else if (text.Contains("Xóa log cũ")) input.Text = "sudo rm -rf /var/log/ipgs/*.log";
-                
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => {
-                    combo.SelectedItem = null;
-                    combo.Text = "";
-                });
             }
         }
 
@@ -148,13 +143,24 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             if (sender is AutoCompleteBox combo)
             {
-                combo.IsDropDownOpen = true;
+                if (!combo.IsDropDownOpen)
+                {
+                    combo.IsDropDownOpen = true;
+                }
             }
         }
 
         private async void OnRunCommandClick(object? sender, RoutedEventArgs e)
         {
             var input = this.FindControl<TextBox>("PART_CommandInput");
+            
+            var snippetCombo = this.FindControl<AutoCompleteBox>("PART_SnippetCombo");
+            if (snippetCombo != null)
+            {
+                snippetCombo.Text = "";
+                snippetCombo.SelectedItem = null;
+            }
+
             string cmdToRun = input?.Text?.Trim() ?? "";
 
             if (string.IsNullOrEmpty(cmdToRun))

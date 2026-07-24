@@ -144,12 +144,6 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 else if (text.Contains("IP & Mạng")) input.Text = "ip a && ping -c 4 8.8.8.8";
                 else if (text.Contains("Restart SSH")) input.Text = "sudo systemctl restart ssh";
                 else if (text.Contains("syslog")) input.Text = "tail -n 50 /var/log/syslog";
-                
-                // Reset the selection to allow choosing the same item again
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => {
-                    combo.SelectedItem = null;
-                    combo.Text = "";
-                });
             }
         }
 
@@ -157,17 +151,27 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             if (sender is AutoCompleteBox combo)
             {
-                combo.IsDropDownOpen = true;
+                if (!combo.IsDropDownOpen)
+                {
+                    combo.IsDropDownOpen = true;
+                }
             }
         }
 
         private async void OnRunCommandClick(object? sender, RoutedEventArgs e)
         {
             var sudoPassBox = this.FindControl<TextBox>("PART_SudoPassword");
-            string sudoPass = sudoPassBox != null && !string.IsNullOrEmpty(sudoPassBox.Text) ? sudoPassBox.Text : _sshPassword;
+            var input = this.FindControl<TextBox>("PART_CommandInput");
             
-            var commandInput = this.FindControl<TextBox>("PART_CommandInput");
-            string cmdToRun = commandInput?.Text?.Trim() ?? "";
+            var snippetCombo = this.FindControl<AutoCompleteBox>("PART_SnippetCombo");
+            if (snippetCombo != null)
+            {
+                snippetCombo.Text = "";
+                snippetCombo.SelectedItem = null;
+            }
+
+            string sudoPass = sudoPassBox != null && !string.IsNullOrEmpty(sudoPassBox.Text) ? sudoPassBox.Text : _sshPassword;
+            string cmdToRun = input?.Text?.Trim() ?? "";
 
             var statusMsg = this.FindControl<TextBlock>("PART_StatusMsg");
             var btnRun = this.FindControl<Button>("PART_BtnRunCommand");
