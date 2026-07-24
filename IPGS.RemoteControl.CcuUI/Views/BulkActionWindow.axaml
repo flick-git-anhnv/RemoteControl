@@ -19,7 +19,7 @@
           
           <StackPanel Orientation="Horizontal" Spacing="8">
             <TextBlock Text="Nhập lệnh bash/shell:" FontSize="13" Foreground="#64748B" VerticalAlignment="Center"/>
-            <AutoCompleteBox x:Name="PART_SnippetCombo" PlaceholderText="Nhập từ khóa (vd: Reboot, RAM)..." Width="300" SelectionChanged="OnSnippetSelectionChanged" FilterMode="Contains" MinimumPrefixLength="0" />
+            <AutoCompleteBox x:Name="PART_SnippetCombo" PlaceholderText="Nhập từ khóa (vd: Reboot, RAM)..." Width="300" SelectionChanged="OnSnippetSelectionChanged" FilterMode="Contains" MinimumPrefixLength="0" GotFocus="OnSnippetComboGotFocus" />
           </StackPanel>
           
           <Grid ColumnDefinitions="*,Auto">

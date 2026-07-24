@@ -153,6 +153,14 @@ namespace IPGS.RemoteControl.CcuUI.Views
             }
         }
 
+        private void OnSnippetComboGotFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            if (sender is AutoCompleteBox combo)
+            {
+                combo.IsDropDownOpen = true;
+            }
+        }
+
         private async void OnRunCommandClick(object? sender, RoutedEventArgs e)
         {
             var sudoPassBox = this.FindControl<TextBox>("PART_SudoPassword");

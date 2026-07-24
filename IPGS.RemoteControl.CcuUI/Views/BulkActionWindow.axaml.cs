@@ -144,6 +144,14 @@ namespace IPGS.RemoteControl.CcuUI.Views
             }
         }
 
+        private void OnSnippetComboGotFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            if (sender is AutoCompleteBox combo)
+            {
+                combo.IsDropDownOpen = true;
+            }
+        }
+
         private async void OnRunCommandClick(object? sender, RoutedEventArgs e)
         {
             var input = this.FindControl<TextBox>("PART_CommandInput");
