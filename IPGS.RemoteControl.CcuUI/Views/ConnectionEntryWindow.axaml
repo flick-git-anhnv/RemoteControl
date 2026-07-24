@@ -1,61 +1,161 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        xmlns:ccu="clr-namespace:IPGS.RemoteControl.CcuClient;assembly=IPGS.RemoteControl.CcuClient"
         x:Class="IPGS.RemoteControl.CcuUI.Views.ConnectionEntryWindow"
-        Title="iPGS Remote Control — ZCU"
-        Width="460" Height="278"
+        Title="iPGS Remote Control — Danh sách máy tính ZCU"
+        Width="760" Height="560"
         WindowStartupLocation="CenterScreen"
-        CanResize="False">
+        CanResize="True">
 
-  <Grid RowDefinitions="Auto,*,Auto">
+  <Grid RowDefinitions="Auto,Auto,*,Auto">
 
     <!-- ── Header bar ─────────────────────────────────────────────── -->
     <Border Grid.Row="0" Background="#251C53" Padding="20,14">
-      <TextBlock Text="Kết nối điều khiển ZCU từ xa"
-                 Foreground="White"
-                 FontSize="15"
-                 FontWeight="SemiBold" />
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="2">
+          <TextBlock Text="iPGS Remote Control"
+                     Foreground="White"
+                     FontSize="16"
+                     FontWeight="Bold" />
+          <TextBlock Text="Quản lý danh sách máy tính &amp; Kết nối điều khiển ZCU"
+                     Foreground="#D1C4E9"
+                     FontSize="12" />
+        </StackPanel>
+        
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <kz:KzButton x:Name="PART_BtnAddComputer" Content="+ Thêm máy tính" Classes="kz-primary" />
+        </StackPanel>
+      </Grid>
     </Border>
 
-    <!-- ── Input fields ───────────────────────────────────────────── -->
-    <Grid Grid.Row="1"
-          RowDefinitions="Auto,Auto,Auto"
-          ColumnDefinitions="130,*"
-          RowSpacing="12"
-          Margin="24,20,24,8">
+    <!-- ── Filter & Search Toolbar ────────────────────────────────── -->
+    <Border Grid.Row="1" Background="#F4F5F8" Padding="16,10" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,Auto">
+        <kz:KzTextBox Grid.Column="0"
+                      x:Name="PART_SearchBox"
+                      Watermark="🔍 Tìm kiếm máy tính theo tên hoặc IP..."
+                      Margin="0,0,12,0" />
+        
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <kz:KzButton x:Name="PART_BtnTabAll"    Content="Tất cả máy tính" KzSize="Sm" />
+          <kz:KzButton x:Name="PART_BtnTabRecent" Content="Lịch sử gần đây" KzSize="Sm" />
+        </StackPanel>
+      </Grid>
+    </Border>
 
-      <TextBlock Grid.Row="0" Grid.Column="0"
-                 Text="Địa chỉ IP ZCU:"
-                 VerticalAlignment="Center" />
-      <kz:KzTextBox Grid.Row="0" Grid.Column="1"
-                    x:Name="PART_Host"
-                    Watermark="192.168.x.x" />
+    <!-- ── Computer List View ─────────────────────────────────────── -->
+    <Grid Grid.Row="2" Margin="16,12">
+      <!-- Main Computer ListBox -->
+      <ListBox x:Name="PART_ComputerListBox"
+               Background="Transparent"
+               BorderThickness="0">
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="ccu:ComputerProfile">
+            <Border Background="White"
+                    BorderBrush="#E0E0E0"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="14,10"
+                    Margin="0,0,0,8">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                
+                <!-- Computer Icon Badge -->
+                <Border Grid.Column="0"
+                        Width="42" Height="42"
+                        CornerRadius="21"
+                        Background="#EDE7F6"
+                        Margin="0,0,14,0"
+                        VerticalAlignment="Center">
+                  <TextBlock Text="💻"
+                             FontSize="20"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"/>
+                </Border>
 
-      <TextBlock Grid.Row="1" Grid.Column="0"
-                 Text="Cổng TCP:"
-                 VerticalAlignment="Center" />
-      <kz:KzTextBox Grid.Row="1" Grid.Column="1"
-                    x:Name="PART_Port"
-                    Text="17600" />
+                <!-- Info Details -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding DisplayName}"
+                               FontWeight="Bold"
+                               FontSize="14"
+                               Foreground="#212121"/>
+                    <Border Background="#E8EAF6" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Host}" FontSize="11" Foreground="#3F51B5" FontWeight="SemiBold"/>
+                    </Border>
+                  </StackPanel>
+                  
+                  <StackPanel Orientation="Horizontal" Spacing="16">
+                    <TextBlock Text="{Binding Port, StringFormat='Cổng: {0}'}"
+                               FontSize="12"
+                               Foreground="#616161"/>
+                    <TextBlock Text="{Binding LastConnectedAt, StringFormat='Lần cuối: {0:dd/MM/yyyy HH:mm}'}"
+                               FontSize="12"
+                               Foreground="#757575"/>
+                  </StackPanel>
 
-      <TextBlock Grid.Row="2" Grid.Column="0"
-                 Text="Token:"
-                 VerticalAlignment="Center" />
-      <kz:KzTextBox Grid.Row="2" Grid.Column="1"
-                    x:Name="PART_Token"
-                    Watermark="Shared-secret token" />
+                  <TextBlock Text="{Binding Notes}"
+                             FontSize="11"
+                             Foreground="#9E9E9E"
+                             IsVisible="{Binding Notes, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                </StackPanel>
+
+                <!-- Actions -->
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Center">
+                  <kz:KzButton Tag="{Binding}"
+                               Click="OnItemConnectClick"
+                               Content="Kết nối"
+                               Classes="kz-primary"
+                               KzSize="Sm" />
+                  <kz:KzButton Tag="{Binding}"
+                               Click="OnItemEditClick"
+                               Content="Sửa"
+                               KzSize="Sm" />
+                  <kz:KzButton Tag="{Binding}"
+                               Click="OnItemDeleteClick"
+                               Content="Xóa"
+                               KzSize="Sm" />
+                </StackPanel>
+
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <!-- Empty state when no computer matches -->
+      <StackPanel x:Name="PART_EmptyState"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Spacing="10"
+                  IsVisible="False">
+        <TextBlock Text="🖥️" FontSize="48" HorizontalAlignment="Center"/>
+        <TextBlock Text="Chưa có máy tính nào trong danh sách"
+                   FontSize="15"
+                   FontWeight="SemiBold"
+                   Foreground="#757575"
+                   HorizontalAlignment="Center"/>
+        <TextBlock Text="Nhấn '+ Thêm máy tính' để lưu thông tin ZCU mới."
+                   FontSize="12"
+                   Foreground="#9E9E9E"
+                   HorizontalAlignment="Center"/>
+      </StackPanel>
     </Grid>
 
-    <!-- ── Buttons ────────────────────────────────────────────────── -->
-    <StackPanel Grid.Row="2"
-                Orientation="Horizontal"
-                HorizontalAlignment="Right"
-                Spacing="8"
-                Margin="24,0,24,20">
-      <kz:KzButton x:Name="PART_BtnExit"    Content="Thoát" />
-      <kz:KzButton x:Name="PART_BtnConnect" Content="Kết nối"
-                   Classes="kz-primary" />
-    </StackPanel>
+    <!-- ── Quick Connection Drawer Bar (Bottom) ────────────────────── -->
+    <Border Grid.Row="3" Background="#F5F5F7" Padding="16,12" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto,100,Auto,*,Auto" RowDefinitions="Auto">
+        <TextBlock Grid.Column="0" Text="Kết nối nhanh:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
+        <kz:KzTextBox Grid.Column="1" x:Name="PART_QuickHost" Watermark="IP (192.168.x.x)" Width="150" Margin="0,0,6,0"/>
+        <kz:KzTextBox Grid.Column="2" x:Name="PART_QuickPort" Text="17600" Width="70" Margin="0,0,6,0"/>
+        <kz:KzTextBox Grid.Column="3" x:Name="PART_QuickToken" Watermark="Token" Width="140" Margin="0,0,10,0"/>
+        <CheckBox Grid.Column="4" x:Name="PART_QuickSaveCheck" Content="Lưu danh sách" IsChecked="True" VerticalAlignment="Center"/>
+        <kz:KzButton Grid.Column="5" x:Name="PART_QuickConnectBtn" Content="Kết nối" Classes="kz-primary" KzSize="Sm"/>
+      </Grid>
+    </Border>
 
   </Grid>
 </Window>

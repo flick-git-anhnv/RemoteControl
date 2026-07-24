@@ -1,0 +1,75 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.ComputerEditWindow"
+        Title="Thông tin máy tính ZCU"
+        Width="480" Height="360"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- ── Header bar ─────────────────────────────────────────────── -->
+    <Border Grid.Row="0" Background="#251C53" Padding="20,14">
+      <TextBlock x:Name="PART_TitleText"
+                 Text="Thêm máy tính ZCU mới"
+                 Foreground="White"
+                 FontSize="15"
+                 FontWeight="SemiBold" />
+    </Border>
+
+    <!-- ── Input fields ───────────────────────────────────────────── -->
+    <Grid Grid.Row="1"
+          RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+          ColumnDefinitions="130,*"
+          RowSpacing="10"
+          Margin="24,16,24,8">
+
+      <TextBlock Grid.Row="0" Grid.Column="0"
+                 Text="Tên máy tính:"
+                 VerticalAlignment="Center" />
+      <kz:KzTextBox Grid.Row="0" Grid.Column="1"
+                    x:Name="PART_Name"
+                    Watermark="Ví dụ: ZCU Trạm P01" />
+
+      <TextBlock Grid.Row="1" Grid.Column="0"
+                 Text="Địa chỉ IP ZCU:"
+                 VerticalAlignment="Center" />
+      <kz:KzTextBox Grid.Row="1" Grid.Column="1"
+                    x:Name="PART_Host"
+                    Watermark="192.168.x.x" />
+
+      <TextBlock Grid.Row="2" Grid.Column="0"
+                 Text="Cổng TCP:"
+                 VerticalAlignment="Center" />
+      <kz:KzTextBox Grid.Row="2" Grid.Column="1"
+                    x:Name="PART_Port"
+                    Text="17600" />
+
+      <TextBlock Grid.Row="3" Grid.Column="0"
+                 Text="Token:"
+                 VerticalAlignment="Center" />
+      <kz:KzTextBox Grid.Row="3" Grid.Column="1"
+                    x:Name="PART_Token"
+                    Watermark="Shared-secret token" />
+
+      <TextBlock Grid.Row="4" Grid.Column="0"
+                 Text="Ghi chú:"
+                 VerticalAlignment="Center" />
+      <kz:KzTextBox Grid.Row="4" Grid.Column="1"
+                    x:Name="PART_Notes"
+                    Watermark="Ghi chú vị trí, mô tả..." />
+    </Grid>
+
+    <!-- ── Buttons ────────────────────────────────────────────────── -->
+    <StackPanel Grid.Row="2"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Spacing="8"
+                Margin="24,0,24,16">
+      <kz:KzButton x:Name="PART_BtnCancel" Content="Hủy bỏ" />
+      <kz:KzButton x:Name="PART_BtnSave"   Content="Lưu" Classes="kz-primary" />
+    </StackPanel>
+
+  </Grid>
+</Window>

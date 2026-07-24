@@ -16,8 +16,8 @@
       Avalonia 12.1.0 — match KztekComponentAvalonia.
       Must be a direct reference so the Avalonia AXAML compiler (Build.Tasks) activates.
     -->
-    <PackageReference Include="Avalonia"               Version="12.1.0" />
-    <PackageReference Include="Avalonia.Desktop"       Version="12.1.0" />
+    <PackageReference Include="Avalonia" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
 
     <!-- JPEG decode on CCU side — 3.119.4 required by Avalonia.Desktop 12.1.0 → Avalonia.Skia -->
@@ -28,8 +28,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\5.BaseUI\KztekComponentAvalonia\KztekComponentAvalonia\KztekComponentAvalonia.csproj" />
     <ProjectReference Include="..\IPGS.RemoteControl.CcuClient\IPGS.RemoteControl.CcuClient.csproj" />
-    <ProjectReference Include="E:\KZTEK\Code_Git\5.BaseUI\KztekComponentAvalonia\KztekComponentAvalonia\KztekComponentAvalonia.csproj" />
   </ItemGroup>
 
 </Project>
