@@ -25,7 +25,8 @@
         
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
           <kz:KzButton x:Name="PART_BtnSetupWizard" Content="⚡ Cài đặt ZCU từ xa..." />
-          <kz:KzButton x:Name="PART_BtnAddComputer" Content="+ Thêm máy tính" Classes="kz-primary" />
+          <kz:KzButton x:Name="PART_BtnMultiRemote" Content="🚀 Remote nhiều máy (Grid View)..." Classes="kz-primary" />
+          <kz:KzButton x:Name="PART_BtnAddComputer" Content="+ Thêm máy tính" />
         </StackPanel>
       </Grid>
     </Border>

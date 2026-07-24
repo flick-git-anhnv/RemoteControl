@@ -1,0 +1,88 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        xmlns:views="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.MultiRemoteWindow"
+        Title="iPGS Remote Control — Multi-Remote Dashboard (Nhiều máy cùng lúc)"
+        Width="1280" Height="800"
+        WindowStartupLocation="CenterScreen"
+        CanResize="True"
+        Background="#1E1E2E">
+
+  <Grid RowDefinitions="Auto,*">
+
+    <!-- ── Top Header Toolbar Bar ────────────────────────────────────────── -->
+    <Border Grid.Row="0" Background="#251C53" Padding="16,10" BorderBrush="#3B2D7B" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        
+        <!-- Title & Subtitle -->
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <TextBlock Text="🖥️ Multi-Remote Dashboard"
+                     Foreground="White"
+                     FontSize="16"
+                     FontWeight="Bold"
+                     VerticalAlignment="Center"/>
+          <Border Background="#3D2E7C" CornerRadius="12" Padding="10,3" VerticalAlignment="Center">
+            <TextBlock x:Name="PART_SessionCountText"
+                       Text="0 phiên đang kết nối"
+                       Foreground="#E0D7FF"
+                       FontSize="11"
+                       FontWeight="SemiBold"/>
+          </Border>
+        </StackPanel>
+
+        <!-- View Mode Switcher (Grid Presets, Custom R x C, Multi-Tab) -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <TextBlock Text="Chế độ xem:" Foreground="#D1C4E9" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0"/>
+          
+          <kz:KzButton x:Name="PART_BtnGrid2x2" Content="Lưới 2x2" KzSize="Sm" Classes="kz-primary" />
+          <kz:KzButton x:Name="PART_BtnGrid3x3" Content="Lưới 3x3" KzSize="Sm" />
+          
+          <!-- Custom Grid Dimension Input (Rows x Cols) -->
+          <Border Background="#332766" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+              <TextBlock Text="Lưới:" Foreground="#E0D7FF" FontSize="11" VerticalAlignment="Center"/>
+              <kz:KzTextBox x:Name="PART_RowsInput" Text="2" Width="36" KzSize="Sm" />
+              <TextBlock Text="x" Foreground="#E0D7FF" FontSize="11" VerticalAlignment="Center"/>
+              <kz:KzTextBox x:Name="PART_ColsInput" Text="2" Width="36" KzSize="Sm" />
+              <kz:KzButton x:Name="PART_BtnApplyCustomGrid" Content="Áp dụng" KzSize="Sm" />
+            </StackPanel>
+          </Border>
+
+          <kz:KzButton x:Name="PART_BtnTabView" Content="Thẻ Tab" KzSize="Sm" />
+        </StackPanel>
+
+        <!-- Action Controls -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <kz:KzButton x:Name="PART_BtnAddSession" Content="+ Thêm máy" KzSize="Sm" />
+          <kz:KzButton x:Name="PART_BtnCloseAll"    Content="❌ Ngắt tất cả" KzSize="Sm" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- ── Main View Area (Grid vs Tab) ─────────────────────────────────── -->
+    <Grid Grid.Row="1" x:Name="PART_MainContainer">
+
+      <!-- GRID VIEW PANEL -->
+      <ScrollViewer x:Name="PART_GridScrollViewer" IsVisible="True" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <UniformGrid x:Name="PART_UniformGrid" Rows="2" Columns="2" Margin="8" />
+      </ScrollViewer>
+
+      <!-- TAB VIEW PANEL -->
+      <TabControl x:Name="PART_TabControl" IsVisible="False" Margin="4">
+        <!-- Dynamic TabItems populated in code-behind -->
+      </TabControl>
+
+      <!-- EMPTY STATE -->
+      <StackPanel x:Name="PART_EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" IsVisible="False">
+        <TextBlock Text="💻" FontSize="56" HorizontalAlignment="Center"/>
+        <TextBlock Text="Chưa có máy tính nào trong phiên Remote Multi-Dashboard"
+                   Foreground="#A6ADC8" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+        <TextBlock Text="Nhấn '+ Thêm máy' để chọn các máy ZCU cần theo dõi song song."
+                   Foreground="#7F849C" FontSize="13" HorizontalAlignment="Center"/>
+      </StackPanel>
+
+    </Grid>
+
+  </Grid>
+</Window>

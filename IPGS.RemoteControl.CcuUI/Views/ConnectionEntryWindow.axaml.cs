@@ -23,6 +23,9 @@ public partial class ConnectionEntryWindow : Window
         if (this.FindControl<KzButton>("PART_BtnSetupWizard") is { } btnWizard)
             btnWizard.Click += OnSetupWizardClick;
 
+        if (this.FindControl<KzButton>("PART_BtnMultiRemote") is { } btnMulti)
+            btnMulti.Click += OnMultiRemoteClick;
+
         if (this.FindControl<KzButton>("PART_BtnAddComputer") is { } btnAdd)
             btnAdd.Click += OnAddComputerClick;
 
@@ -194,6 +197,17 @@ public partial class ConnectionEntryWindow : Window
         StartRemoteControl(host, port, token, null);
     }
 
+    private void OnMultiRemoteClick(object? sender, RoutedEventArgs e)
+    {
+        var allProfiles = _store.GetAll().ToList();
+        var multiWin = new MultiRemoteWindow();
+        if (allProfiles.Count > 0)
+        {
+            multiWin.AddSessions(allProfiles);
+        }
+        multiWin.Show();
+    }
+
     private void StartRemoteControl(string host, int port, string token, string? name)
     {
         // Ghi nhận lịch sử kết nối
@@ -201,11 +215,9 @@ public partial class ConnectionEntryWindow : Window
 
         var screenWin = new RemoteScreenWindow(host, port, token);
 
-        this.Hide();
         screenWin.Closed += (_, _) =>
         {
             RefreshList();
-            this.Show();
         };
         screenWin.Show();
     }
