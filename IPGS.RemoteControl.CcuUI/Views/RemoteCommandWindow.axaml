@@ -34,12 +34,7 @@
             <StackPanel Spacing="4">
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="Nhập lệnh bash/shell cần thực thi:" FontSize="12" Foreground="#64748B" VerticalAlignment="Center"/>
-                <ComboBox x:Name="PART_SnippetCombo" PlaceholderText="Chọn kịch bản nhanh..." Width="250" SelectionChanged="OnSnippetSelectionChanged">
-                  <ComboBoxItem Content="🔄 Khởi động lại (Reboot)"/>
-                  <ComboBoxItem Content="💾 Kiểm tra RAM &amp; Ổ cứng"/>
-                  <ComboBoxItem Content="🧹 Dọn dẹp cache (apt clean)"/>
-                  <ComboBoxItem Content="📊 Xem Top Process"/>
-                </ComboBox>
+                <AutoCompleteBox x:Name="PART_SnippetCombo" PlaceholderText="Nhập từ khóa (vd: Reboot, RAM)..." Width="300" SelectionChanged="OnSnippetSelectionChanged" FilterMode="Contains" MinimumPrefixLength="0" />
               </StackPanel>
               <Grid ColumnDefinitions="*,Auto">
                 <TextBox x:Name="PART_CommandInput" Grid.Column="0" Margin="0,0,8,0" Height="80" AcceptsReturn="True" TextWrapping="Wrap" />

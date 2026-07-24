@@ -91,6 +91,27 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             InitializeComponent();
             _targets = targets;
+
+            var snippetCombo = this.FindControl<AutoCompleteBox>("PART_SnippetCombo");
+            if (snippetCombo != null)
+            {
+                snippetCombo.ItemsSource = new string[]
+                {
+                    "🔄 Khởi động lại (Reboot)",
+                    "🔌 Tắt máy (Shutdown)",
+                    "💾 Kiểm tra RAM & Ổ cứng",
+                    "🧹 Dọn dẹp cache (apt clean)",
+                    "📊 Xem Top Process",
+                    "🌐 Cập nhật APT (apt update)",
+                    "🌐 Cập nhật & Nâng cấp (apt update & upgrade)",
+                    "🔍 Kiểm tra IP & Mạng",
+                    "🛠 Khởi động lại SSH (Restart SSH)",
+                    "📋 Xem log hệ thống (syslog)",
+                    "💾 Cập nhật IPGS App",
+                    "🧹 Xóa log cũ"
+                };
+            }
+            
             _results = new ObservableCollection<BulkTaskResult>(_targets.Select(p => new BulkTaskResult { Profile = p }));
             
             var listBox = this.FindControl<ListBox>("PART_ResultListBox");
@@ -99,16 +120,27 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
         private void OnSnippetSelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
-            var combo = sender as ComboBox;
+            var combo = sender as AutoCompleteBox;
             var input = this.FindControl<TextBox>("PART_CommandInput");
-            if (combo?.SelectedItem is ComboBoxItem item && item.Content != null && input != null)
+            if (combo?.SelectedItem is string text && input != null)
             {
-                string text = item.Content.ToString() ?? "";
                 if (text.Contains("Reboot")) input.Text = "sudo reboot";
+                else if (text.Contains("Shutdown")) input.Text = "sudo poweroff";
+                else if (text.Contains("RAM & Ổ cứng")) input.Text = "free -m && echo '' && df -h /";
+                else if (text.Contains("apt clean")) input.Text = "sudo apt clean && sudo apt autoremove -y";
+                else if (text.Contains("Top Process")) input.Text = "top -bn1 | head -n 15";
+                else if (text.Contains("apt update & upgrade")) input.Text = "sudo apt update && sudo apt upgrade -y";
+                else if (text.Contains("apt update")) input.Text = "sudo apt update";
+                else if (text.Contains("IP & Mạng")) input.Text = "ip a && ping -c 4 8.8.8.8";
+                else if (text.Contains("Restart SSH")) input.Text = "sudo systemctl restart ssh";
+                else if (text.Contains("syslog")) input.Text = "tail -n 50 /var/log/syslog";
                 else if (text.Contains("Cập nhật IPGS App")) input.Text = "sudo apt update && sudo apt install -y ipgs-app";
                 else if (text.Contains("Xóa log cũ")) input.Text = "sudo rm -rf /var/log/ipgs/*.log";
                 
-                combo.SelectedIndex = -1; // reset
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => {
+                    combo.SelectedItem = null;
+                    combo.Text = "";
+                });
             }
         }
 
