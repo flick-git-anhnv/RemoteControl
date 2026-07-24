@@ -126,14 +126,25 @@ public static class KeyboardMapper
     /// Avalonia KeySymbol string — a single Unicode character already modified by
     /// Shift/AltGr (e.g. "@" for Shift+2 on US layout).  May be null.
     /// </param>
-    public static uint? Resolve(Key key, string? keySymbol)
+    /// <param name="modifiers">
+    /// Currently-held modifier keys. When Control is held, <paramref name="keySymbol"/>
+    /// is NOT a printable character — Windows/Avalonia reports the ASCII control code
+    /// instead (e.g. Ctrl+V → 0x16 "SYN", not 'v'). Using that control code directly as
+    /// an X11 keysym breaks Ctrl+shortcuts (Ctrl+C/Ctrl+V/...) because XKeysymToKeycode
+    /// finds no physical key for it. So when Control is held, Tier 2 is skipped and the
+    /// plain-letter Tier 3 fallback is used instead — matching the existing design where
+    /// modifier keysyms (Control_L/R) are sent as separate KEY_EVENTs before this one.
+    /// </param>
+    public static uint? Resolve(Key key, string? keySymbol, KeyModifiers modifiers = KeyModifiers.None)
     {
         // ── Tier 1: special/modifier key table ──────────────────────────────────
         if (SpecialKeyMap.TryGetValue(key, out uint special))
             return special;
 
-        // ── Tier 2: KeySymbol Unicode character ─────────────────────────────────
-        if (keySymbol is { Length: 1 })
+        bool controlHeld = (modifiers & KeyModifiers.Control) != 0;
+
+        // ── Tier 2: KeySymbol Unicode character (skipped while Ctrl is held — see above) ──
+        if (!controlHeld && keySymbol is { Length: 1 })
         {
             uint cp = keySymbol[0];
             if (cp <= 0x00FF)

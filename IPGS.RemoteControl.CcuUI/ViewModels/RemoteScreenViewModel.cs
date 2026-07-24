@@ -140,11 +140,17 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     /// Avalonia KeySymbol (single Unicode char after Shift/AltGr modifiers applied).
     /// May be null for modifier keys.
     /// </param>
-    public void HandleKeyDown(Avalonia.Input.Key key, string? keySymbol)
+    /// <param name="modifiers">
+    /// Modifier keys held during this event. Required so <see cref="KeyboardMapper"/>
+    /// can detect Ctrl+letter shortcuts (Ctrl+C/Ctrl+V/...) and avoid misreading the
+    /// Windows-reported ASCII control code as a literal keysym.
+    /// </param>
+    public void HandleKeyDown(Avalonia.Input.Key key, string? keySymbol,
+        Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None)
     {
         if (!IsStreaming) return;
 
-        uint? keysym = KeyboardMapper.Resolve(key, keySymbol);
+        uint? keysym = KeyboardMapper.Resolve(key, keySymbol, modifiers);
         if (keysym is null) return;
 
         // Deduplicate: skip if already tracked as pressed (OS auto-repeat, TDD §17.8)
@@ -157,11 +163,12 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     /// Processes a key-release event. Removes the keysym from the held-down set
     /// and sends KEY_EVENT release via CcuClient.
     /// </summary>
-    public void HandleKeyUp(Avalonia.Input.Key key, string? keySymbol)
+    public void HandleKeyUp(Avalonia.Input.Key key, string? keySymbol,
+        Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None)
     {
         if (!IsStreaming) return;
 
-        uint? keysym = KeyboardMapper.Resolve(key, keySymbol);
+        uint? keysym = KeyboardMapper.Resolve(key, keySymbol, modifiers);
         if (keysym is null) return;
 
         _downKeysyms.Remove(keysym.Value);

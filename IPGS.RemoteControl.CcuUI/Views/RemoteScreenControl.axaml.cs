@@ -43,11 +43,21 @@ public partial class RemoteScreenControl : UserControl
 
         var pos = e.GetPosition(this);
         vm.HandleMouseMove(pos.X, pos.Y, Bounds.Width, Bounds.Height);
+
+        // Mark handled so the move does not bubble to the local Window (drag,
+        // hover-highlight on local controls, etc.) — this control owns all pointer
+        // interaction inside the remote-screen area.
+        e.Handled = true;
     }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (DataContext is not RemoteScreenViewModel vm) return;
+        // Request keyboard focus here (not in an OnPointerPressed override) because
+        // once e.Handled is set below, Avalonia will not invoke ancestor class
+        // handlers for this routed event — focusing later would never run.
+        Focus();
+
+        if (DataContext is not RemoteScreenViewModel vm) { e.Handled = true; return; }
 
         var point = e.GetCurrentPoint(this);
         var kind  = point.Properties.PointerUpdateKind;
@@ -55,11 +65,16 @@ public partial class RemoteScreenControl : UserControl
 
         vm.HandleMouseButton(kind, isDown: true,
             pos.X, pos.Y, Bounds.Width, Bounds.Height);
+
+        // Without this, the click also bubbles to the local Window/parent controls —
+        // the reported "both sides receive the click" bug: the CCU side reacts to the
+        // click as ordinary local UI input in addition to it being forwarded to ZCU.
+        e.Handled = true;
     }
 
     private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (DataContext is not RemoteScreenViewModel vm) return;
+        if (DataContext is not RemoteScreenViewModel vm) { e.Handled = true; return; }
 
         var point = e.GetCurrentPoint(this);
         var kind  = point.Properties.PointerUpdateKind;
@@ -67,6 +82,8 @@ public partial class RemoteScreenControl : UserControl
 
         vm.HandleMouseButton(kind, isDown: false,
             pos.X, pos.Y, Bounds.Width, Bounds.Height);
+
+        e.Handled = true;
     }
 
     // ── Keyboard event handlers (Tunnel — registered in constructor) ─────────
@@ -75,7 +92,7 @@ public partial class RemoteScreenControl : UserControl
     {
         if (DataContext is not RemoteScreenViewModel vm) return;
 
-        vm.HandleKeyDown(e.Key, e.KeySymbol);
+        vm.HandleKeyDown(e.Key, e.KeySymbol, e.KeyModifiers);
 
         // Mark handled so Avalonia does not additionally process Tab for
         // focus-navigation or trigger menu mnemonics (TDD §17.5).
@@ -86,7 +103,7 @@ public partial class RemoteScreenControl : UserControl
     {
         if (DataContext is not RemoteScreenViewModel vm) return;
 
-        vm.HandleKeyUp(e.Key, e.KeySymbol);
+        vm.HandleKeyUp(e.Key, e.KeySymbol, e.KeyModifiers);
         e.Handled = true;
     }
 
@@ -98,13 +115,5 @@ public partial class RemoteScreenControl : UserControl
         // alt-tabs away or clicks outside the remote screen area.
         if (DataContext is RemoteScreenViewModel vm)
             vm.ReleaseAllDownKeys();
-    }
-
-    // ── PointerPressed: also request keyboard focus so key events are received ─
-
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
-    {
-        base.OnPointerPressed(e);
-        Focus();
     }
 }
