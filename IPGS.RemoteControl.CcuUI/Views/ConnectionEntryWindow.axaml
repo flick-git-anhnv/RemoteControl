@@ -12,9 +12,10 @@
   <Window.Resources>
     <conv:ComputerStatusToBrushConverter x:Key="ComputerStatusToBrushConverter" />
     <conv:NullableBoolToStatusBrushConverter x:Key="NullableBoolToStatusBrushConverter" />
+    <conv:NullableBoolIsTrueConverter x:Key="NullableBoolIsTrueConverter" />
   </Window.Resources>
 
-  <Grid RowDefinitions="Auto,Auto,*,Auto">
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
 
     <!-- ── Header bar ─────────────────────────────────────────────── -->
     <Border Grid.Row="0" Background="#251C53" Padding="20,14">
@@ -52,8 +53,15 @@
       </Grid>
     </Border>
 
+    <!-- ── SSH requirement hint (dùng chung cho nút Cài remote / Setup) ──── -->
+    <Border Grid.Row="2" Background="#FFFBEB" BorderBrush="#FDE68A" BorderThickness="0,0,0,1" Padding="16,8">
+      <TextBlock FontSize="11" Foreground="#92400E" TextWrapping="Wrap">
+        ⚠️ Yêu cầu: máy đích phải đã cài &amp; bật SSH server trước khi thao tác "⚡ Cài remote" / "🖥️ Setup" (nút tự bật khi phát hiện có SSH). Nếu chưa có, chạy trên máy đó: <Run FontFamily="Consolas, Monospace" Foreground="#78350F" Text="sudo apt update &amp;&amp; sudo apt install -y openssh-server &amp;&amp; sudo systemctl enable --now ssh"/>
+      </TextBlock>
+    </Border>
+
     <!-- ── Computer List View ─────────────────────────────────────── -->
-    <Grid Grid.Row="2" Margin="16,12">
+    <Grid Grid.Row="3" Margin="16,12">
       <!-- Main Computer ListBox -->
       <ListBox x:Name="PART_ComputerListBox"
                Background="Transparent"
@@ -133,14 +141,20 @@
                                Click="OnItemConnectClick"
                                Content="Kết nối"
                                Classes="kz-primary"
+                               IsEnabled="{Binding AgentReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                               ToolTip.Tip="{Binding AgentStatusTooltip}"
                                KzSize="Sm" />
                   <kz:KzButton Tag="{Binding}"
                                Click="OnItemSetupWizardClick"
                                Content="⚡ Cài remote"
+                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                               ToolTip.Tip="{Binding SshStatusTooltip}"
                                KzSize="Sm" />
                   <kz:KzButton Tag="{Binding}"
                                Click="OnItemKioskDeployClick"
                                Content="🖥️ Setup"
+                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                               ToolTip.Tip="{Binding SshStatusTooltip}"
                                KzSize="Sm" />
                   <kz:KzButton Tag="{Binding}"
                                Click="OnItemEditClick"
@@ -178,7 +192,7 @@
     </Grid>
 
     <!-- ── Quick Connection Drawer Bar (Bottom) ────────────────────── -->
-    <Border Grid.Row="3" Background="#F5F5F7" Padding="16,12" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0">
+    <Border Grid.Row="4" Background="#F5F5F7" Padding="16,12" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="*,Auto,100,Auto,*,Auto" RowDefinitions="Auto">
         <TextBlock Grid.Column="0" Text="Kết nối nhanh:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
         <kz:KzTextBox Grid.Column="1" x:Name="PART_QuickHost" Watermark="IP (192.168.x.x)" Width="150" Margin="0,0,6,0"/>

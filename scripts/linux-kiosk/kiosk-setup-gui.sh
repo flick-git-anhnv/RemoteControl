@@ -1,35 +1,35 @@
-#!/bin/bash
-# kiosk-setup-gui.sh — GUI (zenity) chạy TẠI CHỖ trên máy kiosk để setup ẩn Top Bar
-# + cấu hình kiosk iPGS, không cần gõ lệnh terminal thủ công.
+﻿#!/bin/bash
+# kiosk-setup-gui.sh â€” GUI (zenity) cháº¡y Táº I CHá»– trÃªn mÃ¡y kiosk Ä‘á»ƒ setup áº©n Top Bar
+# + cáº¥u hÃ¬nh kiosk iPGS, khÃ´ng cáº§n gÃµ lá»‡nh terminal thá»§ cÃ´ng.
 #
-# Dùng khi kỹ thuật viên đứng trực tiếp trước màn hình máy kiosk.
-# (Muốn deploy từ xa cho nhiều máy cùng lúc — xem
-#  scripts/windows-tools/KioskDeployTool.ps1 chạy trên máy Windows của IT.)
+# DÃ¹ng khi ká»¹ thuáº­t viÃªn Ä‘á»©ng trá»±c tiáº¿p trÆ°á»›c mÃ n hÃ¬nh mÃ¡y kiosk.
+# (Muá»‘n deploy tá»« xa cho nhiá»u mÃ¡y cÃ¹ng lÃºc â€” xem
+#  scripts/windows-tools/KioskDeployTool.ps1 cháº¡y trÃªn mÃ¡y Windows cá»§a IT.)
 #
-# Yêu cầu: gói `zenity` (thường có sẵn trên Ubuntu Desktop). Nếu chưa có:
+# YÃªu cáº§u: gÃ³i `zenity` (thÆ°á»ng cÃ³ sáºµn trÃªn Ubuntu Desktop). Náº¿u chÆ°a cÃ³:
 #   sudo apt install zenity
 #
-# Chạy (double-click file .desktop tạo bên dưới, hoặc từ terminal):
+# Cháº¡y (double-click file .desktop táº¡o bÃªn dÆ°á»›i, hoáº·c tá»« terminal):
 #   bash scripts/linux-kiosk/kiosk-setup-gui.sh
 
 set -e
 
-# Ép locale UTF-8 tường minh cho zenity — phòng trường hợp script được gọi từ
-# ngữ cảnh thiếu LANG/LC_ALL (autostart, cron, .desktop bị strip env...) khiến
-# GTK hiển thị tiếng Việt sai (mojibake). Không sửa được nếu bản thân FILE đã
-# bị hỏng encoding lúc copy — xem ghi chú "QUAN TRỌNG" bên dưới.
+# Ã‰p locale UTF-8 tÆ°á»ng minh cho zenity â€” phÃ²ng trÆ°á»ng há»£p script Ä‘Æ°á»£c gá»i tá»«
+# ngá»¯ cáº£nh thiáº¿u LANG/LC_ALL (autostart, cron, .desktop bá»‹ strip env...) khiáº¿n
+# GTK hiá»ƒn thá»‹ tiáº¿ng Viá»‡t sai (mojibake). KhÃ´ng sá»­a Ä‘Æ°á»£c náº¿u báº£n thÃ¢n FILE Ä‘Ã£
+# bá»‹ há»ng encoding lÃºc copy â€” xem ghi chÃº "QUAN TRá»ŒNG" bÃªn dÆ°á»›i.
 export LANG="${LANG:-en_US.UTF-8}"
 export LC_ALL="en_US.UTF-8"
 
-# QUAN TRỌNG: nếu chữ tiếng Việt trong dialog zenity hiện ra ký tự lỗi
-# (VD: "KhÃ´ng cÃ³ gÃ¬") dù đã export locale ở trên — đây LÀ DẤU HIỆU file
-# .sh đã bị hỏng encoding trong lúc copy sang máy (thường gặp khi copy qua
-# USB/Files app của trình quản lý file, hoặc mở bằng nano/gedit rồi paste).
-# Cách fix: xóa file trên máy kiosk, copy lại bằng scp/pscp (giữ nguyên byte,
-# không qua GUI file manager):
+# QUAN TRá»ŒNG: náº¿u chá»¯ tiáº¿ng Viá»‡t trong dialog zenity hiá»‡n ra kÃ½ tá»± lá»—i
+# (VD: "KhÃƒÂ´ng cÃƒÂ³ gÃƒÂ¬") dÃ¹ Ä‘Ã£ export locale á»Ÿ trÃªn â€” Ä‘Ã¢y LÃ€ Dáº¤U HIá»†U file
+# .sh Ä‘Ã£ bá»‹ há»ng encoding trong lÃºc copy sang mÃ¡y (thÆ°á»ng gáº·p khi copy qua
+# USB/Files app cá»§a trÃ¬nh quáº£n lÃ½ file, hoáº·c má»Ÿ báº±ng nano/gedit rá»“i paste).
+# CÃ¡ch fix: xÃ³a file trÃªn mÃ¡y kiosk, copy láº¡i báº±ng scp/pscp (giá»¯ nguyÃªn byte,
+# khÃ´ng qua GUI file manager):
 #   pscp scripts\linux-kiosk\kiosk-setup-gui.sh <user>@<ip>:~/
-# Kiểm tra nhanh file trên máy kiosk có đúng UTF-8 không:
-#   file kiosk-setup-gui.sh   # phải báo "UTF-8 Unicode text", không phải "ISO-8859" / "ASCII text, with..."
+# Kiá»ƒm tra nhanh file trÃªn mÃ¡y kiosk cÃ³ Ä‘Ãºng UTF-8 khÃ´ng:
+#   file kiosk-setup-gui.sh   # pháº£i bÃ¡o "UTF-8 Unicode text", khÃ´ng pháº£i "ISO-8859" / "ASCII text, with..."
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT1="$SCRIPT_DIR/1-install-software.sh"
@@ -37,64 +37,64 @@ SCRIPT2="$SCRIPT_DIR/2-configure-system.sh"
 SCRIPT3="$SCRIPT_DIR/3-toggle-topbar.sh"
 
 if ! command -v zenity >/dev/null 2>&1; then
-    echo "LỖI: chưa cài zenity. Chạy: sudo apt install zenity" >&2
+    echo "Lá»–I: chÆ°a cÃ i zenity. Cháº¡y: sudo apt install zenity" >&2
     exit 1
 fi
 
-# ─────────────────────────────────────────────────────────────
-# Bước 1: Chọn các bước muốn chạy
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# BÆ°á»›c 1: Chá»n cÃ¡c bÆ°á»›c muá»‘n cháº¡y
 CHOICE=$(zenity --list --checklist \
     --title="Setup Kiosk iPGS" \
-    --text="Chọn các bước muốn thực hiện:" \
+    --text="Chá»n cÃ¡c bÆ°á»›c muá»‘n thá»±c hiá»‡n:" \
     --width=520 --height=280 \
-    --column="Chọn" --column="Bước" \
-    TRUE  "1. Cài phần mềm (extension ẩn top bar + unclutter)" \
-    TRUE  "2. Cấu hình hệ thống (autologin, autostart, tắt dock/sleep/update popup...)" \
+    --column="Chá»n" --column="BÆ°á»›c" \
+    TRUE  "1. CÃ i pháº§n má»m (extension áº©n top bar + unclutter)" \
+    TRUE  "2. Cáº¥u hÃ¬nh há»‡ thá»‘ng (autologin, autostart, táº¯t dock/sleep/update popup...)" \
     --separator=";")
 
 if [ -z "$CHOICE" ]; then
-    zenity --info --title="Đã hủy" --text="Không chọn bước nào — thoát." 2>/dev/null || true
+    zenity --info --title="ÄÃ£ há»§y" --text="KhÃ´ng chá»n bÆ°á»›c nÃ o â€” thoÃ¡t." 2>/dev/null || true
     exit 0
 fi
 
 RUN_STEP1=false
 RUN_STEP2=false
-[[ "$CHOICE" == *"1. Cài phần mềm"* ]] && RUN_STEP1=true
-[[ "$CHOICE" == *"2. Cấu hình hệ thống"* ]] && RUN_STEP2=true
+[[ "$CHOICE" == *"1. CÃ i pháº§n má»m"* ]] && RUN_STEP1=true
+[[ "$CHOICE" == *"2. Cáº¥u hÃ¬nh há»‡ thá»‘ng"* ]] && RUN_STEP2=true
 
-# ─────────────────────────────────────────────────────────────
-# Bước 1b: Ẩn / hiện lại Top Bar-Dock (độc lập, không cần cài lại phần mềm)
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# BÆ°á»›c 1b: áº¨n / hiá»‡n láº¡i Top Bar-Dock (Ä‘á»™c láº­p, khÃ´ng cáº§n cÃ i láº¡i pháº§n má»m)
 TOGGLE_CHOICE=$(zenity --list --radiolist \
     --title="Top Bar / Dock" \
-    --text="Bạn muốn ẩn hay hiện lại Top Bar/Dock/Desktop Icons?" \
+    --text="Báº¡n muá»‘n áº©n hay hiá»‡n láº¡i Top Bar/Dock/Desktop Icons?" \
     --width=480 --height=220 \
-    --column="Chọn" --column="Tùy chọn" \
-    TRUE  "Không đổi (giữ nguyên trạng thái hiện tại)" \
-    FALSE "Ẩn Top Bar/Dock/Desktop Icons" \
-    FALSE "Hiện lại Top Bar/Dock/Desktop Icons (undo)")
+    --column="Chá»n" --column="TÃ¹y chá»n" \
+    TRUE  "KhÃ´ng Ä‘á»•i (giá»¯ nguyÃªn tráº¡ng thÃ¡i hiá»‡n táº¡i)" \
+    FALSE "áº¨n Top Bar/Dock/Desktop Icons" \
+    FALSE "Hiá»‡n láº¡i Top Bar/Dock/Desktop Icons (undo)")
 
 TOGGLE_MODE=""
 case "$TOGGLE_CHOICE" in
-    "Ẩn Top Bar"*) TOGGLE_MODE="hide" ;;
-    "Hiện lại"*)   TOGGLE_MODE="show" ;;
+    "áº¨n Top Bar"*) TOGGLE_MODE="hide" ;;
+    "Hiá»‡n láº¡i"*)   TOGGLE_MODE="show" ;;
 esac
 
 if ! $RUN_STEP1 && ! $RUN_STEP2 && [ -z "$TOGGLE_MODE" ]; then
-    zenity --info --title="Không có gì để làm" --text="Bạn chưa chọn hành động nào — thoát." 2>/dev/null || true
+    zenity --info --title="KhÃ´ng cÃ³ gÃ¬ Ä‘á»ƒ lÃ m" --text="Báº¡n chÆ°a chá»n hÃ nh Ä‘á»™ng nÃ o â€” thoÃ¡t." 2>/dev/null || true
     exit 0
 fi
 
-# ─────────────────────────────────────────────────────────────
-# Bước 2: Nếu chọn bước 2, hỏi kiosk_user + app_exec
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# BÆ°á»›c 2: Náº¿u chá»n bÆ°á»›c 2, há»i kiosk_user + app_exec
 KIOSK_USER="$USER"
 APP_EXEC="ipgskioskavalonia"
 
 if $RUN_STEP2; then
     FORM_RESULT=$(zenity --forms \
-        --title="Cấu hình kiosk" \
-        --text="Nhập thông tin cho bước cấu hình hệ thống:" \
-        --add-entry="User dùng để autologin (mặc định: $USER)" \
-        --add-entry="Lệnh chạy app iPGS (mặc định: ipgskioskavalonia)" \
+        --title="Cáº¥u hÃ¬nh kiosk" \
+        --text="Nháº­p thÃ´ng tin cho bÆ°á»›c cáº¥u hÃ¬nh há»‡ thá»‘ng:" \
+        --add-entry="User dÃ¹ng Ä‘á»ƒ autologin (máº·c Ä‘á»‹nh: $USER)" \
+        --add-entry="Lá»‡nh cháº¡y app iPGS (máº·c Ä‘á»‹nh: ipgskioskavalonia)" \
         --separator="|")
 
     if [ -n "$FORM_RESULT" ]; then
@@ -105,38 +105,38 @@ if $RUN_STEP2; then
     fi
 fi
 
-# ─────────────────────────────────────────────────────────────
-# Bước 3: Xác nhận
-SUMMARY="Sẽ thực hiện:\n"
-$RUN_STEP1 && SUMMARY="${SUMMARY}\n✓ Cài phần mềm (1-install-software.sh)"
-$RUN_STEP2 && SUMMARY="${SUMMARY}\n✓ Cấu hình hệ thống (kiosk_user=$KIOSK_USER, app_exec=$APP_EXEC)"
-[ "$TOGGLE_MODE" = "hide" ] && SUMMARY="${SUMMARY}\n✓ Ẩn Top Bar/Dock/Desktop Icons"
-[ "$TOGGLE_MODE" = "show" ] && SUMMARY="${SUMMARY}\n✓ Hiện lại Top Bar/Dock/Desktop Icons"
-SUMMARY="${SUMMARY}\n\nLƯU Ý: nếu chạy lần đầu bước 'Cài phần mềm', GNOME Shell sẽ hiện\npopup xác nhận cài extension trên màn hình — hãy bấm 'Install' khi thấy."
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# BÆ°á»›c 3: XÃ¡c nháº­n
+SUMMARY="Sáº½ thá»±c hiá»‡n:\n"
+$RUN_STEP1 && SUMMARY="${SUMMARY}\nâœ“ CÃ i pháº§n má»m (1-install-software.sh)"
+$RUN_STEP2 && SUMMARY="${SUMMARY}\nâœ“ Cáº¥u hÃ¬nh há»‡ thá»‘ng (kiosk_user=$KIOSK_USER, app_exec=$APP_EXEC)"
+[ "$TOGGLE_MODE" = "hide" ] && SUMMARY="${SUMMARY}\nâœ“ áº¨n Top Bar/Dock/Desktop Icons"
+[ "$TOGGLE_MODE" = "show" ] && SUMMARY="${SUMMARY}\nâœ“ Hiá»‡n láº¡i Top Bar/Dock/Desktop Icons"
+SUMMARY="${SUMMARY}\n\nLÆ¯U Ã: náº¿u cháº¡y láº§n Ä‘áº§u bÆ°á»›c 'CÃ i pháº§n má»m', GNOME Shell sáº½ hiá»‡n\npopup xÃ¡c nháº­n cÃ i extension trÃªn mÃ n hÃ¬nh â€” hÃ£y báº¥m 'Install' khi tháº¥y."
 
-zenity --question --title="Xác nhận" --width=480 --text="$SUMMARY" || exit 0
+zenity --question --title="XÃ¡c nháº­n" --width=480 --text="$SUMMARY" || exit 0
 
-# ─────────────────────────────────────────────────────────────
-# Bước 4: Chạy trong 1 cửa sổ terminal thật (để sudo + popup xác nhận hoạt động
-# bình thường — không cố gắng relay password qua zenity cho phức tạp/kém an toàn).
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# BÆ°á»›c 4: Cháº¡y trong 1 cá»­a sá»• terminal tháº­t (Ä‘á»ƒ sudo + popup xÃ¡c nháº­n hoáº¡t Ä‘á»™ng
+# bÃ¬nh thÆ°á»ng â€” khÃ´ng cá»‘ gáº¯ng relay password qua zenity cho phá»©c táº¡p/kÃ©m an toÃ n).
 CMD=""
 $RUN_STEP1 && CMD="${CMD}bash '$SCRIPT1'; "
 $RUN_STEP2 && CMD="${CMD}bash '$SCRIPT2' '$KIOSK_USER' '$APP_EXEC'; "
 [ -n "$TOGGLE_MODE" ] && CMD="${CMD}bash '$SCRIPT3' '$TOGGLE_MODE'; "
-CMD="${CMD}echo; echo '=== Đã chạy xong — Enter để đóng cửa sổ này ==='; read"
+CMD="${CMD}echo; echo '=== ÄÃ£ cháº¡y xong â€” Enter Ä‘á»ƒ Ä‘Ã³ng cá»­a sá»• nÃ y ==='; read"
 
-# GHI CHÚ (gotcha đã gặp thực tế): `gnome-terminal` mặc định KHÔNG tự mở cửa
-# sổ — nó gọi qua D-Bus tới service "org.gnome.Terminal" (factory) để 1 tiến
-# trình gnome-terminal-server có sẵn mở window giúp. Nếu server đó chưa chạy/
-# bị treo, D-Bus service activation timeout → lỗi
+# GHI CHÃš (gotcha Ä‘Ã£ gáº·p thá»±c táº¿): `gnome-terminal` máº·c Ä‘á»‹nh KHÃ”NG tá»± má»Ÿ cá»­a
+# sá»• â€” nÃ³ gá»i qua D-Bus tá»›i service "org.gnome.Terminal" (factory) Ä‘á»ƒ 1 tiáº¿n
+# trÃ¬nh gnome-terminal-server cÃ³ sáºµn má»Ÿ window giÃºp. Náº¿u server Ä‘Ã³ chÆ°a cháº¡y/
+# bá»‹ treo, D-Bus service activation timeout â†’ lá»—i
 # "Error calling StartServiceByName for org.gnome.Terminal: Timeout was reached"
-# và KHÔNG có cửa sổ nào mở ra. Dùng `--disable-factory` để gnome-terminal tự
-# chạy như 1 tiến trình standalone, không phụ thuộc D-Bus factory — né lỗi này
-# hoàn toàn. Nếu máy nào đó gnome-terminal vẫn lỗi kiểu khác → fallback xterm.
-# `--disable-factory` làm gnome-terminal chạy như tiến trình standalone
-# (không hỏi D-Bus factory nữa) NHƯNG cũng có nghĩa lệnh sẽ BLOCK đến khi cửa
-# sổ đóng — phải tự `&` để background, rồi kiểm tra sau ~1s xem tiến trình còn
-# sống không (proxy cho "mở thành công") trước khi fallback sang xterm.
+# vÃ  KHÃ”NG cÃ³ cá»­a sá»• nÃ o má»Ÿ ra. DÃ¹ng `--disable-factory` Ä‘á»ƒ gnome-terminal tá»±
+# cháº¡y nhÆ° 1 tiáº¿n trÃ¬nh standalone, khÃ´ng phá»¥ thuá»™c D-Bus factory â€” nÃ© lá»—i nÃ y
+# hoÃ n toÃ n. Náº¿u mÃ¡y nÃ o Ä‘Ã³ gnome-terminal váº«n lá»—i kiá»ƒu khÃ¡c â†’ fallback xterm.
+# `--disable-factory` lÃ m gnome-terminal cháº¡y nhÆ° tiáº¿n trÃ¬nh standalone
+# (khÃ´ng há»i D-Bus factory ná»¯a) NHÆ¯NG cÅ©ng cÃ³ nghÄ©a lá»‡nh sáº½ BLOCK Ä‘áº¿n khi cá»­a
+# sá»• Ä‘Ã³ng â€” pháº£i tá»± `&` Ä‘á»ƒ background, rá»“i kiá»ƒm tra sau ~1s xem tiáº¿n trÃ¬nh cÃ²n
+# sá»‘ng khÃ´ng (proxy cho "má»Ÿ thÃ nh cÃ´ng") trÆ°á»›c khi fallback sang xterm.
 ERR_LOG="$(mktemp)"
 TERMINAL_LAUNCHED=false
 if command -v gnome-terminal >/dev/null 2>&1; then
@@ -155,12 +155,12 @@ if ! $TERMINAL_LAUNCHED && command -v xterm >/dev/null 2>&1; then
     TERMINAL_LAUNCHED=true
 fi
 if ! $TERMINAL_LAUNCHED; then
-    zenity --error --text="Không mở được cửa sổ terminal (gnome-terminal lỗi D-Bus factory, không có xterm dự phòng).\n\nChạy tay bằng lệnh:\n$CMD" 2>/dev/null || true
+    zenity --error --text="KhÃ´ng má»Ÿ Ä‘Æ°á»£c cá»­a sá»• terminal (gnome-terminal lá»—i D-Bus factory, khÃ´ng cÃ³ xterm dá»± phÃ²ng).\n\nCháº¡y tay báº±ng lá»‡nh:\n$CMD" 2>/dev/null || true
     rm -f "$ERR_LOG"
     exit 1
 fi
 rm -f "$ERR_LOG"
 
-zenity --info --title="Đã khởi chạy" \
-    --text="Đã mở cửa sổ terminal để chạy setup.\nTheo dõi tiến trình và nhập mật khẩu sudo (nếu được hỏi) ngay trong cửa sổ đó.\n\nSau khi xong, RESTART máy để áp dụng đầy đủ (autologin + autostart)." \
+zenity --info --title="ÄÃ£ khá»Ÿi cháº¡y" \
+    --text="ÄÃ£ má»Ÿ cá»­a sá»• terminal Ä‘á»ƒ cháº¡y setup.\nTheo dÃµi tiáº¿n trÃ¬nh vÃ  nháº­p máº­t kháº©u sudo (náº¿u Ä‘Æ°á»£c há»i) ngay trong cá»­a sá»• Ä‘Ã³.\n\nSau khi xong, RESTART mÃ¡y Ä‘á»ƒ Ã¡p dá»¥ng Ä‘áº§y Ä‘á»§ (autologin + autostart)." \
     2>/dev/null || true

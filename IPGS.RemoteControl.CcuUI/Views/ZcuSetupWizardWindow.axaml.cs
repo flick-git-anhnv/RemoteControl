@@ -16,31 +16,39 @@ namespace IPGS.RemoteControl.CcuUI.Views
         private readonly ZcuRemoteInstallerService _installerService;
         public ComputerProfile? CreatedProfile { get; private set; }
 
-        public ZcuSetupWizardWindow() : this(null)
+        // Thông tin SSH lấy từ hồ sơ máy tính đã lưu (nhập ở "Thêm/Sửa máy tính") —
+        // không còn ô nhập SSH riêng trong wizard này để tránh trùng lặp dữ liệu.
+        private readonly string _sshHost;
+        private readonly int _sshPort;
+        private readonly string _sshUser;
+        private readonly string _sshPassword;
+
+        public ZcuSetupWizardWindow() : this(new ComputerProfile())
         {
         }
 
-        public ZcuSetupWizardWindow(ComputerProfile? prefill)
+        public ZcuSetupWizardWindow(ComputerProfile prefill)
         {
             InitializeComponent();
             _installerService = new ZcuRemoteInstallerService();
 
+            _sshHost = prefill.Host;
+            _sshPort = prefill.SshPort > 0 ? prefill.SshPort : 22;
+            _sshUser = prefill.SshUsername ?? "";
+            _sshPassword = prefill.SshPassword ?? "";
+
+            PART_TargetHostText.Text = string.IsNullOrWhiteSpace(_sshHost)
+                ? "Đang cài đặt cho: —"
+                : $"Đang cài đặt cho: {_sshUser}@{_sshHost}:{_sshPort}";
+
             PART_BtnGenToken.Click += OnGenTokenClick;
-            PART_BtnTestSsh.Click += OnTestSshClick;
             PART_BtnStartInstall.Click += OnStartInstallClick;
 
             // Generate initial random token
             GenerateRandomToken();
 
-            if (prefill != null)
-            {
-                PART_SshHost.Text = prefill.Host;
-                if (prefill.SshPort > 0) PART_SshPort.Text = prefill.SshPort.ToString();
-                if (!string.IsNullOrWhiteSpace(prefill.SshUsername)) PART_SshUser.Text = prefill.SshUsername;
-                if (!string.IsNullOrWhiteSpace(prefill.SshPassword)) PART_SshPassword.Text = prefill.SshPassword;
-                if (prefill.Port > 0) PART_AgentPort.Text = prefill.Port.ToString();
-                if (!string.IsNullOrWhiteSpace(prefill.Token)) PART_AgentToken.Text = prefill.Token;
-            }
+            if (prefill.Port > 0) PART_AgentPort.Text = prefill.Port.ToString();
+            if (!string.IsNullOrWhiteSpace(prefill.Token)) PART_AgentToken.Text = prefill.Token;
         }
 
         private void GenerateRandomToken()
@@ -59,70 +67,22 @@ namespace IPGS.RemoteControl.CcuUI.Views
             GenerateRandomToken();
         }
 
-        private async void OnTestSshClick(object? sender, RoutedEventArgs e)
-        {
-            string host = PART_SshHost.Text?.Trim() ?? "";
-            if (!int.TryParse(PART_SshPort.Text?.Trim(), out int port)) port = 22;
-            string user = PART_SshUser.Text?.Trim() ?? "";
-            string pass = PART_SshPassword.Text ?? "";
-
-            if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(user))
-            {
-                PART_StatusMsg.Text = "Vui lòng nhập đầy đủ IP ZCU và Username.";
-                return;
-            }
-
-            PART_BtnTestSsh.IsEnabled = false;
-            PART_StatusMsg.Text = "Đang thử kết nối SSH...";
-            Log("🔄 Đang thử kết nối SSH tới " + host + ":" + port + "...");
-
-            var options = new SshInstallerOptions
-            {
-                Host = host,
-                SshPort = port,
-                Username = user,
-                Password = pass
-            };
-
-            bool success = await _installerService.TestSshConnectionAsync(options);
-            PART_BtnTestSsh.IsEnabled = true;
-
-            if (success)
-            {
-                PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Green;
-                PART_StatusMsg.Text = "✅ Kết nối SSH thành công!";
-                Log("✅ Kết nối SSH thành công tới " + host);
-            }
-            else
-            {
-                PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
-                PART_StatusMsg.Text = "❌ Kết nối SSH thất bại. Kiểm tra IP/Username/Password.";
-                Log("❌ Kết nối SSH thất bại.");
-            }
-        }
-
         private async void OnStartInstallClick(object? sender, RoutedEventArgs e)
         {
-            string host = PART_SshHost.Text?.Trim() ?? "";
-            if (!int.TryParse(PART_SshPort.Text?.Trim(), out int sshPort)) sshPort = 22;
-            string user = PART_SshUser.Text?.Trim() ?? "";
-            string pass = PART_SshPassword.Text ?? "";
-
             if (!int.TryParse(PART_AgentPort.Text?.Trim(), out int agentPort)) agentPort = 17600;
             string token = PART_AgentToken.Text?.Trim() ?? "";
             string allowedIps = PART_AllowedIPs.Text?.Trim() ?? "0.0.0.0/0";
             if (!int.TryParse(PART_TargetFps.Text?.Trim(), out int targetFps)) targetFps = 15;
             if (!int.TryParse(PART_JpegQuality.Text?.Trim(), out int jpegQuality)) jpegQuality = 70;
 
-            if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(user) || string.IsNullOrEmpty(token))
+            if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser) || string.IsNullOrEmpty(token))
             {
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
-                PART_StatusMsg.Text = "Vui lòng nhập IP ZCU, Username SSH và Token Agent.";
+                PART_StatusMsg.Text = "Thiếu IP/SSH user (vào 'Sửa' máy tính để bổ sung) hoặc Token Agent.";
                 return;
             }
 
             PART_BtnStartInstall.IsEnabled = false;
-            PART_BtnTestSsh.IsEnabled = false;
             PART_LogConsole.Text = "";
             PART_ProgressBar.Value = 0;
 
@@ -135,10 +95,10 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             var options = new SshInstallerOptions
             {
-                Host = host,
-                SshPort = sshPort,
-                Username = user,
-                Password = pass,
+                Host = _sshHost,
+                SshPort = _sshPort,
+                Username = _sshUser,
+                Password = _sshPassword,
                 AgentPort = agentPort,
                 AgentToken = token,
                 AllowedClientIPs = allowedIps,
@@ -168,10 +128,13 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     var profile = new ComputerProfile
                     {
                         Id = Guid.NewGuid().ToString("N"),
-                        Name = $"ZCU ({host})",
-                        Host = host,
+                        Name = $"ZCU ({_sshHost})",
+                        Host = _sshHost,
                         Port = agentPort,
                         Token = token,
+                        SshPort = _sshPort,
+                        SshUsername = _sshUser,
+                        SshPassword = _sshPassword,
                         Notes = "Tự động tạo bởi ZCU Setup Wizard",
                         LastConnectedAt = DateTimeOffset.Now
                     };
@@ -191,7 +154,6 @@ namespace IPGS.RemoteControl.CcuUI.Views
             finally
             {
                 PART_BtnStartInstall.IsEnabled = true;
-                PART_BtnTestSsh.IsEnabled = true;
             }
         }
 

@@ -1,17 +1,17 @@
-#!/bin/bash
-# 3-toggle-topbar.sh — Ẩn HOẶC hiện lại Top Bar/Dock GNOME bất kỳ lúc nào,
-# không cần cài lại phần mềm (dùng khi cần bật lại giao diện đầy đủ để debug,
-# bảo trì, hoặc bàn giao máy).
+﻿#!/bin/bash
+# 3-toggle-topbar.sh â€” áº¨n HOáº¶C hiá»‡n láº¡i Top Bar/Dock GNOME báº¥t ká»³ lÃºc nÃ o,
+# khÃ´ng cáº§n cÃ i láº¡i pháº§n má»m (dÃ¹ng khi cáº§n báº­t láº¡i giao diá»‡n Ä‘áº§y Ä‘á»§ Ä‘á»ƒ debug,
+# báº£o trÃ¬, hoáº·c bÃ n giao mÃ¡y).
 #
-# Chạy:
-#   bash scripts/linux-kiosk/3-toggle-topbar.sh hide   # ẩn top bar + dock + icon desktop
-#   bash scripts/linux-kiosk/3-toggle-topbar.sh show   # hiện lại như mặc định Ubuntu
+# Cháº¡y:
+#   bash scripts/linux-kiosk/3-toggle-topbar.sh hide   # áº©n top bar + dock + icon desktop
+#   bash scripts/linux-kiosk/3-toggle-topbar.sh show   # hiá»‡n láº¡i nhÆ° máº·c Ä‘á»‹nh Ubuntu
 
 set -e
 
 MODE="$1"
 if [ "$MODE" != "hide" ] && [ "$MODE" != "show" ]; then
-    echo "Cách dùng: bash $0 {hide|show}" >&2
+    echo "CÃ¡ch dÃ¹ng: bash $0 {hide|show}" >&2
     exit 1
 fi
 
@@ -22,11 +22,11 @@ SCHEMA_DIR="$EXT_DIR/schemas"
 if [ "$MODE" = "hide" ]; then
     VALUE="false"
     DOCK_ACTION="disable"
-    echo "=== Ẩn Top Bar + Dock + Desktop Icons ==="
+    echo "=== áº¨n Top Bar + Dock + Desktop Icons ==="
 else
     VALUE="true"
     DOCK_ACTION="enable"
-    echo "=== Hiện lại Top Bar + Dock + Desktop Icons ==="
+    echo "=== Hiá»‡n láº¡i Top Bar + Dock + Desktop Icons ==="
 fi
 
 if [ -d "$SCHEMA_DIR" ]; then
@@ -34,12 +34,12 @@ if [ -d "$SCHEMA_DIR" ]; then
     gsettings --schemadir "$SCHEMA_DIR" set org.gnome.shell.extensions.just-perfection activities-button $VALUE || true
     gsettings --schemadir "$SCHEMA_DIR" set org.gnome.shell.extensions.just-perfection workspace-switcher-should-show $VALUE || true
     gsettings --schemadir "$SCHEMA_DIR" set org.gnome.shell.extensions.just-perfection dash $VALUE || true
-    echo "  → Đã đặt panel/activities-button/workspace-switcher/dash = $VALUE"
+    echo "  â†’ ÄÃ£ Ä‘áº·t panel/activities-button/workspace-switcher/dash = $VALUE"
 else
-    echo "CẢNH BÁO: chưa cài extension Just Perfection (chạy 1-install-software.sh trước)." >&2
+    echo "Cáº¢NH BÃO: chÆ°a cÃ i extension Just Perfection (cháº¡y 1-install-software.sh trÆ°á»›c)." >&2
 fi
 
-gnome-extensions $DOCK_ACTION ubuntu-dock@ubuntu.com 2>/dev/null || echo "  → ubuntu-dock@ubuntu.com không có, bỏ qua."
-gnome-extensions $DOCK_ACTION ding@rastersoft.com 2>/dev/null || echo "  → ding@rastersoft.com không có, bỏ qua."
+gnome-extensions $DOCK_ACTION ubuntu-dock@ubuntu.com 2>/dev/null || echo "  â†’ ubuntu-dock@ubuntu.com khÃ´ng cÃ³, bá» qua."
+gnome-extensions $DOCK_ACTION ding@rastersoft.com 2>/dev/null || echo "  â†’ ding@rastersoft.com khÃ´ng cÃ³, bá» qua."
 
-echo "✓ Xong. Có thể áp dụng ngay, không cần restart."
+echo "âœ“ Xong. CÃ³ thá»ƒ Ã¡p dá»¥ng ngay, khÃ´ng cáº§n restart."

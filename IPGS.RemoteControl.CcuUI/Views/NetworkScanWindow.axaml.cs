@@ -43,13 +43,23 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 return;
             }
 
-            string subnetBase = PART_SubnetBase.Text?.Trim() ?? "";
-            if (subnetBase.Length == 0)
+            string rawSubnet = PART_SubnetBase.Text?.Trim() ?? "";
+            if (rawSubnet.Length == 0)
             {
                 PART_StatusText.Text = "Vui lòng nhập dải mạng (VD: 192.168.1.)";
                 return;
             }
-            if (!subnetBase.EndsWith(".")) subnetBase += ".";
+
+            // Chấp nhận cả 2 cách nhập: "192.168.1." (dải, đúng định dạng) hoặc lỡ gõ
+            // nguyên IP máy nào đó "192.168.1.101" — tự cắt về 3 octet đầu + "." để quét
+            // cả dải .1-.254, tránh nhầm sang quét "192.168.1.101." (sai, luôn ra 0 máy).
+            var octets = rawSubnet.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            if (octets.Length < 3)
+            {
+                PART_StatusText.Text = "Dải mạng không hợp lệ — nhập 3 số đầu của IP + dấu chấm cuối, VD: 192.168.1.";
+                return;
+            }
+            string subnetBase = $"{octets[0]}.{octets[1]}.{octets[2]}.";
 
             if (!int.TryParse(PART_Port.Text?.Trim(), out int port)) port = 17600;
 

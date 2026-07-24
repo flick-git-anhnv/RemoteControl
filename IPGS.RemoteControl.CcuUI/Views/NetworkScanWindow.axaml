@@ -26,7 +26,7 @@
       <StackPanel Spacing="10">
         <Grid ColumnDefinitions="*,110,Auto" ColumnSpacing="10">
           <StackPanel Grid.Column="0" Spacing="4">
-            <TextBlock Text="Dải mạng (subnet):" FontSize="12" Foreground="#64748B"/>
+            <TextBlock Text="Dải IP cần quét:" FontSize="12" Foreground="#64748B"/>
             <kz:KzTextBox x:Name="PART_SubnetBase" Watermark="192.168.1." />
           </StackPanel>
 
@@ -38,6 +38,12 @@
           <kz:KzButton Grid.Column="2" x:Name="PART_BtnScan" Content="🔍 Bắt đầu quét"
                        Classes="kz-primary" VerticalAlignment="Bottom" />
         </Grid>
+
+        <TextBlock FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap">
+          💡 Chỉ nhập <Run FontFamily="Consolas, Monospace" Foreground="#475569" Text="3 số đầu của IP + dấu chấm cuối"/> — KHÔNG nhập nguyên IP của 1 máy. Hệ thống sẽ tự quét toàn bộ <Run FontFamily="Consolas, Monospace" Foreground="#475569" Text=".1"/> đến <Run FontFamily="Consolas, Monospace" Foreground="#475569" Text=".254"/> trong dải đó.
+          <LineBreak/>
+          Ví dụ: máy bạn đang dùng có IP <Run FontFamily="Consolas, Monospace" Foreground="#475569" Text="192.168.1.101"/> → nhập <Run FontFamily="Consolas, Monospace" Foreground="#475569" FontWeight="Bold" Text="192.168.1."/> (sẽ quét .1 → .254).
+        </TextBlock>
 
         <ProgressBar x:Name="PART_ProgressBar" Minimum="0" Maximum="254" Value="0" Height="6"/>
         <TextBlock x:Name="PART_StatusText" Text="Sẵn sàng quét." FontSize="12" Foreground="#64748B"/>

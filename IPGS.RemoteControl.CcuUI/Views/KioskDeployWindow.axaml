@@ -3,9 +3,9 @@
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         x:Class="IPGS.RemoteControl.CcuUI.Views.KioskDeployWindow"
         Title="🖥️ Deploy Kiosk Setup (ẩn Top Bar / autologin / autostart)"
-        Width="680" Height="760"
+        Width="1040" Height="800"
         WindowStartupLocation="CenterOwner"
-        CanResize="False">
+        CanResize="True">
 
   <Grid RowDefinitions="Auto,*,Auto">
 
@@ -23,71 +23,85 @@
     <ScrollViewer Grid.Row="1" Padding="24,18">
       <StackPanel Spacing="18">
 
-        <!-- STEP 1: SSH Information -->
-        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16">
-          <StackPanel Spacing="12">
-            <TextBlock Text="1️⃣ Thông tin kết nối SSH tới máy kiosk (Ubuntu)" FontWeight="Bold" FontSize="14" Foreground="#334155"/>
-
-            <Grid ColumnDefinitions="*,120" RowDefinitions="Auto">
-              <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
-                <TextBlock Text="Địa chỉ IP máy kiosk:" FontSize="12" Foreground="#64748B"/>
-                <kz:KzTextBox x:Name="PART_SshHost" Watermark="192.168.1.x" />
-              </StackPanel>
-
-              <StackPanel Grid.Column="1" Spacing="4">
-                <TextBlock Text="Cổng SSH:" FontSize="12" Foreground="#64748B"/>
-                <kz:KzTextBox x:Name="PART_SshPort" Text="22" />
-              </StackPanel>
-            </Grid>
-
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
-              <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
-                <TextBlock Text="SSH user:" FontSize="12" Foreground="#64748B"/>
-                <kz:KzTextBox x:Name="PART_SshUser" Text="kztek" />
-              </StackPanel>
-
-              <StackPanel Grid.Column="1" Spacing="4">
-                <TextBlock Text="SSH password:" FontSize="12" Foreground="#64748B"/>
-                <TextBox x:Name="PART_SshPassword" PasswordChar="•" Watermark="Nhập mật khẩu SSH..." Height="36" VerticalContentAlignment="Center"/>
-              </StackPanel>
-            </Grid>
-
-            <StackPanel Spacing="4">
-              <TextBlock Text="Sudo password (để trống nếu giống SSH password):" FontSize="12" Foreground="#64748B"/>
-              <TextBox x:Name="PART_SudoPassword" PasswordChar="•" Watermark="Để trống nếu dùng chung với SSH password" Height="36" VerticalContentAlignment="Center"/>
+        <!-- Target host (chỉ hiển thị, lấy từ hồ sơ máy tính đã lưu — xem "Sửa" để đổi SSH) -->
+        <Border Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" CornerRadius="8" Padding="14">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="🎯" FontSize="16"/>
+            <StackPanel Spacing="2">
+              <TextBlock x:Name="PART_TargetHostText" Text="Đang deploy cho: —" FontWeight="Bold" FontSize="13" Foreground="#3730A3"/>
+              <TextBlock Text="Thông tin SSH lấy từ hồ sơ máy tính đã lưu — vào 'Sửa' để thay đổi." FontSize="11" Foreground="#4338CA"/>
             </StackPanel>
           </StackPanel>
         </Border>
 
-        <!-- STEP 2: Kiosk config -->
-        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16">
-          <StackPanel Spacing="12">
-            <TextBlock Text="2️⃣ Cấu hình Kiosk" FontWeight="Bold" FontSize="14" Foreground="#334155"/>
+        <!-- Sudo password — dùng chung cho cả 2 tab (apt install ở Tab 1, sửa GDM autologin ở Tab 1/2) -->
+        <StackPanel Spacing="4">
+          <TextBlock Text="Sudo password (để trống nếu giống SSH password):" FontSize="12" Foreground="#64748B"/>
+          <TextBox x:Name="PART_SudoPassword" PasswordChar="•" Watermark="Để trống nếu dùng chung với SSH password" Height="36" VerticalContentAlignment="Center"/>
+        </StackPanel>
 
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
-              <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
-                <TextBlock Text="Kiosk user (autologin):" FontSize="12" Foreground="#64748B"/>
-                <kz:KzTextBox x:Name="PART_KioskUser" Text="kztek" />
+        <!-- Cấu hình Kiosk — tách 2 tab: Tab 1 = mọi thứ thuộc về MÁY TÍNH, Tab 2 = CHỈ update/autostart phần mềm -->
+        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="4">
+          <TabControl>
+
+            <!-- TAB 1: Config máy tính — toàn bộ tinh chỉnh OS/UI/hành vi máy (KHÔNG phải update/autostart phần mềm) -->
+            <TabItem Header="🖥️ Config máy tính">
+              <StackPanel Spacing="12" Margin="16,14,16,10">
+
+                <StackPanel Spacing="4" MaxWidth="320" HorizontalAlignment="Left">
+                  <TextBlock Text="Kiosk user (autologin):" FontSize="12" Foreground="#64748B"/>
+                  <kz:KzTextBox x:Name="PART_KioskUser" Text="kztek" />
+                </StackPanel>
+
+                <TextBlock FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap" Margin="0,2,0,0">
+                  💡 Mỗi checkbox dưới đây là toggle 2 chiều: <Run FontWeight="Bold" Text="tick = ẩn/tắt"/>, <Run FontWeight="Bold" Text="bỏ tick = hiện lại/bật lại mặc định"/> (không phải "bỏ qua"). Riêng "Cài unclutter" chỉ 1 chiều — bỏ tick không tự gỡ package đã cài.
+                </TextBlock>
+
+                <!-- 2 cột: ① Ẩn giao diện GNOME | ② Hành vi máy/màn hình -->
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="28" Margin="0,4,0,0">
+                  <StackPanel Grid.Column="0" Spacing="10">
+                    <TextBlock Text="① Ẩn giao diện GNOME (cần cài extension Just Perfection):" FontSize="11" Foreground="#94A3B8" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    <CheckBox x:Name="PART_ChkHideTopBar" Content="Ẩn Top Bar (thanh trên cùng GNOME)" IsChecked="True"/>
+                    <CheckBox x:Name="PART_ChkHideActivities" Content="Ẩn nút Activities" IsChecked="True"/>
+                    <CheckBox x:Name="PART_ChkHideWorkspace" Content="Ẩn Workspace Switcher" IsChecked="True"/>
+                    <CheckBox x:Name="PART_ChkHideDash" Content="Ẩn Dash (icon ứng dụng trong Overview)" IsChecked="True"/>
+                    <CheckBox x:Name="PART_ChkHideDockIcons" Content="Tắt Ubuntu Dock + Desktop Icons" IsChecked="True"/>
+                  </StackPanel>
+
+                  <StackPanel Grid.Column="1" Spacing="10">
+                    <TextBlock Text="② Hành vi máy / màn hình:" FontSize="11" Foreground="#94A3B8" FontWeight="SemiBold"/>
+                    <CheckBox x:Name="PART_ChkInstallUnclutter" Content="Cài unclutter (tự ẩn con trỏ chuột khi không dùng)" IsChecked="True"/>
+                    <CheckBox x:Name="PART_ChkHideKeyboard" Content="Tắt bàn phím ảo GNOME (on-screen keyboard)" IsChecked="True"/>
+                    <CheckBox x:Name="PART_ChkHotCorner" Content="Tắt hot corner / notification banner / khóa màn hình" IsChecked="True"/>
+                    <CheckBox x:Name="PART_ChkBlockSleep" Content="Chặn suspend/sleep khi cắm điện" IsChecked="True"/>
+                    <CheckBox x:Name="PART_ChkInitialSetup" Content="Bỏ qua màn hình gnome-initial-setup" IsChecked="True"/>
+                    <CheckBox x:Name="PART_ChkAutologin" Content="Autologin GDM cho Kiosk user ở trên" IsChecked="True"/>
+                    <CheckBox x:Name="PART_ChkLockWorkspace" IsChecked="True">
+                      <StackPanel Spacing="1">
+                        <TextBlock Text="Khóa còn 1 workspace tĩnh" FontWeight="Normal"/>
+                        <TextBlock Text="Chặn gesture 2/3 ngón trên màn cảm ứng bị hiểu thành chuyển workspace, làm app fullscreen &quot;biến mất&quot;"
+                                   FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap"/>
+                      </StackPanel>
+                    </CheckBox>
+                  </StackPanel>
+                </Grid>
               </StackPanel>
+            </TabItem>
 
-              <StackPanel Grid.Column="1" Spacing="4">
-                <TextBlock Text="App exec:" FontSize="12" Foreground="#64748B"/>
-                <kz:KzTextBox x:Name="PART_AppExec" Text="ipgskioskavalonia" />
+            <!-- TAB 2: Config phần mềm — CHỈ update + autostart phần mềm -->
+            <TabItem Header="⚙️ Config phần mềm">
+              <StackPanel Spacing="12" Margin="12,14,12,10">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="App exec (lệnh autostart app iPGS):" FontSize="12" Foreground="#64748B"/>
+                  <kz:KzTextBox x:Name="PART_AppExec" Text="ipgskioskavalonia" />
+                </StackPanel>
+
+                <CheckBox x:Name="PART_ChkSwUpdate" Content="Tắt popup + auto-download Software Updater" IsChecked="True"/>
+                <CheckBox x:Name="PART_ChkAutostart" Content="Autostart app iPGS + unclutter khi vào desktop" IsChecked="True"/>
               </StackPanel>
-            </Grid>
+            </TabItem>
 
-            <CheckBox x:Name="PART_ChkStep1" Content="Chạy Script 1 — Cài phần mềm (extension ẩn top bar + unclutter)" IsChecked="True"/>
-            <CheckBox x:Name="PART_ChkStep2" Content="Chạy Script 2 — Cấu hình hệ thống (autologin, autostart, dock/sleep/update...)" IsChecked="True"/>
-
-            <StackPanel Spacing="4">
-              <TextBlock Text="Top Bar / Dock / Desktop Icons:" FontSize="12" Foreground="#64748B"/>
-              <StackPanel Orientation="Horizontal" Spacing="16">
-                <RadioButton x:Name="PART_ToggleNone" Content="Không đổi" GroupName="ToggleMode" IsChecked="True"/>
-                <RadioButton x:Name="PART_ToggleHide" Content="Ẩn" GroupName="ToggleMode"/>
-                <RadioButton x:Name="PART_ToggleShow" Content="Hiện lại" GroupName="ToggleMode"/>
-              </StackPanel>
-            </StackPanel>
-          </StackPanel>
+          </TabControl>
         </Border>
 
         <!-- STEP 3: Console log -->
@@ -112,11 +126,9 @@
 
     <!-- ── Footer ────────────────────────────────────────────────── -->
     <Border Grid.Row="2" Background="#F8FAFC" Padding="20,12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
-      <Grid ColumnDefinitions="*,Auto,Auto">
-        <TextBlock x:Name="PART_StatusMsg" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12"/>
-
-        <kz:KzButton Grid.Column="1" x:Name="PART_BtnTestSsh" Content="🔍 Kiểm tra SSH" Margin="0,0,10,0"/>
-        <kz:KzButton Grid.Column="2" x:Name="PART_BtnDeploy" Content="🚀 Deploy" Classes="kz-primary"/>
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" x:Name="PART_StatusMsg" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12"/>
+        <kz:KzButton Grid.Column="1" x:Name="PART_BtnDeploy" Content="🚀 Deploy" Classes="kz-primary"/>
       </Grid>
     </Border>
 

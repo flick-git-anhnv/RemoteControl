@@ -9,121 +9,98 @@ namespace IPGS.RemoteControl.CcuUI.Views
     {
         private readonly KioskDeployService _deployService;
 
-        public KioskDeployWindow() : this(null)
+        // Thông tin SSH lấy từ hồ sơ máy tính đã lưu (nhập ở "Thêm/Sửa máy tính") —
+        // không còn ô nhập SSH riêng trong cửa sổ này để tránh trùng lặp dữ liệu.
+        private readonly string _sshHost;
+        private readonly int _sshPort;
+        private readonly string _sshUser;
+        private readonly string _sshPassword;
+
+        public KioskDeployWindow() : this(new ComputerProfile())
         {
         }
 
-        public KioskDeployWindow(ComputerProfile? prefill)
+        public KioskDeployWindow(ComputerProfile prefill)
         {
             InitializeComponent();
             _deployService = new KioskDeployService();
 
-            PART_BtnTestSsh.Click += OnTestSshClick;
+            _sshHost = prefill.Host;
+            _sshPort = prefill.SshPort > 0 ? prefill.SshPort : 22;
+            _sshUser = prefill.SshUsername ?? "";
+            _sshPassword = prefill.SshPassword ?? "";
+
+            PART_TargetHostText.Text = string.IsNullOrWhiteSpace(_sshHost)
+                ? "Đang deploy cho: —"
+                : $"Đang deploy cho: {_sshUser}@{_sshHost}:{_sshPort}";
+
+            if (!string.IsNullOrWhiteSpace(_sshUser))
+            {
+                PART_KioskUser.Text = _sshUser;
+            }
+
             PART_BtnDeploy.Click += OnDeployClick;
-
-            if (prefill != null)
-            {
-                PART_SshHost.Text = prefill.Host;
-                if (prefill.SshPort > 0) PART_SshPort.Text = prefill.SshPort.ToString();
-                if (!string.IsNullOrWhiteSpace(prefill.SshUsername))
-                {
-                    PART_SshUser.Text = prefill.SshUsername;
-                    PART_KioskUser.Text = prefill.SshUsername;
-                }
-                if (!string.IsNullOrWhiteSpace(prefill.SshPassword)) PART_SshPassword.Text = prefill.SshPassword;
-            }
-        }
-
-        private async void OnTestSshClick(object? sender, RoutedEventArgs e)
-        {
-            string host = PART_SshHost.Text?.Trim() ?? "";
-            if (!int.TryParse(PART_SshPort.Text?.Trim(), out int port)) port = 22;
-            string user = PART_SshUser.Text?.Trim() ?? "";
-            string pass = PART_SshPassword.Text ?? "";
-
-            if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(user))
-            {
-                PART_StatusMsg.Text = "Vui lòng nhập đầy đủ IP máy kiosk và SSH user.";
-                return;
-            }
-
-            PART_BtnTestSsh.IsEnabled = false;
-            PART_StatusMsg.Text = "Đang thử kết nối SSH...";
-            Log("🔄 Đang thử kết nối SSH tới " + host + ":" + port + "...");
-
-            var options = new KioskDeployOptions
-            {
-                Host = host,
-                SshPort = port,
-                Username = user,
-                Password = pass
-            };
-
-            bool success = await _deployService.TestSshConnectionAsync(options);
-            PART_BtnTestSsh.IsEnabled = true;
-
-            if (success)
-            {
-                PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Green;
-                PART_StatusMsg.Text = "✅ Kết nối SSH thành công!";
-                Log("✅ Kết nối SSH thành công tới " + host);
-            }
-            else
-            {
-                PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
-                PART_StatusMsg.Text = "❌ Kết nối SSH thất bại. Kiểm tra IP/Username/Password.";
-                Log("❌ Kết nối SSH thất bại.");
-            }
         }
 
         private async void OnDeployClick(object? sender, RoutedEventArgs e)
         {
-            string host = PART_SshHost.Text?.Trim() ?? "";
-            if (!int.TryParse(PART_SshPort.Text?.Trim(), out int port)) port = 22;
-            string user = PART_SshUser.Text?.Trim() ?? "";
-            string pass = PART_SshPassword.Text ?? "";
-            string sudoPass = string.IsNullOrEmpty(PART_SudoPassword.Text) ? pass : PART_SudoPassword.Text;
+            string sudoPass = string.IsNullOrEmpty(PART_SudoPassword.Text) ? _sshPassword : PART_SudoPassword.Text;
             string kioskUser = PART_KioskUser.Text?.Trim() ?? "";
             string appExec = PART_AppExec.Text?.Trim() ?? "ipgskioskavalonia";
 
-            bool runStep1 = PART_ChkStep1.IsChecked == true;
-            bool runStep2 = PART_ChkStep2.IsChecked == true;
-            string toggleMode = PART_ToggleHide.IsChecked == true ? "hide"
-                : PART_ToggleShow.IsChecked == true ? "show"
-                : "";
+            // Tab 1 — Config máy tính
+            bool hideTopBar = PART_ChkHideTopBar.IsChecked == true;
+            bool hideActivities = PART_ChkHideActivities.IsChecked == true;
+            bool hideWorkspace = PART_ChkHideWorkspace.IsChecked == true;
+            bool hideDash = PART_ChkHideDash.IsChecked == true;
+            bool hideDockIcons = PART_ChkHideDockIcons.IsChecked == true;
+            bool installUnclutter = PART_ChkInstallUnclutter.IsChecked == true;
+            bool hideKeyboard = PART_ChkHideKeyboard.IsChecked == true;
+            bool hotCorner = PART_ChkHotCorner.IsChecked == true;
+            bool blockSleep = PART_ChkBlockSleep.IsChecked == true;
+            bool initialSetup = PART_ChkInitialSetup.IsChecked == true;
+            bool autologin = PART_ChkAutologin.IsChecked == true;
+            bool lockWorkspace = PART_ChkLockWorkspace.IsChecked == true;
 
-            if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(user) || string.IsNullOrEmpty(pass))
+            // Tab 2 — Config phần mềm
+            bool swUpdate = PART_ChkSwUpdate.IsChecked == true;
+            bool autostart = PART_ChkAutostart.IsChecked == true;
+
+            if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser))
             {
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
-                PART_StatusMsg.Text = "Vui lòng nhập đầy đủ IP, SSH user và SSH password.";
-                return;
-            }
-
-            if (!runStep1 && !runStep2 && string.IsNullOrEmpty(toggleMode))
-            {
-                PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
-                PART_StatusMsg.Text = "Chọn ít nhất 1 hành động (Script 1, Script 2, hoặc Ẩn/Hiện Top Bar).";
+                PART_StatusMsg.Text = "Thiếu IP/SSH user — vào 'Sửa' máy tính để bổ sung thông tin SSH.";
                 return;
             }
 
             PART_BtnDeploy.IsEnabled = false;
-            PART_BtnTestSsh.IsEnabled = false;
             PART_LogConsole.Text = "";
             PART_StatusMsg.Foreground = Avalonia.Media.Brushes.SlateGray;
             PART_StatusMsg.Text = "Đang deploy...";
 
             var options = new KioskDeployOptions
             {
-                Host = host,
-                SshPort = port,
-                Username = user,
-                Password = pass,
+                Host = _sshHost,
+                SshPort = _sshPort,
+                Username = _sshUser,
+                Password = _sshPassword,
                 SudoPassword = sudoPass,
                 KioskUser = kioskUser,
                 AppExec = appExec,
-                RunInstallSoftware = runStep1,
-                RunConfigureSystem = runStep2,
-                ToggleMode = toggleMode
+                HideTopBar = hideTopBar,
+                HideActivities = hideActivities,
+                HideWorkspaceSwitcher = hideWorkspace,
+                HideDash = hideDash,
+                InstallUnclutter = installUnclutter,
+                HideVirtualKeyboard = hideKeyboard,
+                DisableHotCorner = hotCorner,
+                DisableDockIcons = hideDockIcons,
+                BlockSleep = blockSleep,
+                SkipInitialSetup = initialSetup,
+                EnableAutologin = autologin,
+                LockSingleWorkspace = lockWorkspace,
+                DisableSoftwareUpdate = swUpdate,
+                EnableAutostart = autostart
             };
 
             try
@@ -142,7 +119,6 @@ namespace IPGS.RemoteControl.CcuUI.Views
             finally
             {
                 PART_BtnDeploy.IsEnabled = true;
-                PART_BtnTestSsh.IsEnabled = true;
             }
         }
 
