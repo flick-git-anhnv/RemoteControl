@@ -4,7 +4,7 @@
         xmlns:views="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
         x:Class="IPGS.RemoteControl.CcuUI.Views.RemoteCommandWindow"
         Title="Quản lý File &amp; Lệnh (SFTP / SSH)"
-        Width="880" Height="720"
+        Width="1000" Height="720"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
 

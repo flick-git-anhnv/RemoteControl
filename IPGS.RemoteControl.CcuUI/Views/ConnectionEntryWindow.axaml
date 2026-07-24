@@ -5,7 +5,7 @@
         xmlns:conv="clr-namespace:IPGS.RemoteControl.CcuUI.Converters"
         x:Class="IPGS.RemoteControl.CcuUI.Views.ConnectionEntryWindow"
         Title="iPGS Remote Control — Danh sách máy tính ZCU"
-        Width="1100" Height="760"
+        Width="1200" Height="760"
         WindowStartupLocation="CenterScreen"
         CanResize="True">
 
