@@ -23,6 +23,41 @@ public static class ComputerStatusChecker
         bool sshOk = await IsPortOpenAsync(profile.Host, sshPort, cancellationToken);
         bool agentOk = await IsPortOpenAsync(profile.Host, profile.Port, cancellationToken);
 
+        if (sshOk && !string.IsNullOrEmpty(profile.SshUsername) && !string.IsNullOrEmpty(profile.SshPassword))
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    using var ssh = new Renci.SshNet.SshClient(profile.Host, sshPort, profile.SshUsername, profile.SshPassword);
+                    ssh.ConnectionInfo.Timeout = TimeSpan.FromSeconds(3);
+                    ssh.Connect();
+                    
+                    var cmd = ssh.CreateCommand("top -bn1 | grep \"Cpu(s)\" | awk '{print $2 + $4}'");
+                    var cpuOut = cmd.Execute().Trim();
+                    
+                    cmd = ssh.CreateCommand("free -m | awk '/Mem:/ {printf \"%d%%\", $3/$2*100}'");
+                    var ramOut = cmd.Execute().Trim();
+                    
+                    cmd = ssh.CreateCommand("df -h / | awk 'NR==2 {print $5}'");
+                    var diskOut = cmd.Execute().Trim();
+
+                    profile.CpuUsage = string.IsNullOrEmpty(cpuOut) ? "" : $"CPU: {cpuOut}%";
+                    profile.RamUsage = string.IsNullOrEmpty(ramOut) ? "" : $"RAM: {ramOut}";
+                    profile.DiskUsage = string.IsNullOrEmpty(diskOut) ? "" : $"Disk: {diskOut}";
+                    
+                    ssh.Disconnect();
+                }
+                catch { }
+            }, cancellationToken);
+        }
+        else
+        {
+            profile.CpuUsage = "";
+            profile.RamUsage = "";
+            profile.DiskUsage = "";
+        }
+
         return new ComputerStatusProbeResult(sshOk, agentOk);
     }
 

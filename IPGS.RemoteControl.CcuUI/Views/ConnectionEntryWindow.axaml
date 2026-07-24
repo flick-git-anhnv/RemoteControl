@@ -5,7 +5,7 @@
         xmlns:conv="clr-namespace:IPGS.RemoteControl.CcuUI.Converters"
         x:Class="IPGS.RemoteControl.CcuUI.Views.ConnectionEntryWindow"
         Title="iPGS Remote Control — Danh sách máy tính ZCU"
-        Width="1100" Height="640"
+        Width="1100" Height="760"
         WindowStartupLocation="CenterScreen"
         CanResize="True">
 
@@ -76,18 +76,19 @@
                     Margin="0,0,0,8">
               <Grid ColumnDefinitions="Auto,*,Auto">
                 
-                <!-- Computer Icon Badge -->
-                <Border Grid.Column="0"
-                        Width="42" Height="42"
-                        CornerRadius="21"
-                        Background="#EDE7F6"
-                        Margin="0,0,14,0"
-                        VerticalAlignment="Center">
-                  <TextBlock Text="💻"
-                             FontSize="20"
-                             HorizontalAlignment="Center"
-                             VerticalAlignment="Center"/>
-                </Border>
+                <!-- Computer Icon Badge & CheckBox -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,0,14,0" VerticalAlignment="Center">
+                  <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" IsCheckedChanged="OnSelectionChanged" />
+                  <Border Width="42" Height="42"
+                          CornerRadius="21"
+                          Background="#EDE7F6"
+                          VerticalAlignment="Center">
+                    <TextBlock Text="💻"
+                               FontSize="20"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                  </Border>
+                </StackPanel>
 
                 <!-- Info Details -->
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
@@ -118,6 +119,17 @@
                               Background="{Binding AgentReachable, Converter={StaticResource NullableBoolToStatusBrushConverter}}"/>
                       <TextBlock Text="Remote" FontSize="10" Foreground="#757575" FontWeight="SemiBold"/>
                     </StackPanel>
+                    
+                    <!-- Health Badges -->
+                    <Border Background="#F1F5F9" CornerRadius="4" Padding="6,1" VerticalAlignment="Center" IsVisible="{Binding CpuUsage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                      <TextBlock Text="{Binding CpuUsage}" FontSize="10" Foreground="#475569" FontWeight="SemiBold"/>
+                    </Border>
+                    <Border Background="#F1F5F9" CornerRadius="4" Padding="6,1" VerticalAlignment="Center" IsVisible="{Binding RamUsage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                      <TextBlock Text="{Binding RamUsage}" FontSize="10" Foreground="#475569" FontWeight="SemiBold"/>
+                    </Border>
+                    <Border Background="#F1F5F9" CornerRadius="4" Padding="6,1" VerticalAlignment="Center" IsVisible="{Binding DiskUsage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                      <TextBlock Text="{Binding DiskUsage}" FontSize="10" Foreground="#475569" FontWeight="SemiBold"/>
+                    </Border>
                   </StackPanel>
 
                   <StackPanel Orientation="Horizontal" Spacing="16">
@@ -206,8 +218,18 @@
       </StackPanel>
     </Grid>
 
+    <!-- ── Floating Bulk Action Bar (Bottom) ────────────────────── -->
+    <Border Grid.Row="4" x:Name="PART_BulkActionBar" Background="#1E293B" Padding="16,12" IsVisible="False">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" x:Name="PART_BulkActionText" Text="Đã chọn 0 máy tính" Foreground="White" VerticalAlignment="Center" FontWeight="SemiBold"/>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <kz:KzButton Content="🚀 Gửi lệnh / Upload File Hàng Loạt" Classes="kz-primary" KzSize="Sm" Click="OnBulkActionClick" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
     <!-- ── Quick Connection Drawer Bar (Bottom) ────────────────────── -->
-    <Border Grid.Row="4" Background="#F5F5F7" Padding="16,12" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0">
+    <Border Grid.Row="5" Background="#F5F5F7" Padding="16,12" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="*,Auto,100,Auto,*,Auto" RowDefinitions="Auto">
         <TextBlock Grid.Column="0" Text="Kết nối nhanh:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
         <kz:KzTextBox Grid.Column="1" x:Name="PART_QuickHost" Watermark="IP (192.168.x.x)" Width="150" Margin="0,0,6,0"/>

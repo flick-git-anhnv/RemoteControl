@@ -68,6 +68,43 @@ public sealed class ComputerProfile : INotifyPropertyChanged
         }
     }
 
+    private bool _isSelected;
+    [JsonIgnore]
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (_isSelected == value) return;
+            _isSelected = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private string _cpuUsage = "";
+    [JsonIgnore]
+    public string CpuUsage
+    {
+        get => _cpuUsage;
+        set { if (_cpuUsage != value) { _cpuUsage = value; OnPropertyChanged(); } }
+    }
+
+    private string _ramUsage = "";
+    [JsonIgnore]
+    public string RamUsage
+    {
+        get => _ramUsage;
+        set { if (_ramUsage != value) { _ramUsage = value; OnPropertyChanged(); } }
+    }
+
+    private string _diskUsage = "";
+    [JsonIgnore]
+    public string DiskUsage
+    {
+        get => _diskUsage;
+        set { if (_diskUsage != value) { _diskUsage = value; OnPropertyChanged(); } }
+    }
+
     /// <summary>Kết quả dò cổng SSH gần nhất (null nếu chưa kiểm tra).</summary>
     [JsonIgnore]
     public bool? SshReachable { get; private set; }

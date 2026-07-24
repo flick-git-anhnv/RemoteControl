@@ -252,6 +252,34 @@ public partial class ConnectionEntryWindow : Window
         dlg.Show();
     }
 
+    private void OnSelectionChanged(object? sender, RoutedEventArgs e)
+    {
+        var listBox = this.FindControl<ListBox>("PART_ComputerListBox");
+        if (listBox?.ItemsSource is IEnumerable<ComputerProfile> items)
+        {
+            int count = items.Count(p => p.IsSelected);
+            var bulkBar = this.FindControl<Border>("PART_BulkActionBar");
+            var bulkText = this.FindControl<TextBlock>("PART_BulkActionText");
+            
+            if (bulkBar != null) bulkBar.IsVisible = count > 0;
+            if (bulkText != null) bulkText.Text = $"Đã chọn {count} máy tính";
+        }
+    }
+
+    private void OnBulkActionClick(object? sender, RoutedEventArgs e)
+    {
+        var listBox = this.FindControl<ListBox>("PART_ComputerListBox");
+        if (listBox?.ItemsSource is IEnumerable<ComputerProfile> items)
+        {
+            var selectedProfiles = items.Where(p => p.IsSelected).ToList();
+            if (selectedProfiles.Count > 0)
+            {
+                var bulkWin = new BulkActionWindow(selectedProfiles);
+                bulkWin.Show();
+            }
+        }
+    }
+
     private void OnMultiRemoteClick(object? sender, RoutedEventArgs e)
     {
         var allProfiles = _store.GetAll().ToList();

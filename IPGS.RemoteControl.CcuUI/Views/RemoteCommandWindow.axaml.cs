@@ -93,6 +93,16 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 }
             };
 
+            var btnSync = this.FindControl<Button>("PART_BtnFileSync");
+            if (btnSync != null) btnSync.Click += OnFileSyncClick;
+
+            var fileListBox = this.FindControl<ListBox>("PART_FileListBox");
+            if (fileListBox != null)
+            {
+                fileListBox.AddHandler(DragDrop.DragEnterEvent, OnFileDragEnter);
+                fileListBox.AddHandler(DragDrop.DropEvent, OnFileDrop);
+            }
+
             // Initial load of files
             _ = LoadDirectoryAsync($"/home/{_sshUser}");
         }
@@ -100,6 +110,22 @@ namespace IPGS.RemoteControl.CcuUI.Views
         // ==========================================
         // TAB 1: COMMAND EXECUTION
         // ==========================================
+        private void OnSnippetSelectionChanged(object? sender, SelectionChangedEventArgs e)
+        {
+            var combo = sender as ComboBox;
+            var input = this.FindControl<TextBox>("PART_CommandInput");
+            if (combo?.SelectedItem is ComboBoxItem item && item.Content != null && input != null)
+            {
+                string text = item.Content.ToString() ?? "";
+                if (text.Contains("Reboot")) input.Text = "sudo reboot";
+                else if (text.Contains("RAM & Ổ cứng")) input.Text = "free -m && echo '' && df -h /";
+                else if (text.Contains("apt clean")) input.Text = "sudo apt clean && sudo apt autoremove -y";
+                else if (text.Contains("Top Process")) input.Text = "top -bn1 | head -n 15";
+                
+                combo.SelectedIndex = -1; // reset
+            }
+        }
+
         private async void OnRunCommandClick(object? sender, RoutedEventArgs e)
         {
             var sudoPassBox = this.FindControl<TextBox>("PART_SudoPassword");
@@ -299,9 +325,6 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
         private async void OnFileUploadClick(object? sender, RoutedEventArgs e)
         {
-            var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
-            string currentPath = txtPath?.Text?.Trim() ?? "/home";
-
             var options = new FilePickerOpenOptions
             {
                 Title = "Chọn file để Upload",
@@ -311,15 +334,25 @@ namespace IPGS.RemoteControl.CcuUI.Views
             var files = await StorageProvider.OpenFilePickerAsync(options);
             if (files.Count == 0) return;
 
-            SetStatus($"Đang upload {files.Count} file...", false);
+            await ProcessUploadFilesAsync(files.Select(f => f.Path.LocalPath));
+        }
+
+        private async Task ProcessUploadFilesAsync(IEnumerable<string> localPaths)
+        {
+            var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
+            string currentPath = txtPath?.Text?.Trim() ?? "/home";
+            var pathList = localPaths.ToList();
+            if (pathList.Count == 0) return;
+
+            SetStatus($"Đang upload {pathList.Count} file...", false);
 
             try
             {
                 await EnsureSftpConnectedAsync();
 
-                foreach (var file in files)
+                foreach (var localPath in pathList)
                 {
-                    string localPath = file.Path.LocalPath;
+                    if (Directory.Exists(localPath)) continue; // skip folder upload for now
                     string fileName = Path.GetFileName(localPath);
                     string remotePath = currentPath.TrimEnd('/') + "/" + fileName;
 
@@ -333,6 +366,83 @@ namespace IPGS.RemoteControl.CcuUI.Views
             catch (Exception ex)
             {
                 SetStatus($"❌ Lỗi upload: {ex.Message}", true);
+            }
+        }
+
+        private void OnFileDragEnter(object? sender, DragEventArgs e)
+        {
+            var files = e.DataTransfer.TryGetFiles();
+            if (files != null && files.Length > 0)
+                e.DragEffects = DragDropEffects.Copy;
+            else
+                e.DragEffects = DragDropEffects.None;
+        }
+
+        private async void OnFileDrop(object? sender, DragEventArgs e)
+        {
+            var files = e.DataTransfer.TryGetFiles();
+            if (files != null && files.Length > 0)
+            {
+                await ProcessUploadFilesAsync(files.Select(f => f.Path.LocalPath));
+            }
+        }
+
+        private async void OnFileSyncClick(object? sender, RoutedEventArgs e)
+        {
+            var folderOptions = new FolderPickerOpenOptions { Title = "Chọn thư mục máy cá nhân để đồng bộ lên máy đích" };
+            var folders = await StorageProvider.OpenFolderPickerAsync(folderOptions);
+            if (folders.Count == 0) return;
+
+            string localDir = folders[0].Path.LocalPath;
+            
+            var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
+            string remoteDir = txtPath?.Text?.Trim() ?? "/home";
+
+            SetStatus($"Đang đối chiếu file để đồng bộ từ {localDir}...", false);
+
+            try
+            {
+                await EnsureSftpConnectedAsync();
+                
+                var localFiles = Directory.GetFiles(localDir, "*", SearchOption.TopDirectoryOnly);
+                var remoteFiles = await Task.Run(() => _sftpClient!.ListDirectory(remoteDir));
+                var remoteDict = remoteFiles.Where(f => !f.IsDirectory).ToDictionary(f => f.Name, f => f);
+
+                int uploadCount = 0;
+                foreach (var localFile in localFiles)
+                {
+                    var fileInfo = new FileInfo(localFile);
+                    string fileName = fileInfo.Name;
+                    bool shouldUpload = false;
+
+                    if (remoteDict.TryGetValue(fileName, out var remoteFile))
+                    {
+                        // Compare size and LastWriteTime (simple check)
+                        if (fileInfo.Length != remoteFile.Attributes.Size || fileInfo.LastWriteTimeUtc > remoteFile.LastWriteTime.ToUniversalTime())
+                        {
+                            shouldUpload = true;
+                        }
+                    }
+                    else
+                    {
+                        shouldUpload = true;
+                    }
+
+                    if (shouldUpload)
+                    {
+                        string remotePath = remoteDir.TrimEnd('/') + "/" + fileName;
+                        using var fs = new FileStream(localFile, FileMode.Open, FileAccess.Read);
+                        await Task.Run(() => _sftpClient!.UploadFile(fs, remotePath, true));
+                        uploadCount++;
+                    }
+                }
+
+                SetStatus($"🎉 Đồng bộ hoàn tất! (Đã upload {uploadCount} file thay đổi)", false, true);
+                await LoadDirectoryAsync(remoteDir);
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"❌ Lỗi đồng bộ: {ex.Message}", true);
             }
         }
 

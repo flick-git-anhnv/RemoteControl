@@ -1,0 +1,82 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        xmlns:views="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.BulkActionWindow"
+        Title="Mass Deploy &amp; Thực thi hàng loạt"
+        Width="950" Height="650"
+        WindowStartupLocation="CenterOwner"
+        Background="#F8FAFC">
+
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16">
+    
+    <!-- HEADER & INPUT -->
+    <StackPanel Grid.Row="0" Spacing="16" Margin="0,0,0,16">
+      <TextBlock Text="🚀 Thực thi hàng loạt (Mass Deploy)" FontSize="22" FontWeight="Bold" Foreground="#1E293B"/>
+      
+      <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#E2E8F0" BorderThickness="1">
+        <StackPanel Spacing="12">
+          
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Nhập lệnh bash/shell:" FontSize="13" Foreground="#64748B" VerticalAlignment="Center"/>
+            <ComboBox x:Name="PART_SnippetCombo" PlaceholderText="Chọn kịch bản nhanh..." Width="250" SelectionChanged="OnSnippetSelectionChanged">
+              <ComboBoxItem Content="🔄 Khởi động lại (Reboot)"/>
+              <ComboBoxItem Content="💾 Cập nhật IPGS App"/>
+              <ComboBoxItem Content="🧹 Xóa log cũ"/>
+            </ComboBox>
+          </StackPanel>
+          
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBox x:Name="PART_CommandInput" Grid.Column="0" Margin="0,0,12,0" Height="80" AcceptsReturn="True" TextWrapping="Wrap" />
+            
+            <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Top">
+              <kz:KzButton x:Name="PART_BtnRunCommand" Content="🚀 Chạy lệnh" Classes="kz-primary" Click="OnRunCommandClick" />
+              <kz:KzButton x:Name="PART_BtnUploadFile" Content="📤 Upload File" Classes="kz-success" Click="OnUploadFileClick" />
+            </StackPanel>
+          </Grid>
+          
+          <!-- PROGRESS -->
+          <StackPanel x:Name="PART_ProgressPanel" Spacing="4" IsVisible="False">
+            <TextBlock x:Name="PART_ProgressText" Text="Đang xử lý: 0/5" FontSize="12" Foreground="#64748B" HorizontalAlignment="Right" />
+            <ProgressBar x:Name="PART_ProgressBar" Minimum="0" Maximum="100" Value="0" Height="8" Foreground="#3B82F6" />
+          </StackPanel>
+          
+        </StackPanel>
+      </Border>
+    </StackPanel>
+    
+    <!-- RESULTS LIST -->
+    <Border Grid.Row="1" Background="White" CornerRadius="8" BorderBrush="#E2E8F0" BorderThickness="1">
+      <ListBox x:Name="PART_ResultListBox" Background="Transparent" Padding="8">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="views:BulkTaskResult">
+            <Border BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="8,12">
+              <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+                
+                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18" Background="{Binding StatusColor}" Margin="0,0,12,0" VerticalAlignment="Top">
+                  <TextBlock Text="{Binding StatusIcon}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16"/>
+                </Border>
+                
+                <StackPanel Grid.Column="1" Grid.Row="0" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding ComputerName}" FontWeight="SemiBold" FontSize="15" Foreground="#1E293B"/>
+                  <TextBlock Text="{Binding HostAddress}" FontSize="12" Foreground="#64748B"/>
+                </StackPanel>
+                
+                <TextBlock Grid.Column="2" Grid.Row="0" Text="{Binding StatusText}" Foreground="{Binding StatusColor}" FontWeight="Bold" VerticalAlignment="Center"/>
+                
+                <TextBox Grid.Column="1" Grid.ColumnSpan="2" Grid.Row="1" 
+                         Text="{Binding Output}" 
+                         IsVisible="{Binding Output, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" 
+                         IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" 
+                         Margin="0,8,0,0" Height="80" 
+                         Background="#F1F5F9" Foreground="#334155" FontSize="12" FontFamily="Consolas, monospace" />
+                
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+    
+  </Grid>
+</Window>
