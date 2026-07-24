@@ -15,7 +15,7 @@
     <conv:NullableBoolIsTrueConverter x:Key="NullableBoolIsTrueConverter" />
   </Window.Resources>
 
-  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
 
     <!-- ── Header bar ─────────────────────────────────────────────── -->
     <Border Grid.Row="0" Background="#251C53" Padding="20,14">
