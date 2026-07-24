@@ -71,10 +71,18 @@
 
       <!-- TAB 2: File Transfer -->
       <TabItem Header="📁 Truyền nhận File (SFTP)">
-        <Grid RowDefinitions="Auto,*,Auto" Margin="8">
+        <Grid RowDefinitions="Auto,Auto,*" Margin="8">
           
+          <!-- Hint Alert -->
+          <Border Grid.Row="0" Background="#FFF9C4" BorderBrush="#FFF59D" BorderThickness="1" CornerRadius="4" Padding="12,8" Margin="0,0,0,8">
+            <StackPanel Orientation="Vertical" Spacing="4">
+              <TextBlock Text="💡 Quản lý File Chuyên Sâu: Duyệt file hiển thị theo dạng danh sách tương tự File Explorer. Đã hỗ trợ Drag &amp; Drop (Kéo/Thả) nhiều file cùng lúc thẳng từ máy cá nhân vào thư mục đích." TextWrapping="Wrap" FontSize="12" Foreground="#E65100"/>
+              <TextBlock Text="🔄 Đồng Bộ Folder (Sync): Bấm nút để chọn một thư mục trên máy trạm của bạn, phần mềm sẽ đối chiếu và cập nhật những file bị thay đổi lên đúng thư mục trên máy đích (ZCU)." TextWrapping="Wrap" FontSize="12" Foreground="#E65100"/>
+            </StackPanel>
+          </Border>
+
           <!-- File Toolbar -->
-          <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
+          <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
             <Button x:Name="PART_BtnFileUpDir" Grid.Column="0" Content="⬆️ Lên" ToolTip.Tip="Lên thư mục cha" Margin="0,0,8,0" />
             <TextBox x:Name="PART_FileCurrentPath" Grid.Column="1" Margin="0,0,8,0" KeyDown="OnFileCurrentPathKeyDown" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
@@ -87,7 +95,7 @@
           </Grid>
 
           <!-- File ListBox -->
-          <ListBox Grid.Row="1" x:Name="PART_FileListBox"
+          <ListBox Grid.Row="2" x:Name="PART_FileListBox"
                    BorderBrush="#CBD5E1" BorderThickness="1" Background="White"
                    SelectionMode="Multiple"
                    DoubleTapped="OnFileItemDoubleTapped"
