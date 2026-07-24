@@ -27,6 +27,9 @@ public sealed class ComputerProfile : INotifyPropertyChanged
     /// <summary>Ghi chú bổ sung (tùy chọn).</summary>
     public string? Notes { get; set; }
 
+    /// <summary>Địa chỉ MAC dùng cho Wake-on-LAN (tùy chọn).</summary>
+    public string? MacAddress { get; set; }
+
     /// <summary>Cổng SSH (mặc định 22) — dùng cho Deploy Kiosk / Cài ZCU từ xa.</summary>
     public int SshPort { get; set; } = 22;
 

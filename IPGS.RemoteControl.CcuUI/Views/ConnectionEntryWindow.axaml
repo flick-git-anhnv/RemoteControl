@@ -153,6 +153,12 @@
                             Spacing="8"
                             VerticalAlignment="Center">
                   <kz:KzButton Tag="{Binding}"
+                               Click="OnItemWakeUpClick"
+                               Content="⚡ Bật nguồn"
+                               Classes="kz-outline"
+                               ToolTip.Tip="Bật máy bằng Wake-on-LAN (Magic Packet)"
+                               KzSize="Sm" />
+                  <kz:KzButton Tag="{Binding}"
                                Click="OnItemConnectClick"
                                Content="Kết nối"
                                Classes="kz-primary"
@@ -172,8 +178,14 @@
                                ToolTip.Tip="{Binding SshStatusTooltip}"
                                KzSize="Sm" />
                   <kz:KzButton Tag="{Binding}"
+                               Click="OnItemFileManagerClick"
+                               Content="📁 Quản lý File"
+                               IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                               ToolTip.Tip="{Binding SshStatusTooltip}"
+                               KzSize="Sm" />
+                  <kz:KzButton Tag="{Binding}"
                                Click="OnItemRunCommandClick"
-                               Content="📁 File &amp; CMD"
+                               Content="&gt;_ CMD Shell"
                                IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
                                ToolTip.Tip="{Binding SshStatusTooltip}"
                                KzSize="Sm" />

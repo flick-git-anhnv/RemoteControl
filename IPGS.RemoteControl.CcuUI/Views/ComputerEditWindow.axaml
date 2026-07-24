@@ -22,7 +22,7 @@
     <ScrollViewer Grid.Row="1">
       <StackPanel Margin="24,16,24,8" Spacing="14">
 
-        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
               ColumnDefinitions="130,*"
               RowSpacing="10">
 
@@ -59,7 +59,14 @@
                      VerticalAlignment="Center" />
           <kz:KzTextBox Grid.Row="4" Grid.Column="1"
                         x:Name="PART_Notes"
-                        Watermark="Ghi chú vị trí, mô tả..." />
+                        PlaceholderText="Ghi chú vị trí, mô tả..." />
+
+          <TextBlock Grid.Row="5" Grid.Column="0"
+                     Text="Địa chỉ MAC:"
+                     VerticalAlignment="Center" />
+          <kz:KzTextBox Grid.Row="5" Grid.Column="1"
+                        x:Name="PART_MacAddress"
+                        PlaceholderText="Bỏ trống hoặc XX:XX:XX:XX:XX:XX (dùng cho WoL)" />
         </Grid>
 
         <!-- ── SSH info (tùy chọn) — dùng cho Deploy Kiosk / Cài ZCU từ xa ── -->

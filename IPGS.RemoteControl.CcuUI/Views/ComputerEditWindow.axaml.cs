@@ -24,6 +24,7 @@ public partial class ComputerEditWindow : Window
         if (this.FindControl<KzTextBox>("PART_Port") is { } portTxt) portTxt.Text = profile.Port.ToString();
         if (this.FindControl<KzTextBox>("PART_Token") is { } tokenTxt) tokenTxt.Text = profile.Token;
         if (this.FindControl<KzTextBox>("PART_Notes") is { } notesTxt) notesTxt.Text = profile.Notes;
+        if (this.FindControl<KzTextBox>("PART_MacAddress") is { } macTxt) macTxt.Text = profile.MacAddress;
 
         if (this.FindControl<KzTextBox>("PART_SshUser") is { } sshUserTxt) sshUserTxt.Text = profile.SshUsername;
         if (this.FindControl<TextBox>("PART_SshPassword") is { } sshPassTxt) sshPassTxt.Text = profile.SshPassword;
@@ -62,6 +63,8 @@ public partial class ComputerEditWindow : Window
         Profile.Port = port;
         Profile.Token = token;
         Profile.Notes = notes;
+        Profile.MacAddress = this.FindControl<KzTextBox>("PART_MacAddress")?.Text?.Trim() ?? "";
+
         Profile.SshUsername = sshUser;
         Profile.SshPassword = sshPass;
         Profile.SshPort = sshPort;

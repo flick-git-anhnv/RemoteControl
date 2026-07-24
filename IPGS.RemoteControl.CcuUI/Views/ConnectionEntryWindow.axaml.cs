@@ -152,6 +152,7 @@ public partial class ConnectionEntryWindow : Window
                 SshPort = profile.SshPort,
                 SshUsername = profile.SshUsername,
                 SshPassword = profile.SshPassword,
+                MacAddress = profile.MacAddress,
                 LastConnectedAt = profile.LastConnectedAt,
                 CreatedAt = profile.CreatedAt
             });
@@ -161,6 +162,35 @@ public partial class ConnectionEntryWindow : Window
             {
                 _store.Save(updated);
                 RefreshList();
+            }
+        }
+    }
+
+    public async void OnItemWakeUpClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { Tag: ComputerProfile profile })
+        {
+            if (string.IsNullOrWhiteSpace(profile.MacAddress))
+            {
+                var w1 = new Window { Title = "Lỗi Wake-on-LAN", Width = 400, Height = 150, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+                w1.Content = new TextBlock { Text = "Máy tính này chưa được cấu hình địa chỉ MAC.\nVui lòng bấm 'Sửa' và điền địa chỉ MAC trước khi đánh thức.", Margin = new Avalonia.Thickness(20), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+                await w1.ShowDialog(this);
+                return;
+            }
+
+            try
+            {
+                await IPGS.RemoteControl.CcuClient.Services.WakeOnLanService.SendMagicPacketAsync(profile.MacAddress);
+                
+                var w2 = new Window { Title = "Thành công", Width = 400, Height = 150, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+                w2.Content = new TextBlock { Text = $"Đã gửi tín hiệu bật nguồn (Magic Packet) đến địa chỉ MAC {profile.MacAddress}.\nVui lòng chờ vài phút để máy tính khởi động.", Margin = new Avalonia.Thickness(20), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+                await w2.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                var w3 = new Window { Title = "Lỗi gửi tín hiệu", Width = 400, Height = 150, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+                w3.Content = new TextBlock { Text = $"Không thể gửi gói tin Wake-on-LAN:\n{ex.Message}", Margin = new Avalonia.Thickness(20), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+                await w3.ShowDialog(this);
             }
         }
     }
@@ -190,6 +220,14 @@ public partial class ConnectionEntryWindow : Window
         if (sender is not Control { Tag: ComputerProfile profile }) return;
 
         var dlg = new RemoteAppInstallWindow(profile);
+        dlg.Show();
+    }
+
+    public void OnItemFileManagerClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { Tag: ComputerProfile profile }) return;
+
+        var dlg = new FileManagerWindow(profile);
         dlg.Show();
     }
 
