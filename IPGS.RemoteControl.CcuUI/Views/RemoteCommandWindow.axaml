@@ -78,11 +78,11 @@
             <Button x:Name="PART_BtnFileUpDir" Grid.Column="0" Content="⬆️ Lên" ToolTip.Tip="Lên thư mục cha" Margin="0,0,8,0" />
             <TextBox x:Name="PART_FileCurrentPath" Grid.Column="1" Margin="0,0,8,0" KeyDown="OnFileCurrentPathKeyDown" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-               <Button x:Name="PART_BtnFileRefresh" Content="🔄 Tải lại" />
-               <Button x:Name="PART_BtnFileSync" Content="🔄 Sync (Local &gt; Remote)" Background="#8B5CF6" Foreground="White" />
-               <Button x:Name="PART_BtnFileUpload" Content="📤 Upload File" Background="#10B981" Foreground="White" />
-               <Button x:Name="PART_BtnFileDownload" Content="📥 Download" Background="#3B82F6" Foreground="White" />
-               <Button x:Name="PART_BtnFileDelete" Content="🗑️ Xóa" Background="#EF4444" Foreground="White" />
+               <Button x:Name="PART_BtnFileRefresh" Content="🔄 Tải lại" ToolTip.Tip="Làm mới danh sách file/thư mục (F5)" />
+               <Button x:Name="PART_BtnFileSync" Content="🔄 Sync (Local &gt; Remote)" Background="#8B5CF6" Foreground="White" ToolTip.Tip="Đồng bộ tất cả các file có thay đổi từ máy trạm lên thư mục đích trên ZCU" />
+               <Button x:Name="PART_BtnFileUpload" Content="📤 Upload File" Background="#10B981" Foreground="White" ToolTip.Tip="Tải file từ máy tính của bạn lên thư mục hiện tại trên ZCU (Có thể kéo thả)" />
+               <Button x:Name="PART_BtnFileDownload" Content="📥 Download" Background="#3B82F6" Foreground="White" ToolTip.Tip="Tải file/thư mục đang chọn từ ZCU về máy tính của bạn" />
+               <Button x:Name="PART_BtnFileDelete" Content="🗑️ Xóa" Background="#EF4444" Foreground="White" ToolTip.Tip="Xóa các file/thư mục đang chọn khỏi ZCU (Delete)" />
             </StackPanel>
           </Grid>
 
