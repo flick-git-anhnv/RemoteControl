@@ -226,9 +226,17 @@ public partial class ConnectionEntryWindow : Window
     public void OnItemFileManagerClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control { Tag: ComputerProfile profile }) return;
-
         var dlg = new FileManagerWindow(profile);
         dlg.Show();
+    }
+
+    private void OnItemHealthMonitorClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: ComputerProfile profile })
+        {
+            var win = new HealthMonitorWindow(profile);
+            win.ShowDialog(this);
+        }
     }
 
     public void OnItemRunCommandClick(object? sender, RoutedEventArgs e)
