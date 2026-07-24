@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using IPGS.RemoteControl.CcuClient;
 using KztekComponentAvalonia.Controls;
 
@@ -20,8 +21,8 @@ public partial class ConnectionEntryWindow : Window
         _store = ComputerProfileStore.Instance;
 
         // Toolbar buttons
-        if (this.FindControl<KzButton>("PART_BtnSetupWizard") is { } btnWizard)
-            btnWizard.Click += OnSetupWizardClick;
+        if (this.FindControl<KzButton>("PART_BtnScanNetwork") is { } btnScan)
+            btnScan.Click += OnScanNetworkClick;
 
         if (this.FindControl<KzButton>("PART_BtnMultiRemote") is { } btnMulti)
             btnMulti.Click += OnMultiRemoteClick;
@@ -105,16 +106,24 @@ public partial class ConnectionEntryWindow : Window
         {
             emptyState.IsVisible = resultList.Count == 0;
         }
+
+        _ = CheckAllStatusesAsync(resultList);
     }
 
-    private async void OnSetupWizardClick(object? sender, RoutedEventArgs e)
+    private async Task CheckAllStatusesAsync(List<ComputerProfile> profiles)
     {
-        var dlg = new ZcuSetupWizardWindow();
-        var created = await dlg.ShowDialog<ComputerProfile?>(this);
-        if (created != null)
+        foreach (var profile in profiles)
         {
-            RefreshList();
+            profile.MarkChecking();
         }
+
+        var tasks = profiles.Select(async profile =>
+        {
+            var result = await ComputerStatusChecker.ProbeAsync(profile);
+            Dispatcher.UIThread.Post(() => profile.ApplyStatusResult(result));
+        });
+
+        await Task.WhenAll(tasks);
     }
 
     private async void OnAddComputerClick(object? sender, RoutedEventArgs e)
@@ -140,6 +149,9 @@ public partial class ConnectionEntryWindow : Window
                 Port = profile.Port,
                 Token = profile.Token,
                 Notes = profile.Notes,
+                SshPort = profile.SshPort,
+                SshUsername = profile.SshUsername,
+                SshPassword = profile.SshPassword,
                 LastConnectedAt = profile.LastConnectedAt,
                 CreatedAt = profile.CreatedAt
             });
@@ -151,6 +163,26 @@ public partial class ConnectionEntryWindow : Window
                 RefreshList();
             }
         }
+    }
+
+    public async void OnItemSetupWizardClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { Tag: ComputerProfile profile }) return;
+
+        var dlg = new ZcuSetupWizardWindow(profile);
+        var created = await dlg.ShowDialog<ComputerProfile?>(this);
+        if (created != null)
+        {
+            RefreshList();
+        }
+    }
+
+    public void OnItemKioskDeployClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { Tag: ComputerProfile profile }) return;
+
+        var dlg = new KioskDeployWindow(profile);
+        dlg.Show();
     }
 
     public void OnItemDeleteClick(object? sender, RoutedEventArgs e)
@@ -195,6 +227,13 @@ public partial class ConnectionEntryWindow : Window
         }
 
         StartRemoteControl(host, port, token, null);
+    }
+
+    private void OnScanNetworkClick(object? sender, RoutedEventArgs e)
+    {
+        var dlg = new NetworkScanWindow();
+        dlg.Closed += (_, _) => RefreshList();
+        dlg.Show();
     }
 
     private void OnMultiRemoteClick(object? sender, RoutedEventArgs e)

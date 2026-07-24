@@ -73,6 +73,9 @@ public sealed class ComputerProfileStore : IComputerProfileStore
                 existing.Port = profile.Port;
                 existing.Token = profile.Token;
                 existing.Notes = profile.Notes;
+                existing.SshPort = profile.SshPort;
+                existing.SshUsername = profile.SshUsername;
+                existing.SshPassword = profile.SshPassword;
                 if (profile.LastConnectedAt.HasValue)
                 {
                     existing.LastConnectedAt = profile.LastConnectedAt;

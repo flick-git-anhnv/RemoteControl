@@ -2,8 +2,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         x:Class="IPGS.RemoteControl.CcuUI.Views.ComputerEditWindow"
-        Title="Thông tin máy tính ZCU"
-        Width="480" Height="360"
+        Title="Thông tin máy tính"
+        Width="480" Height="560"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
 
@@ -12,54 +12,94 @@
     <!-- ── Header bar ─────────────────────────────────────────────── -->
     <Border Grid.Row="0" Background="#251C53" Padding="20,14">
       <TextBlock x:Name="PART_TitleText"
-                 Text="Thêm máy tính ZCU mới"
+                 Text="Thông tin máy tính"
                  Foreground="White"
                  FontSize="15"
                  FontWeight="SemiBold" />
     </Border>
 
     <!-- ── Input fields ───────────────────────────────────────────── -->
-    <Grid Grid.Row="1"
-          RowDefinitions="Auto,Auto,Auto,Auto,Auto"
-          ColumnDefinitions="130,*"
-          RowSpacing="10"
-          Margin="24,16,24,8">
+    <ScrollViewer Grid.Row="1">
+      <StackPanel Margin="24,16,24,8" Spacing="14">
 
-      <TextBlock Grid.Row="0" Grid.Column="0"
-                 Text="Tên máy tính:"
-                 VerticalAlignment="Center" />
-      <kz:KzTextBox Grid.Row="0" Grid.Column="1"
-                    x:Name="PART_Name"
-                    Watermark="Ví dụ: ZCU Trạm P01" />
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+              ColumnDefinitions="130,*"
+              RowSpacing="10">
 
-      <TextBlock Grid.Row="1" Grid.Column="0"
-                 Text="Địa chỉ IP ZCU:"
-                 VerticalAlignment="Center" />
-      <kz:KzTextBox Grid.Row="1" Grid.Column="1"
-                    x:Name="PART_Host"
-                    Watermark="192.168.x.x" />
+          <TextBlock Grid.Row="0" Grid.Column="0"
+                     Text="Tên máy tính:"
+                     VerticalAlignment="Center" />
+          <kz:KzTextBox Grid.Row="0" Grid.Column="1"
+                        x:Name="PART_Name"
+                        Watermark="Ví dụ: ZCU Trạm P01" />
 
-      <TextBlock Grid.Row="2" Grid.Column="0"
-                 Text="Cổng TCP:"
-                 VerticalAlignment="Center" />
-      <kz:KzTextBox Grid.Row="2" Grid.Column="1"
-                    x:Name="PART_Port"
-                    Text="17600" />
+          <TextBlock Grid.Row="1" Grid.Column="0"
+                     Text="Địa chỉ IP ZCU:"
+                     VerticalAlignment="Center" />
+          <kz:KzTextBox Grid.Row="1" Grid.Column="1"
+                        x:Name="PART_Host"
+                        Watermark="192.168.x.x" />
 
-      <TextBlock Grid.Row="3" Grid.Column="0"
-                 Text="Token:"
-                 VerticalAlignment="Center" />
-      <kz:KzTextBox Grid.Row="3" Grid.Column="1"
-                    x:Name="PART_Token"
-                    Watermark="Shared-secret token" />
+          <TextBlock Grid.Row="2" Grid.Column="0"
+                     Text="Cổng TCP:"
+                     VerticalAlignment="Center" />
+          <kz:KzTextBox Grid.Row="2" Grid.Column="1"
+                        x:Name="PART_Port"
+                        Text="17600" />
 
-      <TextBlock Grid.Row="4" Grid.Column="0"
-                 Text="Ghi chú:"
-                 VerticalAlignment="Center" />
-      <kz:KzTextBox Grid.Row="4" Grid.Column="1"
-                    x:Name="PART_Notes"
-                    Watermark="Ghi chú vị trí, mô tả..." />
-    </Grid>
+          <TextBlock Grid.Row="3" Grid.Column="0"
+                     Text="Token:"
+                     VerticalAlignment="Center" />
+          <kz:KzTextBox Grid.Row="3" Grid.Column="1"
+                        x:Name="PART_Token"
+                        Watermark="Shared-secret token" />
+
+          <TextBlock Grid.Row="4" Grid.Column="0"
+                     Text="Ghi chú:"
+                     VerticalAlignment="Center" />
+          <kz:KzTextBox Grid.Row="4" Grid.Column="1"
+                        x:Name="PART_Notes"
+                        Watermark="Ghi chú vị trí, mô tả..." />
+        </Grid>
+
+        <!-- ── SSH info (tùy chọn) — dùng cho Deploy Kiosk / Cài ZCU từ xa ── -->
+        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14">
+          <StackPanel Spacing="10">
+            <TextBlock Text="🔐 Thông tin SSH (tùy chọn — dùng cho Deploy Kiosk / Cài ZCU từ xa)"
+                       FontWeight="SemiBold" FontSize="12" Foreground="#251C53" TextWrapping="Wrap" />
+
+            <Grid RowDefinitions="Auto,Auto,Auto"
+                  ColumnDefinitions="130,*"
+                  RowSpacing="10">
+
+              <TextBlock Grid.Row="0" Grid.Column="0"
+                         Text="SSH user:"
+                         VerticalAlignment="Center" />
+              <kz:KzTextBox Grid.Row="0" Grid.Column="1"
+                            x:Name="PART_SshUser"
+                            Watermark="kztek / ubuntu" />
+
+              <TextBlock Grid.Row="1" Grid.Column="0"
+                         Text="SSH password:"
+                         VerticalAlignment="Center" />
+              <TextBox Grid.Row="1" Grid.Column="1"
+                       x:Name="PART_SshPassword"
+                       PasswordChar="•"
+                       Watermark="Nhập mật khẩu SSH..."
+                       Height="36" VerticalContentAlignment="Center" />
+
+              <TextBlock Grid.Row="2" Grid.Column="0"
+                         Text="Cổng SSH:"
+                         VerticalAlignment="Center" />
+              <kz:KzTextBox Grid.Row="2" Grid.Column="1"
+                            x:Name="PART_SshPort"
+                            Text="22" />
+            </Grid>
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </ScrollViewer>
 
     <!-- ── Buttons ────────────────────────────────────────────────── -->
     <StackPanel Grid.Row="2"

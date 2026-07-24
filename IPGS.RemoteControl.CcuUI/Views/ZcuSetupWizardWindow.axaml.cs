@@ -16,7 +16,11 @@ namespace IPGS.RemoteControl.CcuUI.Views
         private readonly ZcuRemoteInstallerService _installerService;
         public ComputerProfile? CreatedProfile { get; private set; }
 
-        public ZcuSetupWizardWindow()
+        public ZcuSetupWizardWindow() : this(null)
+        {
+        }
+
+        public ZcuSetupWizardWindow(ComputerProfile? prefill)
         {
             InitializeComponent();
             _installerService = new ZcuRemoteInstallerService();
@@ -27,6 +31,16 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             // Generate initial random token
             GenerateRandomToken();
+
+            if (prefill != null)
+            {
+                PART_SshHost.Text = prefill.Host;
+                if (prefill.SshPort > 0) PART_SshPort.Text = prefill.SshPort.ToString();
+                if (!string.IsNullOrWhiteSpace(prefill.SshUsername)) PART_SshUser.Text = prefill.SshUsername;
+                if (!string.IsNullOrWhiteSpace(prefill.SshPassword)) PART_SshPassword.Text = prefill.SshPassword;
+                if (prefill.Port > 0) PART_AgentPort.Text = prefill.Port.ToString();
+                if (!string.IsNullOrWhiteSpace(prefill.Token)) PART_AgentToken.Text = prefill.Token;
+            }
         }
 
         private void GenerateRandomToken()

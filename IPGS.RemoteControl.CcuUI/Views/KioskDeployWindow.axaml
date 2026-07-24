@@ -1,0 +1,124 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.KioskDeployWindow"
+        Title="🖥️ Deploy Kiosk Setup (ẩn Top Bar / autologin / autostart)"
+        Width="680" Height="760"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- ── Header ────────────────────────────────────────────────── -->
+    <Border Grid.Row="0" Background="#251C53" Padding="20,16">
+      <StackPanel Spacing="4">
+        <TextBlock Text="🖥️ Deploy Kiosk Setup iPGS"
+                   Foreground="White" FontSize="16" FontWeight="Bold" />
+        <TextBlock Text="Cấu hình TỪ XA qua SSH: ẩn Top Bar/Dock, autologin, autostart app kiosk — không cần cài PuTTY"
+                   Foreground="#B8B3D6" FontSize="12" />
+      </StackPanel>
+    </Border>
+
+    <!-- ── Content ───────────────────────────────────────────────── -->
+    <ScrollViewer Grid.Row="1" Padding="24,18">
+      <StackPanel Spacing="18">
+
+        <!-- STEP 1: SSH Information -->
+        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16">
+          <StackPanel Spacing="12">
+            <TextBlock Text="1️⃣ Thông tin kết nối SSH tới máy kiosk (Ubuntu)" FontWeight="Bold" FontSize="14" Foreground="#334155"/>
+
+            <Grid ColumnDefinitions="*,120" RowDefinitions="Auto">
+              <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
+                <TextBlock Text="Địa chỉ IP máy kiosk:" FontSize="12" Foreground="#64748B"/>
+                <kz:KzTextBox x:Name="PART_SshHost" Watermark="192.168.1.x" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock Text="Cổng SSH:" FontSize="12" Foreground="#64748B"/>
+                <kz:KzTextBox x:Name="PART_SshPort" Text="22" />
+              </StackPanel>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
+              <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
+                <TextBlock Text="SSH user:" FontSize="12" Foreground="#64748B"/>
+                <kz:KzTextBox x:Name="PART_SshUser" Text="kztek" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock Text="SSH password:" FontSize="12" Foreground="#64748B"/>
+                <TextBox x:Name="PART_SshPassword" PasswordChar="•" Watermark="Nhập mật khẩu SSH..." Height="36" VerticalContentAlignment="Center"/>
+              </StackPanel>
+            </Grid>
+
+            <StackPanel Spacing="4">
+              <TextBlock Text="Sudo password (để trống nếu giống SSH password):" FontSize="12" Foreground="#64748B"/>
+              <TextBox x:Name="PART_SudoPassword" PasswordChar="•" Watermark="Để trống nếu dùng chung với SSH password" Height="36" VerticalContentAlignment="Center"/>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- STEP 2: Kiosk config -->
+        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16">
+          <StackPanel Spacing="12">
+            <TextBlock Text="2️⃣ Cấu hình Kiosk" FontWeight="Bold" FontSize="14" Foreground="#334155"/>
+
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
+              <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
+                <TextBlock Text="Kiosk user (autologin):" FontSize="12" Foreground="#64748B"/>
+                <kz:KzTextBox x:Name="PART_KioskUser" Text="kztek" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock Text="App exec:" FontSize="12" Foreground="#64748B"/>
+                <kz:KzTextBox x:Name="PART_AppExec" Text="ipgskioskavalonia" />
+              </StackPanel>
+            </Grid>
+
+            <CheckBox x:Name="PART_ChkStep1" Content="Chạy Script 1 — Cài phần mềm (extension ẩn top bar + unclutter)" IsChecked="True"/>
+            <CheckBox x:Name="PART_ChkStep2" Content="Chạy Script 2 — Cấu hình hệ thống (autologin, autostart, dock/sleep/update...)" IsChecked="True"/>
+
+            <StackPanel Spacing="4">
+              <TextBlock Text="Top Bar / Dock / Desktop Icons:" FontSize="12" Foreground="#64748B"/>
+              <StackPanel Orientation="Horizontal" Spacing="16">
+                <RadioButton x:Name="PART_ToggleNone" Content="Không đổi" GroupName="ToggleMode" IsChecked="True"/>
+                <RadioButton x:Name="PART_ToggleHide" Content="Ẩn" GroupName="ToggleMode"/>
+                <RadioButton x:Name="PART_ToggleShow" Content="Hiện lại" GroupName="ToggleMode"/>
+              </StackPanel>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- STEP 3: Console log -->
+        <Border Background="#0F172A" CornerRadius="8" Padding="14">
+          <StackPanel Spacing="8">
+            <TextBlock Text="💻 Nhật ký Deploy (Console Output):" Foreground="#94A3B8" FontSize="12" FontWeight="SemiBold"/>
+            <TextBox x:Name="PART_LogConsole"
+                     Height="200"
+                     IsReadOnly="True"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     Background="#020617"
+                     Foreground="#4ADE80"
+                     FontFamily="Consolas, Monospace"
+                     FontSize="11"
+                     BorderThickness="0"/>
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- ── Footer ────────────────────────────────────────────────── -->
+    <Border Grid.Row="2" Background="#F8FAFC" Padding="20,12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock x:Name="PART_StatusMsg" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12"/>
+
+        <kz:KzButton Grid.Column="1" x:Name="PART_BtnTestSsh" Content="🔍 Kiểm tra SSH" Margin="0,0,10,0"/>
+        <kz:KzButton Grid.Column="2" x:Name="PART_BtnDeploy" Content="🚀 Deploy" Classes="kz-primary"/>
+      </Grid>
+    </Border>
+
+  </Grid>
+</Window>

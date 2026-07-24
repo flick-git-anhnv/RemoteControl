@@ -19,17 +19,15 @@ public partial class ComputerEditWindow : Window
         InitializeComponent();
         Profile = profile;
 
-        bool isEditMode = !string.IsNullOrWhiteSpace(profile.Host);
-        if (this.FindControl<TextBlock>("PART_TitleText") is { } titleText)
-        {
-            titleText.Text = isEditMode ? "Chỉnh sửa thông tin máy tính ZCU" : "Thêm máy tính ZCU mới";
-        }
-
         if (this.FindControl<KzTextBox>("PART_Name") is { } nameTxt) nameTxt.Text = profile.Name;
         if (this.FindControl<KzTextBox>("PART_Host") is { } hostTxt) hostTxt.Text = profile.Host;
         if (this.FindControl<KzTextBox>("PART_Port") is { } portTxt) portTxt.Text = profile.Port.ToString();
         if (this.FindControl<KzTextBox>("PART_Token") is { } tokenTxt) tokenTxt.Text = profile.Token;
         if (this.FindControl<KzTextBox>("PART_Notes") is { } notesTxt) notesTxt.Text = profile.Notes;
+
+        if (this.FindControl<KzTextBox>("PART_SshUser") is { } sshUserTxt) sshUserTxt.Text = profile.SshUsername;
+        if (this.FindControl<TextBox>("PART_SshPassword") is { } sshPassTxt) sshPassTxt.Text = profile.SshPassword;
+        if (this.FindControl<KzTextBox>("PART_SshPort") is { } sshPortTxt) sshPortTxt.Text = profile.SshPort.ToString();
 
         if (this.FindControl<KzButton>("PART_BtnCancel") is { } btnCancel)
             btnCancel.Click += (_, _) => Close();
@@ -46,6 +44,10 @@ public partial class ComputerEditWindow : Window
         string token = this.FindControl<KzTextBox>("PART_Token")?.Text?.Trim() ?? "";
         string notes = this.FindControl<KzTextBox>("PART_Notes")?.Text?.Trim() ?? "";
 
+        string sshUser = this.FindControl<KzTextBox>("PART_SshUser")?.Text?.Trim() ?? "";
+        string sshPass = this.FindControl<TextBox>("PART_SshPassword")?.Text ?? "";
+        string sshPortS = this.FindControl<KzTextBox>("PART_SshPort")?.Text?.Trim() ?? "22";
+
         if (string.IsNullOrWhiteSpace(host))
         {
             // Host IP là bắt buộc
@@ -53,12 +55,16 @@ public partial class ComputerEditWindow : Window
         }
 
         int port = int.TryParse(portS, out int p) ? p : 17600;
+        int sshPort = int.TryParse(sshPortS, out int sp) ? sp : 22;
 
         Profile.Name = name;
         Profile.Host = host;
         Profile.Port = port;
         Profile.Token = token;
         Profile.Notes = notes;
+        Profile.SshUsername = sshUser;
+        Profile.SshPassword = sshPass;
+        Profile.SshPort = sshPort;
 
         IsSaved = true;
         Close(Profile);

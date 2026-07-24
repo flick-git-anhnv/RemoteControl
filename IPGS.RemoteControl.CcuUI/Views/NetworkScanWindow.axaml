@@ -1,0 +1,96 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        xmlns:ccu="clr-namespace:IPGS.RemoteControl.CcuClient;assembly=IPGS.RemoteControl.CcuClient"
+        xmlns:views="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.NetworkScanWindow"
+        Title="🔍 Quét mạng — Tìm máy đã cài ZcuAgent"
+        Width="620" Height="640"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+    <!-- ── Header ────────────────────────────────────────────────── -->
+    <Border Grid.Row="0" Background="#251C53" Padding="20,16">
+      <StackPanel Spacing="4">
+        <TextBlock Text="🔍 Quét mạng LAN — Tìm máy đã cài ZcuAgent"
+                   Foreground="White" FontSize="16" FontWeight="Bold" />
+        <TextBlock Text="Xác nhận bằng bắt tay giao thức thật (HELLO), không chỉ dò cổng mở"
+                   Foreground="#B8B3D6" FontSize="12" />
+      </StackPanel>
+    </Border>
+
+    <!-- ── Scan controls ─────────────────────────────────────────── -->
+    <Border Grid.Row="1" Background="White" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="20,14">
+      <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="*,110,Auto" ColumnSpacing="10">
+          <StackPanel Grid.Column="0" Spacing="4">
+            <TextBlock Text="Dải mạng (subnet):" FontSize="12" Foreground="#64748B"/>
+            <kz:KzTextBox x:Name="PART_SubnetBase" Watermark="192.168.1." />
+          </StackPanel>
+
+          <StackPanel Grid.Column="1" Spacing="4">
+            <TextBlock Text="Cổng Agent:" FontSize="12" Foreground="#64748B"/>
+            <kz:KzTextBox x:Name="PART_Port" Text="17600" />
+          </StackPanel>
+
+          <kz:KzButton Grid.Column="2" x:Name="PART_BtnScan" Content="🔍 Bắt đầu quét"
+                       Classes="kz-primary" VerticalAlignment="Bottom" />
+        </Grid>
+
+        <ProgressBar x:Name="PART_ProgressBar" Minimum="0" Maximum="254" Value="0" Height="6"/>
+        <TextBlock x:Name="PART_StatusText" Text="Sẵn sàng quét." FontSize="12" Foreground="#64748B"/>
+      </StackPanel>
+    </Border>
+
+    <!-- ── Found list ─────────────────────────────────────────────── -->
+    <ScrollViewer Grid.Row="2" Padding="16,10">
+      <StackPanel Spacing="8">
+        <ItemsControl x:Name="PART_ListFound">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="views:NetworkScanFoundItem">
+              <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1"
+                      CornerRadius="6" Padding="14,10" Margin="0,0,0,8">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18"
+                          Background="#EDE7F6" Margin="0,0,12,0" VerticalAlignment="Center">
+                    <TextBlock Text="💻" FontSize="17" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                  </Border>
+
+                  <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Text="{Binding ServerName}" FontWeight="Bold" FontSize="13" Foreground="#212121"/>
+                    <TextBlock Text="{Binding Host}" FontSize="12" Foreground="#3F51B5" FontWeight="SemiBold"/>
+                    <TextBlock FontSize="11" Foreground="#757575">
+                      <Run Text="Độ phân giải: "/>
+                      <Run Text="{Binding ScreenWidth}"/>
+                      <Run Text=" × "/>
+                      <Run Text="{Binding ScreenHeight}"/>
+                    </TextBlock>
+                  </StackPanel>
+
+                  <kz:KzButton Grid.Column="2" Tag="{Binding}" Click="OnAddFoundClick"
+                               Content="{Binding AddButtonLabel}" IsEnabled="{Binding !IsAdded}"
+                               Classes="kz-primary" KzSize="Sm"
+                               VerticalAlignment="Center"/>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock x:Name="PART_EmptyHint"
+                   Text="Chưa tìm thấy máy nào. Nhấn '🔍 Bắt đầu quét' để dò dải mạng."
+                   FontSize="12" Foreground="#9E9E9E" HorizontalAlignment="Center" Margin="0,20,0,0"/>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- ── Footer ────────────────────────────────────────────────── -->
+    <Border Grid.Row="3" Background="#F8FAFC" Padding="20,12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <kz:KzButton x:Name="PART_BtnClose" Content="Đóng" />
+      </StackPanel>
+    </Border>
+
+  </Grid>
+</Window>
