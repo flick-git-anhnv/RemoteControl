@@ -165,6 +165,20 @@ public static class MessageCodec
         return buf;
     }
 
+    // ── Phase 6 Enterprise Features ───────────────────────────────────────
+
+    /// <summary>Encode UTF-8 string payload (ChatText, ClipboardData, SysInfoResp).</summary>
+    public static byte[] EncodeStringMessage(string text)
+    {
+        return Encoding.UTF8.GetBytes(text);
+    }
+
+    /// <summary>Encode boolean payload (PrivacyMode).</summary>
+    public static byte[] EncodeBooleanMessage(bool value)
+    {
+        return new byte[] { value ? (byte)1 : (byte)0 };
+    }
+
     // ── Payload decoders ──────────────────────────────────────────────────
 
     public static (byte Version, uint ScreenW, uint ScreenH, string ServerName) DecodeHelloAck(byte[] payload)
@@ -241,6 +255,21 @@ public static class MessageCodec
         var keysym = BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(0));
         var isDown = payload[4] != 0;
         return (keysym, isDown);
+    }
+
+    // ── Phase 6 Enterprise Features ───────────────────────────────────────
+
+    /// <summary>Decode UTF-8 string payload (ChatText, ClipboardData, SysInfoResp).</summary>
+    public static string DecodeStringMessage(byte[] payload)
+    {
+        return Encoding.UTF8.GetString(payload);
+    }
+
+    /// <summary>Decode boolean payload (PrivacyMode).</summary>
+    public static bool DecodeBooleanMessage(byte[] payload)
+    {
+        if (payload.Length == 0) return false;
+        return payload[0] != 0;
     }
 
     // ── Internal ──────────────────────────────────────────────────────────

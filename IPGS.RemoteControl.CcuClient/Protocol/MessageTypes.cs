@@ -23,10 +23,15 @@ public enum MessageType : byte
 
     // v1.1 — keyboard
     KeyEvent    = 0x40,  // C→S  key press / release (u32 keysym BE + u8 down)
+    
+    // v2.0 — Phase 6 Enterprise Features
+    ChatText    = 0x41,  // C↔S  UTF-8 text message
+    PrivacyMode = 0x42,  // C→S  Boolean: true=blank screen, false=normal
+    ClipboardData = 0x50, // C↔S  UTF-8 text for clipboard sync
+    SysInfoReq  = 0x51,  // C→S  Request system info
+    SysInfoResp = 0x52,  // S→C  JSON payload with system info
 
     // Reserved (v2):
-    // 0x41-0x4F  keyboard (Unicode string paste, …)
-    // 0x50-0x5F  clipboard
     // 0x60-0x6F  H.264/video
 }
 

@@ -1,7 +1,12 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Controls.Primitives;
+using Avalonia.Threading;
+using System.IO;
+using Avalonia.Input.Platform;
 using IPGS.RemoteControl.CcuClient;
 using IPGS.RemoteControl.CcuUI.ViewModels;
+using IPGS.RemoteControl.CcuUI.Services;
 
 namespace IPGS.RemoteControl.CcuUI.Views;
 
@@ -22,6 +27,7 @@ public partial class RemoteScreenWindow : Window
     private readonly string _host;
     private readonly int    _port;
     private readonly string _token;
+    private SessionRecorder? _recorder;
 
     // ── Constructor ──────────────────────────────────────────────────────────
 
@@ -47,6 +53,9 @@ public partial class RemoteScreenWindow : Window
 
         DataContext = _vm;
         Title = $"Remote Control — {host}:{port}";
+
+        _vm.Client.SysInfoReceived += OnSysInfoReceived;
+        _vm.Client.FrameReceived += OnFrameReceived;
     }
 
     // ── Window lifecycle ─────────────────────────────────────────────────────
@@ -62,9 +71,93 @@ public partial class RemoteScreenWindow : Window
     protected override async void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
+        _recorder?.Dispose();
         // Gracefully disconnect before the window is destroyed.
         await _vm.DisconnectAsync();
         _vm.Dispose();
+    }
+
+    // ── Phase 6 Handlers ──────────────────────────────────────────────────
+
+    private void OnFrameReceived(object? sender, FrameReceivedEventArgs e)
+    {
+        if (_recorder != null)
+        {
+            _recorder.AddFrame(e.JpegData.Span);
+        }
+    }
+
+    private void OnSysInfoReceived(object? sender, string json)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            var win = new SystemInventoryWindow();
+            win.LoadFromJson(json);
+            win.ShowDialog(this);
+        });
+    }
+
+    private async void OnPrivacyClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton btn)
+        {
+            await _vm.Client.SetPrivacyModeAsync(btn.IsChecked ?? false);
+        }
+    }
+
+    private async void OnSysInfoClick(object? sender, RoutedEventArgs e)
+    {
+        await _vm.Client.RequestSysInfoAsync();
+    }
+
+    private void OnRecordClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton btn)
+        {
+            if (btn.IsChecked == true)
+            {
+                string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), $"RemoteSession_{DateTime.Now:yyyyMMdd_HHmmss}.avi");
+                _recorder = new SessionRecorder(path, _vm.Client.ScreenWidth, _vm.Client.ScreenHeight, 15);
+                btn.Content = "⏹️ Stop";
+            }
+            else
+            {
+                _recorder?.Dispose();
+                _recorder = null;
+                btn.Content = "🔴 Record";
+            }
+        }
+    }
+
+    private async void OnClipboardSyncClick(object? sender, RoutedEventArgs e)
+    {
+        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (clipboard != null)
+        {
+            string? text = await clipboard.TryGetTextAsync();
+            if (!string.IsNullOrEmpty(text))
+            {
+                await _vm.Client.SendClipboardTextAsync(text);
+            }
+        }
+    }
+
+    private void OnChatSendClick(object? sender, RoutedEventArgs e)
+    {
+        var input = this.FindControl<TextBox>("PART_ChatInput");
+        if (input != null && !string.IsNullOrWhiteSpace(input.Text))
+        {
+            _ = _vm.Client.SendChatMessageAsync(input.Text);
+            input.Text = "";
+        }
+    }
+
+    private void OnChatKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key == Avalonia.Input.Key.Enter)
+        {
+            OnChatSendClick(sender, new RoutedEventArgs());
+        }
     }
 
     // ── Toolbar button handlers ──────────────────────────────────────────────

@@ -10,7 +10,7 @@
         MinWidth="640" MinHeight="480"
         Background="#1A1A2E">
 
-  <Grid RowDefinitions="Auto,Auto,Auto,*">
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
 
     <!-- ─── Row 0: Status / control bar ─────────────────────────────── -->
     <Border Grid.Row="0"
@@ -33,13 +33,16 @@
                      VerticalAlignment="Center" />
         </StackPanel>
 
-        <!-- Disconnect — enabled only while streaming -->
-        <kz:KzButton Grid.Column="1"
-                     Name="BtnDisconnect"
-                     Content="Ngắt kết nối"
-                     IsEnabled="{Binding IsStreaming}"
-                     Click="OnDisconnectClick"
-                     Margin="8,0,0,0" />
+        <!-- Tools - enabled only while streaming -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <ToggleButton Name="BtnPrivacy" Content="🕶️ Privacy" IsEnabled="{Binding IsStreaming}" Click="OnPrivacyClick" ToolTip.Tip="Blank remote screen" />
+            <kz:KzButton Name="BtnSysInfo" Content="📊 SysInfo" IsEnabled="{Binding IsStreaming}" Click="OnSysInfoClick" ToolTip.Tip="System Inventory" />
+            <ToggleButton Name="BtnRecord" Content="🔴 Record" IsEnabled="{Binding IsStreaming}" Click="OnRecordClick" ToolTip.Tip="Record Session" />
+            <kz:KzButton Name="BtnDisconnect"
+                         Content="Ngắt kết nối"
+                         IsEnabled="{Binding IsStreaming}"
+                         Click="OnDisconnectClick" />
+        </StackPanel>
       </Grid>
     </Border>
 
@@ -98,9 +101,17 @@
                                HorizontalAlignment="Stretch"
                                VerticalAlignment="Stretch" />
 
+    <!-- ── Row 4: Chat & Clipboard ─────────────── -->
+    <Border Grid.Row="4" Background="#1E293B" Padding="12,8">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+            <TextBlock Text="💬 Chat:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBox Grid.Column="1" Name="PART_ChatInput" Background="#0F172A" Foreground="White" BorderBrush="#334155" PlaceholderText="Type message..." KeyDown="OnChatKeyDown" />
+            <kz:KzButton Grid.Column="2" Content="Send" Click="OnChatSendClick" Margin="8,0" />
+            
+            <kz:KzButton Grid.Column="3" Content="📋 Sync Clipboard" Click="OnClipboardSyncClick" />
+        </Grid>
+    </Border>
+
   </Grid>
 
 </Window>
-
-
-

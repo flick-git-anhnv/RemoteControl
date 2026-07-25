@@ -58,6 +58,11 @@ public sealed class RemoteControlClient : IRemoteControlClient
     public event EventHandler<FrameReceivedEventArgs>?        FrameReceived;
     public event EventHandler<ConnectionStateChangedEventArgs>? StateChanged;
 
+    // ── Phase 6 Events ────────────────────────────────────────────────────
+    public event EventHandler<string>? ChatMessageReceived;
+    public event EventHandler<string>? ClipboardDataReceived;
+    public event EventHandler<string>? SysInfoReceived;
+
     // ── Constructor ───────────────────────────────────────────────────────
     public RemoteControlClient(ILogger<RemoteControlClient>? logger = null)
         => _logger = logger ?? NullLogger<RemoteControlClient>.Instance;
@@ -122,6 +127,35 @@ public sealed class RemoteControlClient : IRemoteControlClient
         if (_state != ConnectionState.Streaming) return Task.CompletedTask;
         var payload = MessageCodec.EncodeKeyEvent(keysym, isDown);
         return SendLockedAsync(MessageType.KeyEvent, payload, CancellationToken.None);
+    }
+
+    // ── Phase 6 Methods ───────────────────────────────────────────────────
+
+    public Task SendChatMessageAsync(string message)
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        var payload = MessageCodec.EncodeStringMessage(message);
+        return SendLockedAsync(MessageType.ChatText, payload, CancellationToken.None);
+    }
+
+    public Task SendClipboardTextAsync(string text)
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        var payload = MessageCodec.EncodeStringMessage(text);
+        return SendLockedAsync(MessageType.ClipboardData, payload, CancellationToken.None);
+    }
+
+    public Task SetPrivacyModeAsync(bool enabled)
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        var payload = MessageCodec.EncodeBooleanMessage(enabled);
+        return SendLockedAsync(MessageType.PrivacyMode, payload, CancellationToken.None);
+    }
+
+    public Task RequestSysInfoAsync()
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        return SendLockedAsync(MessageType.SysInfoReq, Array.Empty<byte>(), CancellationToken.None);
     }
 
     // ── Connection loop (reconnect logic, TDD §7) ─────────────────────────
@@ -295,6 +329,19 @@ public sealed class RemoteControlClient : IRemoteControlClient
                 case MessageType.Bye:
                     _logger.LogInformation("Received BYE from server — closing session");
                     return;
+
+                // ── Phase 6 ───────────────────────────────────────────────────
+                case MessageType.ChatText:
+                    ChatMessageReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
+                    break;
+                
+                case MessageType.ClipboardData:
+                    ClipboardDataReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
+                    break;
+
+                case MessageType.SysInfoResp:
+                    SysInfoReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
+                    break;
 
                 default:
                     // Unexpected message in Streaming state — log and keep going (lenient).

@@ -1,0 +1,44 @@
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.SystemInventoryWindow"
+        Title="Remote Control — System Inventory"
+        Width="500" Height="300"
+        WindowStartupLocation="CenterOwner"
+        ExtendClientAreaToDecorationsHint="True"
+        Background="#0F172A">
+    <Grid RowDefinitions="Auto,*">
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#1E293B" Padding="16,12">
+            <TextBlock Text="📊 System Inventory" FontSize="16" FontWeight="SemiBold" Foreground="White" />
+        </Border>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" Padding="24">
+            <StackPanel Spacing="16">
+                <!-- CPU -->
+                <StackPanel>
+                    <TextBlock Text="CPU" FontSize="12" Foreground="#64748B" FontWeight="Bold" Margin="0,0,0,4" />
+                    <TextBlock x:Name="PART_CpuText" Text="Loading..." FontSize="14" Foreground="#E2E8F0" TextWrapping="Wrap" />
+                </StackPanel>
+                
+                <!-- Memory -->
+                <StackPanel>
+                    <TextBlock Text="Memory (RAM)" FontSize="12" Foreground="#64748B" FontWeight="Bold" Margin="0,0,0,4" />
+                    <TextBlock x:Name="PART_MemText" Text="Loading..." FontSize="14" Foreground="#E2E8F0" />
+                </StackPanel>
+
+                <!-- OS -->
+                <StackPanel>
+                    <TextBlock Text="Operating System" FontSize="12" Foreground="#64748B" FontWeight="Bold" Margin="0,0,0,4" />
+                    <TextBlock x:Name="PART_OsText" Text="Loading..." FontSize="14" Foreground="#E2E8F0" />
+                </StackPanel>
+
+                <!-- Architecture -->
+                <StackPanel>
+                    <TextBlock Text="Architecture" FontSize="12" Foreground="#64748B" FontWeight="Bold" Margin="0,0,0,4" />
+                    <TextBlock x:Name="PART_ArchText" Text="Loading..." FontSize="14" Foreground="#E2E8F0" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

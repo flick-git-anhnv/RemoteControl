@@ -18,6 +18,7 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
 {
     // ── Client ──────────────────────────────────────────────────────────────
     private readonly RemoteControlClient _client;
+    public RemoteControlClient Client => _client;
 
     // ── Observable properties (CommunityToolkit.Mvvm source-generated) ──────
     [ObservableProperty] private Bitmap?  _currentFrame;

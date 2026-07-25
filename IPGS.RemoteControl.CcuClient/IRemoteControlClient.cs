@@ -20,6 +20,11 @@ public interface IRemoteControlClient : IDisposable
     /// <summary>Raised whenever <see cref="State"/> transitions.</summary>
     event EventHandler<ConnectionStateChangedEventArgs>? StateChanged;
 
+    // ── Phase 6 Events ──
+    event EventHandler<string>? ChatMessageReceived;
+    event EventHandler<string>? ClipboardDataReceived;
+    event EventHandler<string>? SysInfoReceived;
+
     /// <summary>
     /// Begin connecting to <paramref name="host"/>:<paramref name="port"/> using
     /// <paramref name="token"/> as the shared secret. Returns immediately; connection
@@ -50,6 +55,12 @@ public interface IRemoteControlClient : IDisposable
     /// </para>
     /// </summary>
     Task SendKeyEventAsync(uint keysym, bool isDown);
+
+    // ── Phase 6 Methods ──
+    Task SendChatMessageAsync(string message);
+    Task SendClipboardTextAsync(string text);
+    Task SetPrivacyModeAsync(bool enabled);
+    Task RequestSysInfoAsync();
 }
 
 // ── Enums ──────────────────────────────────────────────────────────────────

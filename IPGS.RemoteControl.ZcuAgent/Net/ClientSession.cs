@@ -65,6 +65,11 @@ internal sealed class ClientSession
             _logger.LogInformation("Session {IP}: streaming started", _remoteIp);
             Interlocked.Exchange(ref _lastPongTicks, Environment.TickCount64);
 
+            // Signal the kiosk app (separate process, same machine) that input from now
+            // on may be remotely injected, so it can suppress auto-showing the on-screen
+            // keyboard on TextBox focus. See RemoteSessionMarker for the full rationale.
+            RemoteSessionMarker.Create(_logger);
+
             using var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var captureTask = RunCaptureSendLoopAsync(sessionCts.Token);
             var receiveTask = RunReceiveLoopAsync(sessionCts.Token);
@@ -92,6 +97,9 @@ internal sealed class ClientSession
             // Release any stuck keys before closing so the ZCU desktop does not
             // see permanently-pressed modifiers (Shift, Ctrl, Alt, …). TDD §17.4.
             _keyboard.ReleaseAllKeys();
+            // v1 serves one session at a time (see TcpServer), so it's always safe to
+            // clear the marker here — no other active session could still need it.
+            RemoteSessionMarker.Remove(_logger);
             _writeLock.Dispose();
             try { _tcp.Close(); } catch { }
             _logger.LogInformation("Session {IP}: closed", _remoteIp);
@@ -246,6 +254,47 @@ internal sealed class ClientSession
                         var (keysym, isDown) = MessageCodec.DecodeKeyEvent(payload);
                         _keyboard.SendKey(keysym, isDown);
                         break;
+                        
+                    // ── Phase 6 Enterprise Features ───────────────────────────
+                    case MessageType.ChatText:
+                        var chatMsg = MessageCodec.DecodeStringMessage(payload);
+                        _logger.LogInformation("CHAT from CCU: {Msg}", chatMsg);
+                        try {
+                            System.Diagnostics.Process.Start("notify-send", $"\"Remote Admin\" \"{chatMsg.Replace("\"", "\\\"")}\"");
+                        } catch { /* ignore if notify-send missing */ }
+                        break;
+
+                    case MessageType.ClipboardData:
+                        var clipData = MessageCodec.DecodeStringMessage(payload);
+                        _logger.LogInformation("CLIPBOARD from CCU (len: {Len})", clipData.Length);
+                        try {
+                            // Try xclip (Linux)
+                            var psi = new System.Diagnostics.ProcessStartInfo("xclip", "-selection clipboard")
+                            {
+                                RedirectStandardInput = true,
+                                UseShellExecute = false
+                            };
+                            var proc = System.Diagnostics.Process.Start(psi);
+                            if (proc != null) {
+                                proc.StandardInput.Write(clipData);
+                                proc.StandardInput.Close();
+                                proc.WaitForExit(1000);
+                            }
+                        } catch { /* ignore */ }
+                        break;
+
+                    case MessageType.PrivacyMode:
+                        var privacyEnabled = MessageCodec.DecodeBooleanMessage(payload);
+                        _logger.LogWarning("PRIVACY MODE: {State}", privacyEnabled ? "ON" : "OFF");
+                        // In a real prod env, this would use X11 APIs to map a black window on top 
+                        // and grab pointer/keyboard exclusively. For now, just log.
+                        break;
+
+                    case MessageType.SysInfoReq:
+                        _logger.LogInformation("SysInfoReq received, gathering system info...");
+                        string sysInfoJson = GatherSystemInfo();
+                        await WriteAsync(MessageType.SysInfoResp, MessageCodec.EncodeStringMessage(sysInfoJson), ct);
+                        break;
 
                     case MessageType.Bye:
                         _logger.LogInformation("Session {IP}: client sent BYE", _remoteIp);
@@ -273,6 +322,45 @@ internal sealed class ClientSession
         finally
         {
             _writeLock.Release();
+        }
+    }
+
+    // ── Phase 6 Helper ────────────────────────────────────────────────────
+
+    private string GatherSystemInfo()
+    {
+        try 
+        {
+            var cpu = System.IO.File.ReadAllLines("/proc/cpuinfo")
+                .FirstOrDefault(l => l.StartsWith("model name"))?.Split(':').LastOrDefault()?.Trim() ?? "Unknown CPU";
+            
+            var mem = "Unknown RAM";
+            try {
+                var memLine = System.IO.File.ReadAllLines("/proc/meminfo").FirstOrDefault(l => l.StartsWith("MemTotal"));
+                if (memLine != null) {
+                    var parts = memLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2 && long.TryParse(parts[1], out var kb)) {
+                        mem = $"{kb / 1024} MB";
+                    }
+                }
+            } catch {}
+
+            var os = Environment.OSVersion.ToString();
+            var arch = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString();
+
+            return $$"""
+            {
+                "cpu": "{{cpu}}",
+                "memory": "{{mem}}",
+                "os": "{{os}}",
+                "arch": "{{arch}}"
+            }
+            """;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to gather sysinfo");
+            return "{ \"error\": \"Failed to gather sysinfo\" }";
         }
     }
 }
