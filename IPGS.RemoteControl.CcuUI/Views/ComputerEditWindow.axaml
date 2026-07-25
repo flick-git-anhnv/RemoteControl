@@ -89,11 +89,10 @@
               <TextBlock Grid.Row="1" Grid.Column="0"
                          Text="SSH password:"
                          VerticalAlignment="Center" />
-              <TextBox Grid.Row="1" Grid.Column="1"
-                       x:Name="PART_SshPassword"
-                       PasswordChar="•"
-                       Watermark="Nhập mật khẩu SSH..."
-                       Height="36" VerticalContentAlignment="Center" />
+              <kz:KzTextBox Grid.Row="1" Grid.Column="1"
+                        x:Name="PART_SshPassword"
+                        PasswordChar="•"
+                        Watermark="Nhập mật khẩu SSH..." />
 
               <TextBlock Grid.Row="2" Grid.Column="0"
                          Text="Cổng SSH:"

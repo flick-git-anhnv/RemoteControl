@@ -27,7 +27,7 @@ public partial class ComputerEditWindow : Window
         if (this.FindControl<KzTextBox>("PART_MacAddress") is { } macTxt) macTxt.Text = profile.MacAddress;
 
         if (this.FindControl<KzTextBox>("PART_SshUser") is { } sshUserTxt) sshUserTxt.Text = profile.SshUsername;
-        if (this.FindControl<TextBox>("PART_SshPassword") is { } sshPassTxt) sshPassTxt.Text = profile.SshPassword;
+        if (this.FindControl<KzTextBox>("PART_SshPassword") is { } sshPassTxt) sshPassTxt.Text = profile.SshPassword;
         if (this.FindControl<KzTextBox>("PART_SshPort") is { } sshPortTxt) sshPortTxt.Text = profile.SshPort.ToString();
 
         if (this.FindControl<KzButton>("PART_BtnCancel") is { } btnCancel)
@@ -46,14 +46,10 @@ public partial class ComputerEditWindow : Window
         string notes = this.FindControl<KzTextBox>("PART_Notes")?.Text?.Trim() ?? "";
 
         string sshUser = this.FindControl<KzTextBox>("PART_SshUser")?.Text?.Trim() ?? "";
-        string sshPass = this.FindControl<TextBox>("PART_SshPassword")?.Text ?? "";
+        string sshPass = this.FindControl<KzTextBox>("PART_SshPassword")?.Text ?? "";
         string sshPortS = this.FindControl<KzTextBox>("PART_SshPort")?.Text?.Trim() ?? "22";
 
-        if (string.IsNullOrWhiteSpace(host))
-        {
-            // Host IP là bắt buộc
-            return;
-        }
+        // Không return khi host rỗng — cho phép lưu thông tin bộ phận (ví dụ chỉ lưu MAC)
 
         int port = int.TryParse(portS, out int p) ? p : 17600;
         int sshPort = int.TryParse(sshPortS, out int sp) ? sp : 22;
