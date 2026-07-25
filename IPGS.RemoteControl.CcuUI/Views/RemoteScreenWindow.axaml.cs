@@ -110,15 +110,35 @@ public partial class RemoteScreenWindow : Window
         await _vm.Client.RequestSysInfoAsync();
     }
 
-    private void OnRecordClick(object? sender, RoutedEventArgs e)
+    private async void OnRecordClick(object? sender, RoutedEventArgs e)
     {
         if (sender is ToggleButton btn)
         {
             if (btn.IsChecked == true)
             {
-                string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), $"RemoteSession_{DateTime.Now:yyyyMMdd_HHmmss}.avi");
-                _recorder = new SessionRecorder(path, _vm.Client.ScreenWidth, _vm.Client.ScreenHeight, 15);
-                btn.Content = "⏹️ Stop";
+                var topLevel = TopLevel.GetTopLevel(this);
+                if (topLevel != null)
+                {
+                    var file = await topLevel.StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
+                    {
+                        Title = "Lưu video ghi hình",
+                        DefaultExtension = "avi",
+                        SuggestedFileName = $"RemoteSession_{DateTime.Now:yyyyMMdd_HHmmss}.avi",
+                        FileTypeChoices = new[]
+                        {
+                            new Avalonia.Platform.Storage.FilePickerFileType("AVI Video") { Patterns = new[] { "*.avi" } }
+                        }
+                    });
+
+                    if (file != null && file.TryGetLocalPath() is string path)
+                    {
+                        _recorder = new SessionRecorder(path, _vm.Client.ScreenWidth, _vm.Client.ScreenHeight, 15);
+                        btn.Content = "⏹️ Stop";
+                        return;
+                    }
+                }
+
+                btn.IsChecked = false;
             }
             else
             {
