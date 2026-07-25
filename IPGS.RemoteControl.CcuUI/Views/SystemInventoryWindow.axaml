@@ -2,43 +2,35 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="IPGS.RemoteControl.CcuUI.Views.SystemInventoryWindow"
         Title="System Inventory"
-        Width="400" Height="250"
+        Width="450" Height="300"
         WindowStartupLocation="CenterScreen"
-        ExtendClientAreaToDecorationsHint="True"
         Background="#0F172A">
-    <Grid RowDefinitions="Auto,*">
-        <!-- Header -->
-        <Border Grid.Row="0" Background="#1E293B" Padding="16,12">
-            <TextBlock Text="📊 System Inventory" FontSize="16" FontWeight="SemiBold" Foreground="White" />
-        </Border>
 
-        <!-- Content -->
-        <ScrollViewer Grid.Row="1" Padding="24">
-            <StackPanel Spacing="16">
-                <!-- CPU -->
-                <StackPanel>
-                    <TextBlock Text="CPU" FontSize="12" Foreground="#64748B" FontWeight="Bold" Margin="0,0,0,4" />
-                    <TextBlock x:Name="PART_CpuText" Text="Loading..." FontSize="14" Foreground="#E2E8F0" TextWrapping="Wrap" />
-                </StackPanel>
-                
-                <!-- Memory -->
-                <StackPanel>
-                    <TextBlock Text="Memory (RAM)" FontSize="12" Foreground="#64748B" FontWeight="Bold" Margin="0,0,0,4" />
-                    <TextBlock x:Name="PART_MemText" Text="Loading..." FontSize="14" Foreground="#E2E8F0" />
-                </StackPanel>
-
-                <!-- OS -->
-                <StackPanel>
-                    <TextBlock Text="Operating System" FontSize="12" Foreground="#64748B" FontWeight="Bold" Margin="0,0,0,4" />
-                    <TextBlock x:Name="PART_OsText" Text="Loading..." FontSize="14" Foreground="#E2E8F0" />
-                </StackPanel>
-
-                <!-- Architecture -->
-                <StackPanel>
-                    <TextBlock Text="Architecture" FontSize="12" Foreground="#64748B" FontWeight="Bold" Margin="0,0,0,4" />
-                    <TextBlock x:Name="PART_ArchText" Text="Loading..." FontSize="14" Foreground="#E2E8F0" />
-                </StackPanel>
+    <ScrollViewer Padding="24">
+        <StackPanel Spacing="20">
+            <!-- CPU -->
+            <StackPanel>
+                <TextBlock Text="CPU" FontSize="13" Foreground="#94A3B8" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBlock x:Name="PART_CpuText" Text="Loading..." FontSize="15" Foreground="#F8FAFC" TextWrapping="Wrap" />
             </StackPanel>
-        </ScrollViewer>
-    </Grid>
+            
+            <!-- Memory -->
+            <StackPanel>
+                <TextBlock Text="Memory (RAM)" FontSize="13" Foreground="#94A3B8" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBlock x:Name="PART_MemText" Text="Loading..." FontSize="15" Foreground="#F8FAFC" />
+            </StackPanel>
+
+            <!-- OS -->
+            <StackPanel>
+                <TextBlock Text="Operating System" FontSize="13" Foreground="#94A3B8" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBlock x:Name="PART_OsText" Text="Loading..." FontSize="15" Foreground="#F8FAFC" />
+            </StackPanel>
+
+            <!-- Architecture -->
+            <StackPanel>
+                <TextBlock Text="Architecture" FontSize="13" Foreground="#94A3B8" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBlock x:Name="PART_ArchText" Text="Loading..." FontSize="15" Foreground="#F8FAFC" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
 </Window>
