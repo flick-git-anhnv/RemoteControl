@@ -210,7 +210,14 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     
                     string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS='{escapedSudoPass}'";
                     
-                    using var cmd = ssh.CreateCommand($"{envCmd} bash -c '{cmdToRun.Replace("'", "'\\''")}'", Encoding.UTF8);
+                    string finalCmdToRun = cmdToRun.Replace("sudo ", "sudo -S ");
+                    string bashCmd = $"{envCmd} bash -c '{finalCmdToRun.Replace("'", "'\\''")}'";
+                    if (!string.IsNullOrEmpty(sudoPass))
+                    {
+                        bashCmd = $"echo '{escapedSudoPass}' | {bashCmd}";
+                    }
+                    
+                    using var cmd = ssh.CreateCommand(bashCmd, Encoding.UTF8);
                     
                     cmd.Execute();
                     

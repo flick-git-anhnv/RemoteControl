@@ -7,9 +7,23 @@
 #   - Cài + bật extension "Just Perfection"
 #   - Compile schema + set các key ẩn/HIỆN UI (panel/top bar, activities button,
 #     dash, workspace switcher) — 2 CHIỀU: 1=ẩn, 0=hiện lại
-#   - Tắt/BẬT LẠI bàn phím ảo GNOME (on-screen keyboard) — 2 chiều, độc lập extension
+#   - Tắt/BẬT LẠI bàn phím ảo GNOME (on-screen keyboard) — 2 chiều
 #   - Cài package "unclutter" (ẩn con trỏ chuột) — CHỈ 1 CHIỀU: 1=cài, 0=bỏ qua
 #     (không tự gỡ khi = 0, vì gỡ package là thao tác phá hoại/khó hoàn tác)
+#
+# GHI CHÚ QUAN TRỌNG (rút ra ngày 2026-07-25, test thật trên 192.168.21.230):
+# `gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled false`
+# KHÔNG đủ để chặn bàn phím ảo GNOME tự bật khi chạm tay vào textbox trên màn cảm
+# ứng thật (eGalax touchscreen) — đã verify: set đúng false (kiểm tra lại bằng cả
+# gsettings lẫn dconf, gắn đúng DBUS_SESSION_BUS_ADDRESS của phiên gnome-shell thật),
+# thậm chí reboot cả máy — bàn phím ảo hệ thống (không phải KzKeyboard của app, đây
+# là 2 control khác nhau — bàn phím ảo hệ thống nằm ĐÈ lên/tại cùng vị trí do GNOME
+# Shell tự vẽ, không phải X11 window nên xwininfo không thấy) vẫn hiện. Setting đó
+# chỉ điều khiển toggle thủ công trong Settings > Accessibility, KHÔNG chặn được cơ
+# chế tự động theo cảm ứng thật của GNOME Shell 42. Giải pháp xác nhận hoạt động:
+# extension "Block Caribou 36" (UUID block-caribou-36@lxylxy123456.ercli.dev,
+# https://extensions.gnome.org/extension/3222/block-caribou-36/), tested PASS trên
+# đúng GNOME Shell 42.2 + Xorg (X11) theo changelog gốc — cùng stack với máy này.
 #
 # Đã test thực tế trên máy kiosk 192.168.21.230 (Ubuntu 22.04, GNOME Shell 42).
 #
@@ -44,6 +58,8 @@ HIDE_KEYBOARD="${6:-1}"
 EXT_UUID="just-perfection-desktop@just-perfection"
 EXT_DIR="$HOME/.local/share/gnome-shell/extensions/$EXT_UUID"
 
+EXT_UUID_KEYBOARD="block-caribou-36@lxylxy123456.ercli.dev"
+
 echo "=== [1] Cài phần mềm cho Kiosk iPGS — Ubuntu 22.04 ==="
 echo "  Home hiện tại: $HOME"
 echo "  Ẩn Top Bar=$HIDE_TOPBAR  Activities=$HIDE_ACTIVITIES  Workspace=$HIDE_WORKSPACE  Dash=$HIDE_DASH  Unclutter=$INSTALL_UNCLUTTER  BànPhímẢo=$HIDE_KEYBOARD"
@@ -59,7 +75,7 @@ fi
 # Top Bar/Activities/Workspace/Dash giờ là toggle 2 CHIỀU thật sự (không còn kiểu
 # "bỏ qua nếu = 0") nên LUÔN cần extension Just Perfection cài & bật, dù đang ẩn
 # hay hiện lại — vì cả 2 chiều đều đi qua gsettings của chính extension đó.
-echo "=== [1/4] Cài python3-pip + gnome-extensions-cli ==="
+echo "=== [1/5] Cài python3-pip + gnome-extensions-cli ==="
 if ! command -v pip3 >/dev/null 2>&1; then
     sudo apt install -y python3-pip
 else
@@ -79,7 +95,7 @@ if ! grep -q '.local/bin' "$HOME/.bashrc" 2>/dev/null; then
 fi
 
 # ─────────────────────────────────────────────────────────────
-echo "=== [2/4] Cài + bật extension Just Perfection ==="
+echo "=== [2/5] Cài + bật extension Just Perfection ==="
 if ! gnome-extensions list 2>/dev/null | grep -q "^$EXT_UUID$"; then
     echo "  → LƯU Ý: GNOME Shell sẽ hiện popup xác nhận trên màn hình — hãy đứng"
     echo "    trước màn hình kiosk và bấm 'Install' trong vài giây tới."
@@ -96,7 +112,7 @@ if [ "$STATE" != "ENABLED" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────
-echo "=== [3/4] Compile schema + áp dụng ẩn/hiện UI (2 chiều) ==="
+echo "=== [3/5] Compile schema + áp dụng ẩn/hiện UI (2 chiều) ==="
 if [ ! -d "$EXT_DIR/schemas" ]; then
     echo "LỖI: không tìm thấy $EXT_DIR/schemas — extension có cài đúng không?" >&2
     exit 1
@@ -115,25 +131,43 @@ echo "  → panel=$(to_visible_value "$HIDE_TOPBAR") activities-button=$(to_visi
 # setup-kiosk.sh / docs/devops/KIOSK-SETUP-hide-topbar-ubuntu2204.md).
 
 # ─────────────────────────────────────────────────────────────
-echo "=== Bàn phím ảo GNOME (2 chiều, độc lập extension) ==="
+echo "=== [4/5] Bàn phím ảo GNOME (2 chiều) ==="
+# gsettings screen-keyboard-enabled=false KHÔNG đủ (xem GHI CHÚ đầu file) — cần
+# thêm extension Block Caribou 36 để chặn thật cơ chế tự bật theo cảm ứng.
 if [ "$HIDE_KEYBOARD" = "1" ]; then
     gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled false 2>/dev/null || true
-    echo "  → Đã tắt bàn phím ảo."
+
+    if ! gnome-extensions list 2>/dev/null | grep -q "^$EXT_UUID_KEYBOARD$"; then
+        echo "  → LƯU Ý: GNOME Shell sẽ hiện popup xác nhận trên màn hình — hãy đứng"
+        echo "    trước màn hình kiosk và bấm 'Install' trong vài giây tới."
+        gext install "$EXT_UUID_KEYBOARD"
+    else
+        echo "  → Extension Block Caribou 36 đã cài, bỏ qua bước install."
+    fi
+    gnome-extensions enable "$EXT_UUID_KEYBOARD" || true
+
+    KB_STATE="$(gnome-extensions info "$EXT_UUID_KEYBOARD" 2>/dev/null | grep 'State:' | awk '{print $2}')"
+    if [ "$KB_STATE" != "ENABLED" ]; then
+        echo "CẢNH BÁO: Block Caribou 36 chưa ở trạng thái ENABLED (State: $KB_STATE)." >&2
+        echo "          Có thể cần log out/log in lại rồi chạy lại script." >&2
+    fi
+    echo "  → Đã tắt bàn phím ảo (gsettings + extension Block Caribou 36)."
 else
     gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled true 2>/dev/null || true
-    echo "  → Đã bật lại bàn phím ảo."
+    gnome-extensions disable "$EXT_UUID_KEYBOARD" 2>/dev/null || true
+    echo "  → Đã bật lại bàn phím ảo (gsettings + tắt extension Block Caribou 36)."
 fi
 
 # ─────────────────────────────────────────────────────────────
 if [ "$INSTALL_UNCLUTTER" = "1" ]; then
-    echo "=== [4/4] Cài unclutter (ẩn con trỏ chuột) ==="
+    echo "=== [5/5] Cài unclutter (ẩn con trỏ chuột) ==="
     if ! dpkg -s unclutter >/dev/null 2>&1; then
         sudo apt install -y unclutter
     else
         echo "  → unclutter đã cài, bỏ qua."
     fi
 else
-    echo "=== [4/4] Bỏ qua cài unclutter (không được chọn — KHÔNG tự gỡ nếu đã cài trước đó) ==="
+    echo "=== [5/5] Bỏ qua cài unclutter (không được chọn — KHÔNG tự gỡ nếu đã cài trước đó) ==="
 fi
 
 echo ""

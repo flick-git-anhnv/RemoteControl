@@ -82,6 +82,7 @@ public sealed class ComputerProfileStore : IComputerProfileStore
                 }
                 existing.LastAppInstallerPath = profile.LastAppInstallerPath;
                 existing.LastUninstallPackage = profile.LastUninstallPackage;
+                existing.MacAddress = profile.MacAddress;
             }
             else
             {

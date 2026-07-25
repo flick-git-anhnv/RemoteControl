@@ -5,7 +5,7 @@ class Program
 {
     static void Main()
     {
-        using (var client = new SshClient("192.168.21.230", 22, "kztek", "kztek123456"))
+        using (var client = new SshClient("192.168.21.230", 22, "kztek", "123456"))
         {
             client.Connect();
             Console.WriteLine("Connected!");
@@ -13,7 +13,7 @@ class Program
             Console.WriteLine("PROCESSES:");
             Console.WriteLine(cmd.Result);
             
-            var cmd2 = client.RunCommand("ls -la /opt/ || ls -la ~/");
+            var cmd2 = client.RunCommand("ls -la --time-style=full-iso /home/kztek/ipgs/IPGS.RemoteControl.ZcuAgent");
             Console.WriteLine("FILES:");
             Console.WriteLine(cmd2.Result);
             
