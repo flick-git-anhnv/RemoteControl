@@ -105,7 +105,7 @@
     <Border Grid.Row="4" Background="#1E293B" Padding="12,8">
         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
             <TextBlock Text="💬 Chat:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <TextBox Grid.Column="1" Name="PART_ChatInput" Background="#0F172A" Foreground="White" BorderBrush="#334155" PlaceholderText="Type message..." KeyDown="OnChatKeyDown" />
+            <TextBox Grid.Column="1" Name="PART_ChatInput" PlaceholderText="Type message..." KeyDown="OnChatKeyDown" />
             <kz:KzButton Grid.Column="2" Content="Send" Click="OnChatSendClick" Margin="8,0" />
             
             <kz:KzButton Grid.Column="3" Content="📋 Sync Clipboard" Click="OnClipboardSyncClick" />
