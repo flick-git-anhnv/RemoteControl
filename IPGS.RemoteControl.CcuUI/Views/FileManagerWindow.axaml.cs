@@ -144,7 +144,20 @@ public partial class FileManagerWindow : Window
 
         try
         {
-            var files = await Task.Run(() => _sftpClient.ListDirectory(path).ToList());
+            var files = await Task.Run(() => 
+            {
+                try {
+                    return _sftpClient.ListDirectory(path).ToList();
+                } catch {
+                    return null;
+                }
+            });
+
+            if (files == null)
+            {
+                SetStatus($"Lỗi: Không có quyền truy cập hoặc thư mục không tồn tại.");
+                return;
+            }
             
             Dispatcher.UIThread.Post(() =>
             {

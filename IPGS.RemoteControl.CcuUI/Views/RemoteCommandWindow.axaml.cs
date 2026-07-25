@@ -300,7 +300,20 @@ namespace IPGS.RemoteControl.CcuUI.Views
             {
                 await EnsureSftpConnectedAsync();
                 
-                var files = await Task.Run(() => _sftpClient!.ListDirectory(path));
+                var files = await Task.Run(() => 
+                {
+                    try {
+                        return _sftpClient!.ListDirectory(path);
+                    } catch {
+                        return null;
+                    }
+                });
+
+                if (files == null)
+                {
+                    SetStatus($"Lỗi: Không có quyền truy cập hoặc thư mục không tồn tại.", true, true);
+                    return;
+                }
 
                 var items = files
                     .Where(f => f.Name != "." && f.Name != "..")

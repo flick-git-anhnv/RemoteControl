@@ -65,11 +65,6 @@ internal sealed class ClientSession
             _logger.LogInformation("Session {IP}: streaming started", _remoteIp);
             Interlocked.Exchange(ref _lastPongTicks, Environment.TickCount64);
 
-            // Signal the kiosk app (separate process, same machine) that input from now
-            // on may be remotely injected, so it can suppress auto-showing the on-screen
-            // keyboard on TextBox focus. See RemoteSessionMarker for the full rationale.
-            RemoteSessionMarker.Create(_logger);
-
             using var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var captureTask = RunCaptureSendLoopAsync(sessionCts.Token);
             var receiveTask = RunReceiveLoopAsync(sessionCts.Token);
@@ -97,9 +92,6 @@ internal sealed class ClientSession
             // Release any stuck keys before closing so the ZCU desktop does not
             // see permanently-pressed modifiers (Shift, Ctrl, Alt, …). TDD §17.4.
             _keyboard.ReleaseAllKeys();
-            // v1 serves one session at a time (see TcpServer), so it's always safe to
-            // clear the marker here — no other active session could still need it.
-            RemoteSessionMarker.Remove(_logger);
             _writeLock.Dispose();
             try { _tcp.Close(); } catch { }
             _logger.LogInformation("Session {IP}: closed", _remoteIp);
