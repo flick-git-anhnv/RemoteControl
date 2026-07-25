@@ -77,8 +77,8 @@ public sealed class SessionRecorder : IDisposable
             WriteUInt32((uint)_frameCount);
 
             // Patch Movi size
-            _stream.Position = _moviOffset - 4;
-            WriteUInt32((uint)(idx1Offset - _moviOffset));
+            _stream.Position = _moviOffset - 8;
+            WriteUInt32((uint)(idx1Offset - _moviOffset + 4));
 
             _stream.Close();
         }

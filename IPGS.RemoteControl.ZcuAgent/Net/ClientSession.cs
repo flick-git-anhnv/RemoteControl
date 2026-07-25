@@ -252,8 +252,12 @@ internal sealed class ClientSession
                         var chatMsg = MessageCodec.DecodeStringMessage(payload);
                         _logger.LogInformation("CHAT from CCU: {Msg}", chatMsg);
                         try {
-                            System.Diagnostics.Process.Start("notify-send", $"\"Remote Admin\" \"{chatMsg.Replace("\"", "\\\"")}\"");
-                        } catch { /* ignore if notify-send missing */ }
+                            if (Environment.OSVersion.Platform == PlatformID.Win32NT) {
+                                System.Diagnostics.Process.Start("msg", $"* \"{chatMsg.Replace("\"", "\\\"")}\"");
+                            } else {
+                                System.Diagnostics.Process.Start("notify-send", $"\"Remote Admin\" \"{chatMsg.Replace("\"", "\\\"")}\"");
+                            }
+                        } catch { /* ignore if missing */ }
                         break;
 
                     case MessageType.ClipboardData:
@@ -323,8 +327,13 @@ internal sealed class ClientSession
     {
         try 
         {
-            var cpu = System.IO.File.ReadAllLines("/proc/cpuinfo")
-                .FirstOrDefault(l => l.StartsWith("model name"))?.Split(':').LastOrDefault()?.Trim() ?? "Unknown CPU";
+            var cpu = "Unknown CPU";
+            try {
+                cpu = System.IO.File.ReadAllLines("/proc/cpuinfo")
+                    .FirstOrDefault(l => l.StartsWith("model name"))?.Split(':').LastOrDefault()?.Trim() ?? "Unknown CPU";
+            } catch {
+                cpu = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "Unknown CPU";
+            }
             
             var mem = "Unknown RAM";
             try {
@@ -335,7 +344,10 @@ internal sealed class ClientSession
                         mem = $"{kb / 1024} MB";
                     }
                 }
-            } catch {}
+            } catch {
+                var gcInfo = GC.GetGCMemoryInfo();
+                mem = $"{gcInfo.TotalAvailableMemoryBytes / 1024 / 1024} MB";
+            }
 
             var os = Environment.OSVersion.ToString();
             var arch = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString();
