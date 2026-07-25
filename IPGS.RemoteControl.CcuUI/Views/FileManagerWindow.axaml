@@ -16,16 +16,22 @@
 
     <!-- Toolbar -->
     <Border Grid.Row="1" Background="#F8FAFC" Padding="12" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
-      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,0">
-        <kz:KzButton Grid.Column="0" x:Name="PART_BtnUp" Content="⬆ Lên 1 cấp" KzSize="Sm" Margin="0,0,8,0" Classes="kz-outline" />
-        <kz:KzTextBox Grid.Column="1" x:Name="PART_TxtPath" Text="/" Margin="0,0,8,0" VerticalAlignment="Center" />
-        <kz:KzButton Grid.Column="2" x:Name="PART_BtnGo" Content="Đi" KzSize="Sm" Classes="kz-primary" Margin="0,0,16,0" />
+      <StackPanel Spacing="8">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,0">
+          <kz:KzButton Grid.Column="0" x:Name="PART_BtnUp" Content="⬆ Lên 1 cấp" KzSize="Sm" Margin="0,0,8,0" Classes="kz-outline" />
+          <kz:KzTextBox Grid.Column="1" x:Name="PART_TxtPath" Text="/" Margin="0,0,8,0" VerticalAlignment="Center" />
+          <kz:KzButton Grid.Column="2" x:Name="PART_BtnGo" Content="Đi" KzSize="Sm" Classes="kz-primary" Margin="0,0,16,0" />
 
-        <kz:KzButton Grid.Column="3" x:Name="PART_BtnRefresh" Content="🔄 Làm mới" KzSize="Sm" Margin="0,0,8,0" Classes="kz-outline" />
-        <kz:KzButton Grid.Column="4" x:Name="PART_BtnSync" Content="🔄 Đồng bộ" KzSize="Sm" Classes="kz-outline" Margin="0,0,8,0" ToolTip.Tip="Đồng bộ thư mục cục bộ lên thư mục đích" />
-        <kz:KzButton Grid.Column="5" x:Name="PART_BtnUpload" Content="⬆ Upload File" KzSize="Sm" Classes="kz-primary" Margin="0,0,8,0" />
-        <kz:KzButton Grid.Column="6" x:Name="PART_BtnDelete" Content="🗑 Xóa" KzSize="Sm" Classes="kz-danger" />
-      </Grid>
+          <kz:KzButton Grid.Column="3" x:Name="PART_BtnRefresh" Content="🔄 Làm mới" KzSize="Sm" Margin="0,0,8,0" Classes="kz-outline" />
+          <kz:KzButton Grid.Column="4" x:Name="PART_BtnSync" Content="🔄 Đồng bộ" KzSize="Sm" Classes="kz-outline" Margin="0,0,8,0" ToolTip.Tip="Đồng bộ thư mục cục bộ lên thư mục đích" />
+          <kz:KzButton Grid.Column="5" x:Name="PART_BtnUpload" Content="⬆ Upload File" KzSize="Sm" Classes="kz-primary" Margin="0,0,8,0" />
+          <kz:KzButton Grid.Column="6" x:Name="PART_BtnDelete" Content="🗑 Xóa" KzSize="Sm" Classes="kz-danger" />
+        </Grid>
+        <Grid ColumnDefinitions="Auto,*">
+          <TextBlock Text="Lọc file:" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#475569" FontWeight="Medium" />
+          <kz:KzTextBox Grid.Column="1" x:Name="PART_TxtFilter" Watermark="Nhập tên để lọc..." />
+        </Grid>
+      </StackPanel>
     </Border>
 
     <!-- File List -->

@@ -44,6 +44,7 @@ public partial class FileManagerWindow : Window
 {
     private readonly ComputerProfile _profile;
     private SftpClient? _sftpClient;
+    private readonly List<SftpFileItem> _currentFiles = new();
     public ObservableCollection<SftpFileItem> Files { get; set; } = new();
 
     public FileManagerWindow()
@@ -75,6 +76,11 @@ public partial class FileManagerWindow : Window
         if (this.FindControl<KzButton>("PART_BtnUpload") is { } btnUpload) btnUpload.Click += OnUploadClick;
         if (this.FindControl<KzButton>("PART_BtnDelete") is { } btnDelete) btnDelete.Click += OnDeleteClick;
         if (this.FindControl<KzButton>("PART_BtnSync") is { } btnSync) btnSync.Click += OnSyncClick;
+
+        if (this.FindControl<KzTextBox>("PART_TxtFilter") is { } txtFilter)
+        {
+            txtFilter.TextChanged += (s, e) => ApplyFilter(txtFilter.Text);
+        }
 
         this.Opened += async (s, e) => await ConnectAndLoadAsync();
         this.Closed += (s, e) => Disconnect();
@@ -161,12 +167,12 @@ public partial class FileManagerWindow : Window
             
             Dispatcher.UIThread.Post(() =>
             {
-                Files.Clear();
+                _currentFiles.Clear();
                 foreach (var file in files.OrderByDescending(f => f.IsDirectory).ThenBy(f => f.Name))
                 {
                     if (file.Name == "." || file.Name == "..") continue;
 
-                    Files.Add(new SftpFileItem
+                    _currentFiles.Add(new SftpFileItem
                     {
                         Name = file.Name,
                         FullName = file.FullName,
@@ -175,13 +181,31 @@ public partial class FileManagerWindow : Window
                         LastWriteTime = file.LastWriteTime
                     });
                 }
-                SetStatus($"Đã tải xong {Files.Count} mục.");
+                
+                var filterText = this.FindControl<KzTextBox>("PART_TxtFilter")?.Text ?? "";
+                ApplyFilter(filterText);
             });
         }
         catch (Exception ex)
         {
             SetStatus($"Lỗi khi tải thư mục: {ex.Message}");
         }
+    }
+
+    private void ApplyFilter(string? filter)
+    {
+        Files.Clear();
+        var lowerFilter = filter?.ToLowerInvariant() ?? "";
+        
+        foreach (var item in _currentFiles)
+        {
+            if (string.IsNullOrEmpty(lowerFilter) || item.Name.ToLowerInvariant().Contains(lowerFilter))
+            {
+                Files.Add(item);
+            }
+        }
+        
+        SetStatus($"Đã tải xong {_currentFiles.Count} mục (Hiển thị {Files.Count}).");
     }
 
     private async void OnUpClick(object? sender, RoutedEventArgs e)
