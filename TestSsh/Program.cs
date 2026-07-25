@@ -1,23 +1,16 @@
 using System;
-using Renci.SshNet;
-
-class Program
-{
-    static void Main()
-    {
-        using (var client = new SshClient("192.168.21.230", 22, "kztek", "123456"))
-        {
-            client.Connect();
-            Console.WriteLine("Connected!");
-            var cmd = client.RunCommand("ps aux | grep ZcuAgent");
-            Console.WriteLine("PROCESSES:");
-            Console.WriteLine(cmd.Result);
-            
-            var cmd2 = client.RunCommand("ls -la --time-style=full-iso /home/kztek/ipgs/IPGS.RemoteControl.ZcuAgent");
-            Console.WriteLine("FILES:");
-            Console.WriteLine(cmd2.Result);
-            
-            client.Disconnect();
+using IPGS.RemoteControl.CcuClient;
+class Program {
+    static void Main() {
+        var store = new ComputerProfileStore();
+        var profiles = store.GetAll();
+        Console.WriteLine("Total profiles: " + profiles.Count);
+        if (profiles.Count > 0) {
+            var p = profiles[0];
+            Console.WriteLine("MAC before: " + p.MacAddress);
+            p.MacAddress = "04:2b:58:05:06:a2";
+            store.Save(p);
+            Console.WriteLine("Saved.");
         }
     }
 }
