@@ -89,11 +89,11 @@ public partial class RemoteScreenWindow : Window
 
     private void OnSysInfoReceived(object? sender, string json)
     {
-        Dispatcher.UIThread.Post(() =>
+        Dispatcher.UIThread.Post(async () =>
         {
             var win = new SystemInventoryWindow();
             win.LoadFromJson(json);
-            win.ShowDialog(this);
+            await win.ShowDialog(this);
         });
     }
 

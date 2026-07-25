@@ -35,11 +35,12 @@
 
         <!-- Tools - enabled only while streaming -->
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-            <ToggleButton Name="BtnPrivacy" Content="🕶️ Privacy" IsEnabled="{Binding IsStreaming}" Click="OnPrivacyClick" ToolTip.Tip="Blank remote screen" />
-            <kz:KzButton Name="BtnSysInfo" Content="📊 SysInfo" IsEnabled="{Binding IsStreaming}" Click="OnSysInfoClick" ToolTip.Tip="System Inventory" />
-            <ToggleButton Name="BtnRecord" Content="🔴 Record" IsEnabled="{Binding IsStreaming}" Click="OnRecordClick" ToolTip.Tip="Record Session" />
+            <ToggleButton Name="BtnPrivacy" Content="🕶️ Privacy" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnPrivacyClick" ToolTip.Tip="Blank remote screen" />
+            <kz:KzButton Name="BtnSysInfo" Content="📊 SysInfo" Background="#0284C7" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnSysInfoClick" ToolTip.Tip="System Inventory" />
+            <ToggleButton Name="BtnRecord" Content="🔴 Record" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnRecordClick" ToolTip.Tip="Record Session" />
             <kz:KzButton Name="BtnDisconnect"
                          Content="Ngắt kết nối"
+                         Background="#DC2626" Foreground="White"
                          IsEnabled="{Binding IsStreaming}"
                          Click="OnDisconnectClick" />
         </StackPanel>
