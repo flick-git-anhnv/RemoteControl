@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
@@ -58,6 +59,10 @@ public partial class MultiRemoteWindow : Window
         if (this.FindControl<KzButton>("PART_BtnCloseAll") is { } btnCloseAll)
             btnCloseAll.Click += (_, _) => CloseAllSessions();
 
+        // Q19: tab ẩn không cần decode JPEG full-rate — cập nhật cờ pause mỗi khi đổi tab.
+        if (this.FindControl<TabControl>("PART_TabControl") is { } tabCtl)
+            tabCtl.SelectionChanged += (_, _) => UpdateRenderPauseStates();
+
         Closed += OnWindowClosed;
     }
 
@@ -81,6 +86,20 @@ public partial class MultiRemoteWindow : Window
             VerticalAlignment = VerticalAlignment.Stretch
         };
 
+        // Q19: chấm trạng thái phải bind vào trạng thái kết nối THẬT của session —
+        // bản cũ dùng emoji "🟢" tĩnh nên luôn xanh kể cả khi Faulted. Dùng ký tự "●"
+        // (glyph thường, ăn Foreground) bind vào StatusBrush của ViewModel.
+        var statusDot = new TextBlock
+        {
+            Text = "●",
+            FontSize = 11,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        statusDot.Bind(TextBlock.ForegroundProperty,
+            new Avalonia.Data.Binding(nameof(RemoteScreenViewModel.StatusBrush)) { Source = vm });
+        statusDot.Bind(ToolTip.TipProperty,
+            new Avalonia.Data.Binding(nameof(RemoteScreenViewModel.StatusText)) { Source = vm });
+
         // Create Grid Cell Container with header bar
         var cellHeader = new Border
         {
@@ -98,12 +117,7 @@ public partial class MultiRemoteWindow : Window
                         VerticalAlignment = VerticalAlignment.Center,
                         Children =
                         {
-                            new TextBlock
-                            {
-                                Text = "🟢",
-                                FontSize = 10,
-                                VerticalAlignment = VerticalAlignment.Center
-                            },
+                            statusDot,
                             new TextBlock
                             {
                                 Text = displayTitle,
@@ -306,12 +320,39 @@ public partial class MultiRemoteWindow : Window
                 tabControl.Items.Add(tabItem);
             }
         }
+
+        UpdateRenderPauseStates();
+    }
+
+    /// <summary>
+    /// Q19: session ở tab ẩn vẫn nhận frame TCP nhưng KHÔNG decode JPEG + alloc
+    /// WriteableBitmap (SkiaSharp decode full-rate × N session rất tốn CPU/GC).
+    /// Grid mode: mọi cell đều hiển thị → không pause session nào.
+    /// </summary>
+    private void UpdateRenderPauseStates()
+    {
+        var tabControl = this.FindControl<TabControl>("PART_TabControl");
+        var selected = tabControl?.SelectedItem as TabItem;
+
+        foreach (var session in _sessions)
+        {
+            session.ViewModel.IsRenderPaused =
+                _isTabViewMode && selected != null && !ReferenceEquals(session.TabItem, selected);
+        }
     }
 
     private async void OnAddSessionClick(object? sender, RoutedEventArgs e)
     {
-        var selectDlg = new ConnectionEntryWindow();
-        await selectDlg.ShowDialog(this);
+        // A6: KHÔNG mở ConnectionEntryWindow bằng ShowDialog — đó là main window, không
+        // bao giờ Close(result) nên dialog không trả gì về; bấm "Kết nối" trong đó chỉ mở
+        // RemoteScreenWindow độc lập, không thêm session nào vào grid. Dùng dialog chọn
+        // máy chuyên dụng (SessionPickerWindow) trả về danh sách profile đã chọn.
+        var picker = new SessionPickerWindow(_sessions.Select(s => s.Host));
+        var picked = await picker.ShowDialog<List<ComputerProfile>?>(this);
+        if (picked is { Count: > 0 })
+        {
+            AddSessions(picked);
+        }
     }
 
     private void OnWindowClosed(object? sender, EventArgs e)

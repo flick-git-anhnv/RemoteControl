@@ -30,6 +30,15 @@ public partial class CronJobWindow : Window
         _profile = new ComputerProfile();
     }
 
+    /// <summary>
+    /// Bọc single-quote POSIX ('...' với ' bên trong → '\''): shell remote KHÔNG expand
+    /// $VAR/backtick/! bên trong single-quote, và newline literal được giữ nguyên.
+    /// KHÔNG dùng double-quote + escape thủ công — đó chính là nguyên nhân bug
+    /// "echo \n literal phá toàn bộ crontab" (A1) và "$HOME bị expand sai" (Q13).
+    /// </summary>
+    private static string ShQuote(string value)
+        => "'" + value.Replace("'", "'\\''") + "'";
+
     public CronJobWindow(ComputerProfile profile)
     {
         InitializeComponent();
@@ -148,10 +157,12 @@ public partial class CronJobWindow : Window
                     !string.IsNullOrWhiteSpace(_profile.SshUsername) ? _profile.SshUsername : "kztek", _profile.SshPassword ?? "");
                 ssh.Connect();
                 
-                // Add new job
-                // Escaping inner quotes might be needed, but for simple commands it's fine
-                var cmd = ssh.CreateCommand($"(crontab -l 2>/dev/null; echo \"{newJob.Replace("\"", "\\\"")}\") | crontab -");
-                cmd.Execute();
+                // Append job qua printf + single-quote: giữ nguyên văn $VAR/backtick trong
+                // lệnh cron (Q13), không phụ thuộc hành vi echo của từng shell.
+                var cmd = ssh.CreateCommand($"(crontab -l 2>/dev/null; printf '%s\\n' {ShQuote(newJob)}) | crontab -");
+                string output = cmd.Execute();
+                if (cmd.ExitStatus != 0)
+                    throw new InvalidOperationException($"crontab trả về lỗi (exit {cmd.ExitStatus}): {cmd.Error} {output}".Trim());
                 
                 ssh.Disconnect();
             });
@@ -189,11 +200,17 @@ public partial class CronJobWindow : Window
                 var lines = result.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
                 lines.Remove(selectedJob.OriginalLine);
                 
-                string newCrontab = string.Join("\n", lines) + "\n";
-                
-                // create temp script to write back
-                var cmdWrite = ssh.CreateCommand($"echo \"{newCrontab.Replace("\"", "\\\"").Replace("\n", "\\n")}\" | crontab -");
-                cmdWrite.Execute();
+                // Ghi lại crontab qua printf + single-quote (newline literal bên trong
+                // single-quote được shell giữ nguyên; $VAR/backtick không bị expand).
+                // Bug cũ (A1): echo "...\n..." in nguyên văn chuỗi \n → crontab mới thành
+                // 1 dòng duy nhất → cron parse fail → MỌI job còn lại chết.
+                string newCrontab = string.Join("\n", lines);
+                SshCommand cmdWrite = lines.Count == 0
+                    ? ssh.CreateCommand("crontab -r 2>/dev/null || true")
+                    : ssh.CreateCommand($"printf '%s\\n' {ShQuote(newCrontab)} | crontab -");
+                string writeOutput = cmdWrite.Execute();
+                if (cmdWrite.ExitStatus != 0)
+                    throw new InvalidOperationException($"crontab trả về lỗi (exit {cmdWrite.ExitStatus}): {cmdWrite.Error} {writeOutput}".Trim());
                 
                 ssh.Disconnect();
             });

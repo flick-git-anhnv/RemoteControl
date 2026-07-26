@@ -1,0 +1,60 @@
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        xmlns:client="using:IPGS.RemoteControl.CcuClient"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.SessionPickerWindow"
+        Title="Chọn máy thêm vào Multi-Remote Dashboard"
+        Width="540" Height="500"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        Background="#1E1E2E">
+
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16">
+
+    <!-- Header -->
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
+      <TextBlock Text="🖥️ Chọn máy cần theo dõi"
+                 Foreground="White" FontSize="15" FontWeight="Bold"/>
+      <TextBlock Text="Chọn một hoặc nhiều máy (giữ Ctrl / bấm để bật-tắt) rồi bấm 'Thêm vào Dashboard'. Máy đã có trong Dashboard không hiển thị ở đây."
+                 Foreground="#A6ADC8" FontSize="12" TextWrapping="Wrap"/>
+    </StackPanel>
+
+    <!-- Profile list -->
+    <Border Grid.Row="1" Background="#11111B" BorderBrush="#313244" BorderThickness="1" CornerRadius="6">
+      <Grid>
+        <ListBox x:Name="PART_ProfileList"
+                 SelectionMode="Multiple,Toggle"
+                 Background="Transparent">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="client:ComputerProfile">
+              <StackPanel Orientation="Horizontal" Spacing="10" Margin="4,2">
+                <TextBlock Text="💻" FontSize="16" VerticalAlignment="Center"/>
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{Binding DisplayName}" Foreground="White" FontSize="13" FontWeight="SemiBold"/>
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding Host}" Foreground="#94A3B8" FontSize="11"/>
+                    <TextBlock Text="{Binding Port}" Foreground="#7F849C" FontSize="11"/>
+                  </StackPanel>
+                </StackPanel>
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock x:Name="PART_EmptyHint"
+                   Text="Không còn máy nào để thêm — mọi máy đã lưu đều đang có trong Dashboard, hoặc danh sách máy trống."
+                   Foreground="#7F849C" FontSize="12" TextWrapping="Wrap"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Margin="24" IsVisible="False"/>
+      </Grid>
+    </Border>
+
+    <!-- Actions -->
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8"
+                HorizontalAlignment="Right" Margin="0,12,0,0">
+      <kz:KzButton x:Name="PART_BtnCancel" Content="Hủy" KzSize="Sm"/>
+      <kz:KzButton x:Name="PART_BtnAdd" Content="+ Thêm vào Dashboard" KzSize="Sm" Classes="kz-primary"/>
+    </StackPanel>
+
+  </Grid>
+</Window>

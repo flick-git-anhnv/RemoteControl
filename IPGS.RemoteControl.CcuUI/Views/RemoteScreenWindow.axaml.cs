@@ -72,9 +72,18 @@ public partial class RemoteScreenWindow : Window
     protected override async void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
-        _recorder?.Dispose();
+
+        // A3: unsubscribe TRƯỚC, disconnect XONG rồi mới dispose recorder — thứ tự cũ
+        // (dispose recorder trước DisconnectAsync) để frame từ receive-thread vẫn tới
+        // trong khoảng đó và đập vào recorder đã dispose.
+        _vm.Client.FrameReceived   -= OnFrameReceived;
+        _vm.Client.SysInfoReceived -= OnSysInfoReceived;
+
         // Gracefully disconnect before the window is destroyed.
         await _vm.DisconnectAsync();
+
+        _recorder?.Dispose();
+        _recorder = null;
         _vm.Dispose();
     }
 
@@ -82,10 +91,31 @@ public partial class RemoteScreenWindow : Window
 
     private void OnFrameReceived(object? sender, FrameReceivedEventArgs e)
     {
-        if (_recorder != null)
+        // Chạy trên thread nhận TCP của CcuClient — đọc field 1 lần vào local để không
+        // đua với UI thread gán _recorder = null (SessionRecorder tự thread-safe thêm 1 lớp).
+        var recorder = _recorder;
+        if (recorder == null) return;
+
+        // ZCU đổi độ phân giải giữa chừng → AVI header (width/height cố định) sẽ sai,
+        // video hỏng. Dừng ghi ngay và báo người dùng thay vì ghi tiếp file rác.
+        if (e.Width > 0 && e.Height > 0 &&
+            (e.Width != recorder.Width || e.Height != recorder.Height))
         {
-            _recorder.AddFrame(e.JpegData.Span);
+            _recorder = null;
+            recorder.Dispose();
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (this.FindControl<ToggleButton>("BtnRecord") is { } btn)
+                {
+                    btn.IsChecked = false;
+                    btn.Content = "🔴 Record";
+                }
+                Title = $"Remote Control — {_host}:{_port} (⏹ Đã dừng ghi hình: độ phân giải ZCU thay đổi)";
+            });
+            return;
         }
+
+        recorder.AddFrame(e.JpegData.Span);
     }
 
     private void OnSysInfoReceived(object? sender, string json)
@@ -133,7 +163,14 @@ public partial class RemoteScreenWindow : Window
 
                     if (file != null && file.TryGetLocalPath() is string path)
                     {
-                        _recorder = new SessionRecorder(path, _vm.Client.ScreenWidth, _vm.Client.ScreenHeight, 15);
+                        int sw = _vm.Client.ScreenWidth, sh = _vm.Client.ScreenHeight;
+                        if (sw <= 0 || sh <= 0)
+                        {
+                            // Chưa nhận frame nào → chưa biết độ phân giải, AVI header sẽ sai.
+                            btn.IsChecked = false;
+                            return;
+                        }
+                        _recorder = new SessionRecorder(path, sw, sh, 15);
                         btn.Content = "⏹️ Stop";
                         return;
                     }
@@ -143,8 +180,12 @@ public partial class RemoteScreenWindow : Window
             }
             else
             {
-                _recorder?.Dispose();
+                // A3: gán null TRƯỚC rồi mới Dispose — OnFrameReceived (receive-thread)
+                // đọc snapshot field nên frame đang bay hoặc bị bỏ qua (null) hoặc được
+                // SessionRecorder (đã thread-safe) nuốt êm, không còn ObjectDisposedException.
+                var rec = _recorder;
                 _recorder = null;
+                rec?.Dispose();
                 btn.Content = "🔴 Record";
             }
         }

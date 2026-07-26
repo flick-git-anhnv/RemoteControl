@@ -35,6 +35,23 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     private volatile int _screenWidth;
     private volatile int _screenHeight;
 
+    // ── Disposal flag — set on UI thread in Dispose(), read inside queued
+    // Dispatcher.UIThread.Post lambdas and on the frame-decode thread (L5 fix).
+    private volatile bool _disposed;
+
+    /// <summary>
+    /// Khi true, frame tới vẫn cập nhật kích thước màn hình nhưng BỎ QUA decode JPEG +
+    /// cấp phát WriteableBitmap — dùng cho MultiRemoteWindow: session ở tab ẩn không
+    /// cần render, tiết kiệm CPU (SkiaSharp decode full-rate × N session) và GC pressure.
+    /// Volatile vì được set từ UI thread, đọc trên thread nhận TCP.
+    /// </summary>
+    private volatile bool _isRenderPaused;
+    public bool IsRenderPaused
+    {
+        get => _isRenderPaused;
+        set => _isRenderPaused = value;
+    }
+
     // ── Mouse throttle state ─────────────────────────────────────────────────
     private long _lastMouseMoveSent;
     private int  _lastMouseX = -99999;
@@ -281,6 +298,12 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         _screenWidth  = e.Width;
         _screenHeight = e.Height;
 
+        // Q19: session ở tab ẩn (MultiRemoteWindow) không cần render — bỏ qua decode
+        // để tiết kiệm CPU/RAM; kích thước màn hình phía trên vẫn được cập nhật.
+        // L5: sau Dispose cũng không decode thêm (event đã unsubscribe nhưng frame
+        // đang bay trên receive-thread vẫn có thể gọi vào đây một nhịp cuối).
+        if (_isRenderPaused || _disposed) return;
+
         // Decode JPEG on the calling (background) thread — SkiaSharp is thread-safe.
         using var skBmp = SKBitmap.Decode(e.JpegData.Span);
         if (skBmp is null) return;
@@ -330,6 +353,15 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
             // becomes visible within seconds at 10–15 fps.
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
+                // L5: nếu Dispose() đã chạy trước khi lambda này ra khỏi queue thì
+                // KHÔNG gán CurrentFrame — VM đã chết, không ai dispose bitmap này nữa
+                // (leak ~8MB/lần đóng ở 1080p; MultiRemote 3×3 "Close All" = 9 bitmap).
+                // Dispose thẳng wb tại đây thay vì gán.
+                if (_disposed)
+                {
+                    wb.Dispose();
+                    return;
+                }
                 var old = CurrentFrame;
                 CurrentFrame = wb;
                 old?.Dispose();
@@ -345,6 +377,9 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
 
     public void Dispose()
     {
+        // Set cờ TRƯỚC mọi thứ khác: các lambda Dispatcher.Post đã nằm sẵn trong queue
+        // sẽ thấy _disposed = true và tự dispose bitmap của chúng (L5).
+        _disposed = true;
         _client.FrameReceived -= OnFrameReceived;
         _client.StateChanged  -= OnStateChanged;
         // Release any stuck keys on ZCU BEFORE disconnect so the release messages

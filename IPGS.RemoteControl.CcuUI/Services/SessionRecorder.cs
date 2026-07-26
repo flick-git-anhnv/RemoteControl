@@ -12,10 +12,23 @@ public sealed class SessionRecorder : IDisposable
     private readonly int _width;
     private readonly int _height;
     private readonly int _fps;
-    
+
+    // A3: AddFrame chạy trên thread nhận TCP của CcuClient trong khi Dispose chạy
+    // trên UI thread — PHẢI serialize bằng lock + cờ _disposed, nếu không
+    // _stream.Position/Write ném ObjectDisposedException BÊN TRONG event invocation
+    // của client → có thể giết receive-loop → mất luôn stream màn hình.
+    private readonly object _sync = new();
+    private bool _disposed;
+
     private int _frameCount;
     private long _moviOffset;
     private readonly List<(string Id, uint Length, uint Offset)> _index = new();
+
+    /// <summary>Chiều rộng khung hình đã khai báo trong AVI header.</summary>
+    public int Width => _width;
+
+    /// <summary>Chiều cao khung hình đã khai báo trong AVI header.</summary>
+    public int Height => _height;
 
     public SessionRecorder(string path, int width, int height, int fps = 15)
     {
@@ -32,25 +45,39 @@ public sealed class SessionRecorder : IDisposable
     {
         if (jpegData.Length == 0) return;
 
-        // Ensure 2-byte alignment for chunks
-        bool pad = (jpegData.Length % 2) != 0;
-        uint chunkLen = (uint)(jpegData.Length + (pad ? 1 : 0));
+        lock (_sync)
+        {
+            // Guard sau khi Dispose: frame tới muộn từ receive-thread chỉ bị bỏ qua
+            // êm — không ném exception ngược vào event loop của CcuClient.
+            if (_disposed || !_stream.CanWrite) return;
 
-        uint offset = (uint)(_stream.Position - _moviOffset);
-        
-        WriteFourCC("00dc");
-        WriteUInt32((uint)jpegData.Length);
-        _stream.Write(jpegData);
-        if (pad) _stream.WriteByte(0);
+            // Ensure 2-byte alignment for chunks
+            bool pad = (jpegData.Length % 2) != 0;
 
-        _index.Add(("00dc", (uint)jpegData.Length, offset));
-        _frameCount++;
+            uint offset = (uint)(_stream.Position - _moviOffset);
+
+            WriteFourCC("00dc");
+            WriteUInt32((uint)jpegData.Length);
+            _stream.Write(jpegData);
+            if (pad) _stream.WriteByte(0);
+
+            _index.Add(("00dc", (uint)jpegData.Length, offset));
+            _frameCount++;
+        }
     }
 
     public void Dispose()
     {
-        if (_stream.CanWrite)
+        lock (_sync)
         {
+            if (_disposed) return;
+            _disposed = true;
+
+            if (!_stream.CanWrite)
+            {
+                _stream.Dispose();
+                return;
+            }
             // Write idx1
             long idx1Offset = _stream.Position;
             WriteFourCC("idx1");

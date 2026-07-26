@@ -86,8 +86,10 @@ namespace IPGS.RemoteControl.CcuUI.Views
             PART_LogConsole.Text = "";
             PART_ProgressBar.Value = 0;
 
-            // Search for local ZcuAgent publish directory to upload if available
-            string? publishDir = FindZcuAgentPublishDir();
+            // Search for local ZcuAgent publish directory to upload if available.
+            // A4: PHẢI await bản async — bản cũ chạy đồng bộ Process.WaitForExit(30000)
+            // ngay trên UI thread → cửa sổ đơ tối đa 30 giây.
+            string? publishDir = await FindZcuAgentPublishDirAsync();
             if (publishDir != null)
             {
                 Log("📁 Đã tìm thấy thư mục publish ZcuAgent tại: " + publishDir);
@@ -157,7 +159,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             }
         }
 
-        private string? FindZcuAgentPublishDir()
+        private async Task<string?> FindZcuAgentPublishDirAsync()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             string candidate1 = Path.Combine(baseDir, "publish", "linux-x64");
@@ -187,15 +189,29 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 {
                     try
                     {
-                        Log("⚙️ Đang tự động chạy 'dotnet publish' để tạo file thực thi ZcuAgent linux-x64...");
+                        Log("⚙️ Đang tự động chạy 'dotnet publish' để tạo file thực thi ZcuAgent linux-x64 (tối đa 30 giây)...");
                         string outDir = Path.Combine(projDir, "IPGS.RemoteControl.ZcuAgent", "publish", "linux-x64");
                         var psi = new System.Diagnostics.ProcessStartInfo("dotnet", $"publish \"{csprojPath}\" -c Release -r linux-x64 --self-contained false -o \"{outDir}\"")
                         {
                             CreateNoWindow = true,
                             UseShellExecute = false
                         };
-                        var proc = System.Diagnostics.Process.Start(psi);
-                        proc?.WaitForExit(30000);
+                        using var proc = System.Diagnostics.Process.Start(psi);
+                        if (proc != null)
+                        {
+                            // A4: WaitForExitAsync thay WaitForExit(30000) — không block UI thread,
+                            // progress bar/log console vẫn phản hồi trong lúc publish chạy.
+                            using var timeoutCts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(30));
+                            try
+                            {
+                                await proc.WaitForExitAsync(timeoutCts.Token);
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                try { proc.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                                Log("⚠️ 'dotnet publish' quá 30 giây — đã hủy, bỏ qua bước auto-publish.");
+                            }
+                        }
 
                         if (Directory.Exists(outDir) && File.Exists(Path.Combine(outDir, "IPGS.RemoteControl.ZcuAgent")))
                             return outDir;

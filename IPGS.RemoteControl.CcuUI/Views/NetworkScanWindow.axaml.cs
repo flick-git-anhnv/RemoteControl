@@ -30,6 +30,15 @@ namespace IPGS.RemoteControl.CcuUI.Views
             PART_BtnClose.Click += (_, _) => Close();
         }
 
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            // Q16: đóng cửa sổ giữa lúc quét phải hủy scan — nếu không, vòng quét 254 IP
+            // tiếp tục chạy ngầm và post kết quả vào window đã đóng.
+            try { _scanCts?.Cancel(); }
+            catch (ObjectDisposedException) { /* finally của OnScanClick vừa dispose — bỏ qua */ }
+        }
+
         private void UpdateEmptyHint()
         {
             PART_EmptyHint.IsVisible = _found.Count == 0;
@@ -131,9 +140,16 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     Port = existing.Port,
                     Token = existing.Token,
                     Notes = existing.Notes,
+                    // PHẢI copy ĐỦ mọi field persist — Save() đè toàn bộ field lên profile
+                    // gốc, field nào thiếu ở đây sẽ bị ghi đè thành null (bug A2: MAC mất
+                    // → Wake-on-LAN hỏng, cùng chủng bug đã fix ở commit d1ab288/38efbb1).
+                    // Đối chiếu với clone chuẩn tại ConnectionEntryWindow.OnItemEditClick.
+                    MacAddress = existing.MacAddress,
                     SshPort = existing.SshPort,
                     SshUsername = existing.SshUsername,
                     SshPassword = existing.SshPassword,
+                    LastAppInstallerPath = existing.LastAppInstallerPath,
+                    LastUninstallPackage = existing.LastUninstallPackage,
                     LastConnectedAt = existing.LastConnectedAt,
                     CreatedAt = existing.CreatedAt
                 }
