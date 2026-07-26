@@ -1,8 +1,8 @@
 ---
 task: user-manual-ccu-zcu
 created: 2026-07-26
-updated: 2026-07-26 18:13
-status: planning
+updated: 2026-07-26 18:18
+status: in-progress
 workflow: WF-DOCS
 priority: P2
 ---
@@ -60,17 +60,17 @@ Screenshot BẮT BUỘC chụp từ app chạy thật (build Release trên máy 
 ### Phase 4: Xuất & nghiệm thu
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
 |---|------|-------|--------|-----------|-----------------|
-| 4.1 | Xuất DOCX + PDF (`scripts/md_to_docx_kztek.py`), kiểm tra Definition of Done của documentation-writer | documentation-writer | ⬜ | `steps/STEP-4.1-export-verify.md` | - |
+| 4.1 | Xuất DOCX + PDF (`scripts/md_to_docx_kztek.py`), kiểm tra Definition of Done của documentation-writer | documentation-writer | ✅ | `steps/STEP-4.1-export-verify.md` | 2026-07-26 18:18 (BẢN NHÁP — chạy lại sau khi đủ ảnh) |
 
 ## Artifacts dự kiến (tổng)
-- [ ] `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md`
-- [ ] `docs/user-manuals/MANUAL-ccu-zcu-remote-control.docx`
-- [ ] `docs/user-manuals/MANUAL-ccu-zcu-remote-control.pdf`
-- [ ] `docs/user-manuals/screenshots/*.png` (đủ 100% màn hình theo Screen Inventory bước 0.2)
-- [ ] `_workspace/` trung gian: `00_pm_docs-scope.md`, `00_docwriter_screen-inventory.md` (không commit)
+- [x] `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md` — ✅ BẢN NHÁP (19 ảnh thật, 61 marker ⏳)
+- [x] `docs/user-manuals/MANUAL-ccu-zcu-remote-control.docx` — ✅ BẢN NHÁP (967 KB, 20 ảnh nhúng)
+- [x] `docs/user-manuals/MANUAL-ccu-zcu-remote-control.pdf` — ✅ BẢN NHÁP (1,7 MB)
+- [ ] `docs/user-manuals/screenshots/*.png` (đủ 100% màn hình theo Screen Inventory bước 0.2) — hiện 19/80, còn 61 chờ VM ZCU
+- [x] `_workspace/` trung gian: `00_pm_docs-scope.md`, `00_docwriter_screen-inventory.md` (không commit)
 
 ## Blockers
-- 🛑 **[2026-07-26 17:52 — Bước 2.2] ZCU `192.168.1.4` vẫn OFFLINE dù user báo đã bật lại VM.** Ping fail ~6 phút liên tục (Destination host unreachable); cổng 22/17600 đóng; quét cả subnet 192.168.1.1–254 không thấy máy nào mở 2 cổng này (loại trừ khả năng đổi IP DHCP). Nghi vấn: VM đang ở network mode **NAT thay vì Bridged**, hoặc VM chưa boot xong/treo. **Cần user:** kiểm tra VM (chế độ mạng Bridged, chạy `ip a` trong VM xác nhận IP) rồi yêu cầu chạy tiếp bước 2.2 — 24/28 ảnh nhóm 2.2 + 2 ảnh bù 2.1 + dữ liệu demo SSH đang chờ.
+- 🛑 **[Hiện trạng sau 4.1 — 2026-07-26 18:18] VM ZCU `192.168.1.4` OFFLINE → Phase 2 còn dở:** bước 2.2 mới có 4/28 ảnh (+2 ảnh bù 2.1 chưa chụp), bước 2.3 và 2.4 HOÃN toàn bộ. Tổng 61 ảnh chờ chụp (đã liệt kê tại Phụ lục A của MANUAL). Bản DOCX/PDF vừa xuất là **BẢN NHÁP** — chưa đạt DoD đầy đủ WF-DOCS. **Cần user:** sửa VM (nghi NAT thay vì Bridged / VM treo — kiểm tra `ip a`, cổng 22/17600) rồi yêu cầu chạy tiếp 2.2 → 2.3 → 2.4 → thay 61 marker → khôi phục profile store từ `temp/user-manual-ccu-zcu/profiles.backup.json` → xuất lại DOCX/PDF (chạy lại 4.1).
 
 **Rủi ro đã nhận diện:**
 1. Một số màn hình/trạng thái (RemoteScreen đang stream, FileManager kết nối SFTP, HealthMonitor có dữ liệu, ZcuSetupWizard cài thật...) cần thiết bị ZCU thật hoặc kết nối SSH đang hoạt động. Nếu không có thiết bị → bước screenshot tương ứng ghi 🛑 BLOCK + báo user, KHÔNG bịa ảnh, KHÔNG dùng placeholder. Tài liệu vẫn viết phần text, đánh dấu vị trí ảnh chờ bổ sung.
@@ -107,6 +107,7 @@ Screenshot BẮT BUỘC chụp từ app chạy thật (build Release trên máy 
 | 2026-07-26 | Bước 2.2 🛑 BLOCKED — ZCU 192.168.1.4 vẫn offline (ping+cổng 22/17600 fail ~6 phút, quét subnet không thấy); chụp được 4/28 ảnh không cần ZCU (`remote-screen-connecting/-ssh-help/-faulted`, `multi-remote-empty` — verify bằng Read); 2 ảnh bù 2.1 (`network-scan-results`, `connection-entry-default` P01 online) CHƯA chụp được — cùng chờ ZCU; tool mới `temp/user-manual-ccu-zcu/actions-22.ps1` (double-click item mở RemoteScreen) | documentation-writer |
 | 2026-07-26 | Bước 3.2 ✅ — Tạo `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md` (BẢN NHÁP): Phần 1 CCU hoàn chỉnh phủ 18/18 màn hình (ch3–10, đánh số chương MỚI: CCU trước, ZCU sau), 19 ảnh thật chèn (Hình 1–19), 52 marker ⏳ CHỜ ẢNH + Phụ lục A checklist bổ sung; Phần 2 ZCU (ch11–13) để khung 🚧 chờ bước 3.1; verify 0 link ảnh chết | documentation-writer |
 | 2026-07-26 | Bước 3.1 ✅ — Viết trọn Phần 2 ZCU (ch11 Chuẩn bị, ch12 Cài ZcuAgent 2 cách + systemd + gỡ/nâng cấp, ch13 Khóa & bảo mật + KeyGen + license) + FAQ 14.1 (7 câu), bám code/script thật; Phụ lục A mở rộng #53–61 (8 ảnh terminal ZCU + KeyGen); tổng marker ⏳ = 61; hết 🚧; 0 link ảnh chết. Phát hiện: không có .deb cho ZcuAgent (deb là của IPGSUseCam); appsettings.json hiện đã 17600 (5900 chỉ còn trong CODE-GRAPH cũ) | documentation-writer |
+| 2026-07-26 | Bước 4.1 ✅ (BẢN NHÁP) — Rà soát MANUAL (19 ảnh/61 marker/61 dòng Phụ lục A khớp, 0 link chết, 0 credential thật, mục lục khớp 15 chương); thêm dòng thống kê 19/61 vào nhãn nháp; xuất DOCX (967 KB, 20 ảnh nhúng verify) + PDF (1,7 MB) thành công lần 1; checklist DoD ghi trong step file — 2 mục coverage ảnh ❌ → plan giữ in-progress, chờ VM ZCU để chạy lại 2.2/2.3/2.4 rồi xuất lại | documentation-writer |
 | 2026-07-26 | Bước 2.1 ✅ — 15/16 ảnh nhóm Kết nối & Quản lý thiết bị (verify từng ảnh bằng Read); 🛑 thiếu `network-scan-results` + ⚠️ `connection-entry-default` chụp bản P01-offline (ZCU 192.168.1.4 không mở cổng 22/17600 — cần user kiểm tra thiết bị trước bước 2.2); dữ liệu mẫu P01/P02/P03 giữ trong store, backup store thật tại `temp/user-manual-ccu-zcu/profiles.backup.json` (khôi phục ở 4.1) | documentation-writer |
 
 ---

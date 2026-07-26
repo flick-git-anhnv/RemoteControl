@@ -5,6 +5,8 @@
 **Biên soạn:** KZTEK Documentation Team
 
 > ⚠️ **Trạng thái tài liệu:** Đây là bản nháp. Một số ảnh minh họa yêu cầu máy ZCU đang hoạt động chưa thể chụp tại thời điểm biên soạn — các vị trí đó được đánh dấu `⏳ [CHỜ ẢNH: ...]` và liệt kê đầy đủ tại **Phụ lục A** cuối tài liệu. Nội dung chữ đã hoàn chỉnh và bám đúng phần mềm thực tế.
+>
+> **Ảnh minh họa hiện có: 19 (Hình 1–19) / còn 61 vị trí đang chờ chụp bổ sung.** Bản chính thức sẽ thay toàn bộ marker ⏳ bằng ảnh thật.
 
 ---
 
