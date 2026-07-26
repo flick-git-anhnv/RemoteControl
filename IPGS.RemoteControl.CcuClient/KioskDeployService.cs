@@ -162,7 +162,8 @@ namespace IPGS.RemoteControl.CcuClient
                 {
                     Log("🔄 Đang chạy 1-install-software.sh (Config máy tính — phần extension/unclutter/bàn phím ảo)...");
                     string args1 = $"{B(options.HideTopBar)} {B(options.HideActivities)} {B(options.HideWorkspaceSwitcher)} {B(options.HideDash)} {B(options.InstallUnclutter)} {B(options.HideVirtualKeyboard)}";
-                    RunCommand(ssh, $"{envCmd} bash ~/1-install-software.sh {args1}", Log);
+                    RunCommand(ssh, $"{envCmd} bash ~/1-install-software.sh {args1}", Log,
+                        throwOnError: true, errorContext: "1-install-software.sh");
                 }
 
                 if (options.RunConfigureSystem)
@@ -172,7 +173,11 @@ namespace IPGS.RemoteControl.CcuClient
                     string args2 = $"{B(options.DisableHotCorner)} {B(options.DisableDockIcons)} {B(options.BlockSleep)} {B(options.SkipInitialSetup)} {B(options.EnableAutologin)} {B(options.DisableSoftwareUpdate)} {B(options.EnableAutostart)} {B(options.LockSingleWorkspace)}";
                     // S1: quote đúng chuẩn POSIX — bản cũ '{kioskUser}' không escape '
                     // bên trong nên giá trị chứa ' có thể break-out khỏi quote.
-                    RunCommand(ssh, $"{envCmd} bash ~/2-configure-system.sh {ShellQuote.Quote(kioskUser)} {ShellQuote.Quote(options.AppExec)} {args2}", Log);
+                    // F08: throwOnError — trước đây exit code của script bị bỏ qua hoàn toàn,
+                    // script fail (VD autologin không ghi được do sudo sai mật khẩu) vẫn
+                    // hiện "HOÀN THÀNH" → user tưởng autologin đã cài mà thực tế chưa.
+                    RunCommand(ssh, $"{envCmd} bash ~/2-configure-system.sh {ShellQuote.Quote(kioskUser)} {ShellQuote.Quote(options.AppExec)} {args2}", Log,
+                        throwOnError: true, errorContext: "2-configure-system.sh (autologin/cấu hình hệ thống)");
                 }
 
                 ssh.Disconnect();
@@ -211,20 +216,35 @@ namespace IPGS.RemoteControl.CcuClient
             log($"📤 Đã tải {fileName} lên {remotePath}{note}");
         }
 
-        private static void RunCommand(SshClient ssh, string commandText, Action<string> log, bool silent = false)
+        private static void RunCommand(SshClient ssh, string commandText, Action<string> log,
+            bool silent = false, bool throwOnError = false, string? errorContext = null)
         {
             // Dùng UTF-8 để decode output — mặc định SSH.NET là ASCII gây garbled text
             // với ký tự tiếng Việt (UTF-8 bytes bị decode thành Latin-1 → "CÃ i" thay vì "Cài").
             using var cmd = ssh.CreateCommand(commandText, Encoding.UTF8);
             cmd.Execute();
 
-            if (silent) return;
-
             string result = (cmd.Result ?? string.Empty).TrimEnd();
-            if (!string.IsNullOrEmpty(result)) log(result);
-
             string error = (cmd.Error ?? string.Empty).TrimEnd();
-            if (!string.IsNullOrEmpty(error)) log(error);
+
+            if (!silent)
+            {
+                if (!string.IsNullOrEmpty(result)) log(result);
+                if (!string.IsNullOrEmpty(error)) log(error);
+            }
+
+            // F08: KHÔNG nuốt exit code — script setup fail phải nổi lên thành lỗi deploy
+            // thật, không được để flow tiếp tục tới "HOÀN THÀNH" (báo thành công giả).
+            int exitStatus = cmd.ExitStatus ?? 0;
+            if (throwOnError && exitStatus != 0)
+            {
+                string detail = !string.IsNullOrEmpty(error) ? error : result;
+                // Chỉ lấy vài dòng cuối cho message — log đầy đủ đã in ở trên.
+                var lines = detail.Split('\n');
+                if (lines.Length > 5) detail = string.Join("\n", lines[^5..]);
+                throw new Exception(
+                    $"{errorContext ?? "Lệnh trên máy kiosk"} thất bại (exit {exitStatus}). {detail}".TrimEnd());
+            }
         }
 
         private string? ResolveKioskScriptsDir()

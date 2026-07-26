@@ -259,3 +259,32 @@ Không phát hiện lỗi mới trong phạm vi verify (không append F07). Ghi 
 | F07 Reboot báo LỖI đỏ + lộ dòng `[debug]` | ✅ Đã sửa (chờ QA smoke test) | `CcuUI/Views/SshCommandHints.cs` (mới), `RemoteCommandWindow.axaml.cs`, `BulkActionWindow.axaml.cs` |
 
 **QA cần smoke test:** (1) `sudo reboot` trên tab Console → thông báo ℹ️ xám, không còn ❌ đỏ, không còn dòng `[debug]`; (2) sai password sudo → vẫn báo lỗi đỏ như cũ ("incorrect password attempts"); (3) lệnh không tồn tại → vẫn [STDERR] như cũ; (4) BulkAction snippet Reboot trên nhiều máy → từng máy Thành công kèm ghi chú ℹ️; (5) set `IPGS_RC_DEBUG=1` rồi chạy lệnh sudo → dòng `[debug]` xuất hiện lại.
+
+---
+
+## F08 — Kiosk Deploy: đã cài Autologin nhưng sau khi khởi động lại máy ZCU vẫn hiện màn hình đăng nhập
+
+> **Người phát hiện:** USER (thao tác thật trên máy ZCU `192.168.0.101` sau khi chạy Kiosk Deploy phần autologin).
+
+| Trường | Nội dung |
+|---|---|
+| **Màn hình / Thành phần** | KioskDeployWindow (tab Config máy tính — ô Autologin) → `KioskDeployService` → `scripts/linux-kiosk/2-configure-system.sh` mục [6/8] |
+| **Mức độ** | P2 |
+| **Các bước tái hiện** | 1. Chạy Kiosk Deploy với ô Autologin tick (đã chạy trên ZCU ngày 24/07, log báo hoàn thành). 2. Khởi động lại máy ZCU nhiều lần. 3. Quan sát: một lần khởi động (26/07 ~17:13) máy đứng ở màn hình đăng nhập GDM, phải nhập mật khẩu / khởi động lại mới vào được desktop. |
+| **Kết quả thực tế** | Autologin hoạt động ở đa số lần boot nhưng KHÔNG ổn định — có lần boot greeter vẫn hiện và đứng đó vô hạn. Ngoài ra app luôn báo "Deploy hoàn tất" kể cả khi script cấu hình thất bại (không kiểm tra exit code) → nếu ghi config fail (VD sai mật khẩu sudo, máy không dùng gdm3) user vẫn tưởng đã cài xong. |
+| **Kết quả mong đợi** | Máy tự vào desktop ở MỌI lần khởi động; nếu không áp dụng được autologin, app phải báo lỗi đỏ rõ ràng thay vì "Deploy hoàn tất". |
+| **Bằng chứng từ máy thật (điều tra 26/07 23:1x)** | (1) `/etc/gdm3/custom.conf` ĐÃ có `AutomaticLoginEnable = true` + `AutomaticLogin = kztek` đúng cú pháp (ghi 24/07 21:41 — code ghi ĐÚNG file, máy dùng đúng gdm3). (2) `journalctl`: mọi boot có log đều mở session bằng PAM `gdm-autologin` thành công (16:26, 18:21, 20:49, 23:13 ngày 26/07). (3) Boot 17:13:36 (`last -x`): KHÔNG có dòng đăng nhập `kztek :0` nào suốt 17:13→18:20 và boot này KHÔNG để lại journal (máy là VM, boot bất thường sau crash 16:53) — đúng khung giờ user thấy màn hình đăng nhập. → Khớp lỗi đã biết của GDM: race hiếm khi boot chậm/bất thường khiến `AutomaticLogin` bị bỏ qua và greeter hiện ra chờ vô hạn. |
+
+> **✅ Đã sửa (2026-07-26, senior-developer):**
+> - **Nguyên nhân gốc:** (1) **GDM autologin race** — cấu hình được ghi đúng nhưng GDM có lỗi đã biết: ở lần boot chậm/bất thường (nhất là trên VM), `AutomaticLogin` bị bỏ qua và greeter hiện ra, không có cơ chế fallback → máy đứng ở màn hình đăng nhập vô hạn (bằng chứng boot 17:13 ngày 26/07). (2) **Báo thành công giả:** `KioskDeployService.RunCommand` bỏ qua `ExitStatus` của script; `2-configure-system.sh` khi không tìm thấy `/etc/gdm3/custom.conf` (máy dùng lightdm/sddm) chỉ warning rồi vẫn exit 0 → app luôn hiện "🎉 Deploy hoàn tất". (3) Script hardcode gdm3, không dò display manager thật.
+> - **Cách sửa:**
+>   1. `scripts/linux-kiosk/2-configure-system.sh` mục [6/8]: dò display manager động (`/etc/X11/default-display-manager` + `display-manager.service`), hỗ trợ gdm3/gdm/lightdm/sddm; với GDM ghi thêm **`TimedLoginEnable/TimedLogin/TimedLoginDelay = 5` làm fallback** — nếu autologin bị GDM bỏ qua và greeter hiện ra, TimedLogin tự đăng nhập user sau 5 giây, máy vẫn tự vào desktop; **KIỂM CHỨNG sau khi ghi** bằng cách grep đọc lại file thật (bắt được trường hợp sudo sai mật khẩu — `_sudo` nuốt stderr); không áp dụng được → in `AUTOLOGIN-FAILED` + `exit 1`.
+>   2. `IPGS.RemoteControl.CcuClient/KioskDeployService.cs` (`RunCommand`): thêm `throwOnError` — kiểm tra `cmd.ExitStatus`, script setup fail → ném exception (kèm 5 dòng lỗi cuối) → `KioskDeployWindow` hiển thị "❌ Deploy thất bại: ..." thay vì thành công giả.
+>   3. Áp dụng trực tiếp lên ZCU `192.168.0.101` (CHỈ phần autologin, không bật kiosk mode toàn phần): backup `/etc/gdm3/custom.conf.bak-2026-07-26`, ghi block Automatic+TimedLogin, verify grep OK.
+> - **Kiểm chứng trên máy thật:** `sudo reboot` lúc 23:29 → boot 23:30:54, SSH kiểm tra: `who` → `kztek :0 23:31`, `loginctl show-session` → **`Service=gdm-autologin`, `State=active`**, `gnome-shell` chạy dưới kztek — máy tự vào desktop không cần nhập mật khẩu.
+> - **Build verify:** `dotnet build IPGS.RemoteControl.CcuUI -c Release` → **0 Error** (456 warnings = baseline đã biết). `bash -n 2-configure-system.sh` → syntax OK.
+> - **Lưu ý vận hành:** lần boot bất thường (crash/mất điện giữa chừng) giờ tối đa chờ thêm 5 giây ở greeter rồi TimedLogin tự vào; nếu vẫn phải đăng nhập → kiểm tra `grep -E '^(Automatic|Timed)' /etc/gdm3/custom.conf` và log deploy có dòng `AUTOLOGIN-VERIFIED` không.
+
+| Finding | Trạng thái | File chính đã sửa |
+|---|---|---|
+| F08 Autologin không tác dụng sau restart | ✅ Đã sửa + kiểm chứng reboot thật trên ZCU (chờ QA smoke test bản deploy qua app) | `scripts/linux-kiosk/2-configure-system.sh`, `CcuClient/KioskDeployService.cs` |

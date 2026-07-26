@@ -931,7 +931,15 @@ Cửa sổ "Deploy Kiosk Setup" gồm: khung máy đích, ô **Sudo password** (
 
 Log hiển thị lần lượt từng nhóm thiết lập được áp dụng theo các ô đã tick (cài extension ẩn giao diện, thiết lập autologin, tắt thông báo / khóa màn hình, đăng ký autostart phần mềm...) và kết thúc bằng dòng xác nhận deploy hoàn tất. Khởi động lại máy ZCU để toàn bộ thiết lập có hiệu lực.
 
-**Trường hợp lỗi:** Thanh trạng thái dưới cùng hiển thị thông báo lỗi màu đỏ nêu rõ nguyên nhân (thường do sai thông tin SSH hoặc mất kết nối tới máy đích) — kiểm tra lại hồ sơ máy (nút **Sửa**) rồi Deploy lại.
+**Trường hợp lỗi:** Thanh trạng thái dưới cùng hiển thị thông báo lỗi màu đỏ nêu rõ nguyên nhân (sai thông tin SSH, mất kết nối tới máy đích, hoặc script cấu hình trên máy ZCU chạy thất bại — ví dụ không áp dụng được Autologin do sai mật khẩu sudo). Deploy chỉ báo hoàn tất khi mọi bước cấu hình trên máy ZCU chạy thành công; riêng Autologin còn được đọc lại file cấu hình để xác nhận đã ghi đúng (log hiện dòng `AUTOLOGIN-VERIFIED`).
+
+> 💡 **Ghi chú Autologin:** trình cài tự nhận diện trình quản lý đăng nhập của máy ZCU (GDM trên Ubuntu, hoặc LightDM/SDDM trên bản Linux khác) và ghi cấu hình tương ứng. Với GDM, ngoài chế độ tự đăng nhập ngay khi khởi động, trình cài còn đặt thêm cơ chế dự phòng: nếu vì lý do hiếm gặp (khởi động bất thường sau mất điện/crash) màn hình đăng nhập vẫn hiện ra, máy sẽ tự đăng nhập sau 5 giây — không cần thao tác.
+
+**Khắc phục sự cố — đã cài Autologin nhưng máy vẫn hỏi đăng nhập sau khi khởi động lại:**
+
+1. Xem lại Nhật ký Deploy lần cài gần nhất: phải có dòng `AUTOLOGIN-VERIFIED`. Nếu thấy `AUTOLOGIN-FAILED` hoặc trạng thái đỏ → thường do sai mật khẩu sudo; nhập lại và Deploy lại.
+2. Trên máy ZCU chạy `grep -E '^(Automatic|Timed)' /etc/gdm3/custom.conf` — kết quả đúng phải có `AutomaticLoginEnable = true`, `AutomaticLogin = <tên user>`, `TimedLoginEnable = true`.
+3. Nếu cấu hình đúng mà một lần khởi động cá biệt vẫn đứng ở màn hình đăng nhập quá 10 giây: đây là lỗi hiếm của GDM khi khởi động bất thường — với bản cài mới (có TimedLogin dự phòng) máy sẽ tự vào sau 5 giây; bản cài cũ cần chạy lại Kiosk Deploy để nhận cơ chế dự phòng này.
 
 > ⚠️ **Cảnh báo:** Deploy thay đổi cấu hình hệ điều hành của máy ZCU (giao diện, tự đăng nhập, tự mở phần mềm). Chỉ thực hiện khi được phân công và đã thống nhất cấu hình với đơn vị quản lý. Muốn hoàn tác, bỏ tick các mục tương ứng rồi Deploy lại.
 

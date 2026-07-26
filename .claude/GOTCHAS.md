@@ -481,3 +481,16 @@ nên retry ngắn khi `CreateInputStream()` ném `InvalidOperationException`.
 **Cách xử lý:** Trong handler mở-thủ-công: `combo.IsDropDownOpen = false;` (reset trạng thái kẹt) → `combo.PopulateComplete();` (ép refresh view từ ItemsSource theo SearchText hiện tại — rỗng = toàn bộ item) → `combo.IsDropDownOpen = true;`.
 **Lần đầu gặp:** Fix F03 — WF-BUGFIX BUG-ccu-ui-findings (2026-07-26, commit `b5b8033`)
 **Không cần làm lại:** Không cần đổi `MinimumPrefixLength`/`FilterMode` (đã đúng); không cần thay bằng ComboBox thường — mất tính năng lọc theo từ khóa.
+
+---
+
+## G019 — GDM autologin ghi đúng config nhưng thỉnh thoảng vẫn hiện màn hình đăng nhập (race hiếm khi boot bất thường) + SSH.NET `RunCommand` nuốt exit code
+
+**Ngày phát hiện:** 2026-07-26
+**Môi trường:** ZCU Ubuntu 22.04 (VM VirtualBox, gdm3), Kiosk Deploy (`2-configure-system.sh` + `KioskDeployService`)
+**Vấn đề (F08):** `/etc/gdm3/custom.conf` đã có `AutomaticLoginEnable = true` + `AutomaticLogin = kztek` đúng cú pháp, đa số boot tự đăng nhập OK (PAM `gdm-autologin` trong journal), nhưng có boot cá biệt (sau crash/boot bất thường — boot 17:13 26/07 không để lại journal) greeter vẫn hiện và đứng vô hạn → user kết luận "autologin không hoạt động".
+**Nguyên nhân:** (1) GDM có race hiếm khi boot chậm/bất thường khiến AutomaticLogin bị bỏ qua — config đúng không đảm bảo 100% lần boot. (2) Phía app: `KioskDeployService.RunCommand` không kiểm tra `cmd.ExitStatus` (SSH.NET trả `int?`) → script fail vẫn hiện "Deploy hoàn tất" (thành công giả); script cũng hardcode `/etc/gdm3/custom.conf`, máy dùng lightdm/sddm chỉ được warning rồi exit 0.
+**Cách xử lý:** (1) Ghi thêm `TimedLoginEnable = true / TimedLogin = <user> / TimedLoginDelay = 5` cùng section `[daemon]` — fallback: nếu greeter lỡ hiện, tự đăng nhập sau 5s. (2) Script dò display manager động (`/etc/X11/default-display-manager` → gdm3/gdm/lightdm/sddm), verify bằng grep đọc lại file sau khi ghi (bắt được sudo sai mật khẩu vì `_sudo` nuốt stderr), fail → `AUTOLOGIN-FAILED` + exit 1. (3) `RunCommand` thêm `throwOnError` kiểm tra ExitStatus → deploy fail thật.
+**Gotcha phụ:** KHÔNG dùng `printf ... | _sudo tee file` khi `_sudo() { echo "$pw" | sudo -S "$@"; }` — pipe trong hàm chiếm stdin của sudo, stdin ngoài bị vứt → tee ghi file rỗng. Dùng `_sudo bash -c 'printf ... > file'`.
+**Lần đầu gặp:** F08 — WF-BUGFIX BUG-ccu-ui-findings (2026-07-26), kiểm chứng reboot thật trên ZCU 192.168.0.101 (`loginctl show-session` → `Service=gdm-autologin`).
+**Không cần làm lại:** Không cần nghi code ghi sai file/display manager trên Ubuntu (gdm3 đúng); không cần đụng keyring (`gkr-pam: no password available` là bình thường với autologin, không chặn login); không cần getty override tty1 (máy dùng GUI, không phải console autologin).

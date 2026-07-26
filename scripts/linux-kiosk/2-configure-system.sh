@@ -145,35 +145,99 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
+# Dò display manager THẬT đang dùng trên máy — KHÔNG hardcode gdm3.
+# Trả về: gdm3 / gdm / lightdm / sddm / <khác> / "" (không xác định được).
+_detect_dm() {
+    local dm=""
+    if [ -f /etc/X11/default-display-manager ]; then
+        dm="$(basename "$(cat /etc/X11/default-display-manager)" 2>/dev/null)"
+    fi
+    if [ -z "$dm" ]; then
+        dm="$(basename "$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)" .service 2>/dev/null)"
+    fi
+    echo "$dm"
+}
+
 if [ "$ENABLE_AUTOLOGIN" = "1" ]; then
-    echo "=== [6/8] Autologin GDM cho user '$KIOSK_USER' ==="
-    GDM_CONF="/etc/gdm3/custom.conf"
-    if [ -f "$GDM_CONF" ]; then
-        _sudo cp "$GDM_CONF" "$GDM_CONF.bak-$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
-        if _sudo grep -q "^AutomaticLoginEnable" "$GDM_CONF"; then
-            _sudo sed -i "s/^AutomaticLoginEnable.*/AutomaticLoginEnable = true/" "$GDM_CONF"
-        else
-            _sudo sed -i "/^\[daemon\]/a AutomaticLoginEnable = true" "$GDM_CONF"
-        fi
-        if _sudo grep -q "^AutomaticLogin " "$GDM_CONF"; then
-            _sudo sed -i "s/^AutomaticLogin .*/AutomaticLogin = $KIOSK_USER/" "$GDM_CONF"
-        else
-            _sudo sed -i "/^AutomaticLoginEnable/a AutomaticLogin = $KIOSK_USER" "$GDM_CONF"
-        fi
-        echo "  → Đã cập nhật $GDM_CONF (backup: $GDM_CONF.bak-*)"
-    else
-        echo "CẢNH BÁO: không tìm thấy $GDM_CONF — bỏ qua bước autologin, cấu hình thủ công sau." >&2
+    DM_NAME="$(_detect_dm)"
+    echo "=== [6/8] Autologin cho user '$KIOSK_USER' (display manager: ${DM_NAME:-không rõ}) ==="
+    AUTOLOGIN_OK=0
+    case "$DM_NAME" in
+        gdm3|gdm)
+            # Ubuntu dùng /etc/gdm3, distro khác (Fedora/Arch...) dùng /etc/gdm
+            GDM_CONF="/etc/gdm3/custom.conf"
+            [ -f "$GDM_CONF" ] || GDM_CONF="/etc/gdm/custom.conf"
+            if [ -f "$GDM_CONF" ]; then
+                _sudo cp "$GDM_CONF" "$GDM_CONF.bak-$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+                # Xóa các dòng cũ rồi ghi lại 1 lần ngay dưới [daemon] — idempotent.
+                # TimedLogin* = fallback: GDM có race hiếm (nhất là boot chậm/bất thường
+                # trên VM) khiến AutomaticLogin bị bỏ qua và greeter hiện ra — khi đó
+                # TimedLogin sẽ tự đăng nhập user sau 5 giây tại greeter, máy vẫn tự vào
+                # desktop mà không cần gõ mật khẩu (F08).
+                _sudo sed -i '/^AutomaticLoginEnable/d;/^AutomaticLogin /d;/^TimedLoginEnable/d;/^TimedLogin /d;/^TimedLoginDelay/d' "$GDM_CONF" || true
+                _sudo sed -i "/^\[daemon\]/a AutomaticLoginEnable = true\nAutomaticLogin = $KIOSK_USER\nTimedLoginEnable = true\nTimedLogin = $KIOSK_USER\nTimedLoginDelay = 5" "$GDM_CONF" || true
+                # KIỂM CHỨNG: đọc lại file thật, không tin kết quả sed (sudo sai mật
+                # khẩu → sed âm thầm không chạy do _sudo nuốt stderr).
+                if grep -q "^AutomaticLoginEnable = true" "$GDM_CONF" && \
+                   grep -q "^AutomaticLogin = $KIOSK_USER" "$GDM_CONF"; then
+                    echo "  → AUTOLOGIN-VERIFIED: $GDM_CONF (AutomaticLogin=$KIOSK_USER + TimedLogin fallback 5s, backup: $GDM_CONF.bak-*)"
+                    AUTOLOGIN_OK=1
+                fi
+            else
+                echo "LỖI: display manager là $DM_NAME nhưng không thấy custom.conf ở /etc/gdm3 hay /etc/gdm." >&2
+            fi
+            ;;
+        lightdm)
+            LDM_DIR="/etc/lightdm/lightdm.conf.d"
+            LDM_CONF="$LDM_DIR/60-kiosk-autologin.conf"
+            _sudo mkdir -p "$LDM_DIR" || true
+            # KHÔNG dùng `... | _sudo tee` — _sudo đã chiếm stdin để truyền mật khẩu sudo -S.
+            _sudo bash -c "printf '[Seat:*]\nautologin-user=%s\nautologin-user-timeout=0\n' '$KIOSK_USER' > '$LDM_CONF'" || true
+            if grep -q "^autologin-user=$KIOSK_USER" "$LDM_CONF" 2>/dev/null; then
+                echo "  → AUTOLOGIN-VERIFIED: $LDM_CONF (autologin-user=$KIOSK_USER)"
+                echo "  Lưu ý: user cần thuộc group autologin/nopasswdlogin trên một số distro." >&2
+                AUTOLOGIN_OK=1
+            fi
+            ;;
+        sddm)
+            SDDM_DIR="/etc/sddm.conf.d"
+            SDDM_CONF="$SDDM_DIR/60-kiosk-autologin.conf"
+            _sudo mkdir -p "$SDDM_DIR" || true
+            _sudo bash -c "printf '[Autologin]\nUser=%s\nSession=plasma\n' '$KIOSK_USER' > '$SDDM_CONF'" || true
+            if grep -q "^User=$KIOSK_USER" "$SDDM_CONF" 2>/dev/null; then
+                echo "  → AUTOLOGIN-VERIFIED: $SDDM_CONF (User=$KIOSK_USER)"
+                AUTOLOGIN_OK=1
+            fi
+            ;;
+        *)
+            echo "LỖI: không xác định được display manager (đọc /etc/X11/default-display-manager + display-manager.service đều thất bại)." >&2
+            ;;
+    esac
+    if [ "$AUTOLOGIN_OK" != "1" ]; then
+        # BÁO LỖI THẬT thay vì cảnh báo suông rồi kết thúc "HOÀN THÀNH" (F08:
+        # trước đây script chỉ warning và vẫn exit 0 → app báo thành công giả).
+        echo "AUTOLOGIN-FAILED: cấu hình autologin CHƯA được áp dụng (kiểm tra sudo password / display manager). Máy sẽ vẫn hỏi đăng nhập sau khi restart." >&2
+        exit 1
     fi
 else
-    echo "=== [6/8] Tắt autologin GDM ==="
-    GDM_CONF="/etc/gdm3/custom.conf"
-    if [ -f "$GDM_CONF" ]; then
-        _sudo cp "$GDM_CONF" "$GDM_CONF.bak-$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
-        _sudo sed -i "s/^AutomaticLoginEnable.*/AutomaticLoginEnable = false/" "$GDM_CONF" 2>/dev/null || true
-        echo "  → Đã tắt autologin trong $GDM_CONF (backup: $GDM_CONF.bak-*)"
-    else
-        echo "CẢNH BÁO: không tìm thấy $GDM_CONF — bỏ qua." >&2
-    fi
+    DM_NAME="$(_detect_dm)"
+    echo "=== [6/8] Tắt autologin (display manager: ${DM_NAME:-không rõ}) ==="
+    case "$DM_NAME" in
+        gdm3|gdm)
+            GDM_CONF="/etc/gdm3/custom.conf"
+            [ -f "$GDM_CONF" ] || GDM_CONF="/etc/gdm/custom.conf"
+            if [ -f "$GDM_CONF" ]; then
+                _sudo cp "$GDM_CONF" "$GDM_CONF.bak-$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+                _sudo sed -i "s/^AutomaticLoginEnable.*/AutomaticLoginEnable = false/;s/^TimedLoginEnable.*/TimedLoginEnable = false/" "$GDM_CONF" 2>/dev/null || true
+                echo "  → Đã tắt autologin trong $GDM_CONF (backup: $GDM_CONF.bak-*)"
+            else
+                echo "CẢNH BÁO: không tìm thấy custom.conf — bỏ qua." >&2
+            fi
+            ;;
+        lightdm) _sudo rm -f /etc/lightdm/lightdm.conf.d/60-kiosk-autologin.conf || true; echo "  → Đã gỡ 60-kiosk-autologin.conf (lightdm)." ;;
+        sddm)    _sudo rm -f /etc/sddm.conf.d/60-kiosk-autologin.conf || true; echo "  → Đã gỡ 60-kiosk-autologin.conf (sddm)." ;;
+        *)       echo "CẢNH BÁO: không xác định được display manager — bỏ qua tắt autologin." >&2 ;;
+    esac
 fi
 
 # ─────────────────────────────────────────────────────────────
