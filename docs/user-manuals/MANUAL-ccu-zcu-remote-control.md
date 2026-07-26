@@ -825,7 +825,7 @@ Phần mềm **tự động** kiểm tra định kỳ mọi máy trong danh sác
 | **FPS (5-30)** | `15` | Số khung hình/giây khi truyền màn hình |
 | **Chất lượng JPEG (%)** | `70` | Chất lượng nén hình ảnh |
 
-> ⚠️ **Cảnh báo:** Mặc định là 3 dải mạng LAN riêng (RFC 1918) — mọi máy trong mạng nội bộ vẫn kết nối bình thường, IP ngoài LAN bị chặn. Nếu nhập `0.0.0.0/0` (mở cho **mọi IP**), wizard sẽ ghi cảnh báo bảo mật vào Nhật ký Cài đặt; nên thu hẹp thành đúng dải mạng của bạn, ví dụ `192.168.1.0/24`. Token ngắn hơn 16 ký tự cũng bị cảnh báo — dùng nút **🎲 Sinh Token**.
+> ⚠️ **Cảnh báo:** Mặc định là 3 dải mạng LAN riêng (RFC 1918) — mọi máy trong mạng nội bộ vẫn kết nối bình thường, IP ngoài LAN bị chặn. Nếu nhập `0.0.0.0/0` (mở cho **mọi IP**), wizard sẽ ghi cảnh báo bảo mật vào Nhật ký Cài đặt; nên thu hẹp thành đúng dải mạng của bạn, ví dụ `192.168.1.0/24`. Token ngắn hơn 16 ký tự cũng bị cảnh báo — dùng nút **🎲 Sinh Token**. **Lưu ý VPN:** nếu máy CCU kết nối tới ZCU qua VPN/CGNAT có địa chỉ NGOÀI 3 dải LAN riêng (VD Tailscale `100.64.0.0/10`, ZeroTier), phải thêm dải VPN đó vào ô AllowedClientIPs (cách nhau dấu phẩy) — nếu không CCU sẽ bị agent chặn kết nối sau khi cài.
 
 **Bước 3:** Nhấn **🎲 Sinh Token** nếu chưa có Token — ô Token được điền mã ngẫu nhiên. **Ghi lại Token này** để nhập vào thông tin máy (mục 4.1).
 
