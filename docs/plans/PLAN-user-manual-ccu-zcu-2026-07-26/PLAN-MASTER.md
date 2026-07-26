@@ -1,7 +1,7 @@
 ---
 task: user-manual-ccu-zcu
 created: 2026-07-26
-updated: 2026-07-26 16:39
+updated: 2026-07-26 16:44
 status: planning
 workflow: WF-DOCS
 priority: P2
@@ -37,7 +37,7 @@ Screenshot BẮT BUỘC chụp từ app chạy thật (build Release trên máy 
 ### Phase 1: Build & chạy app thật
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
 |---|------|-------|--------|-----------|-----------------|
-| 1.1 | Build Release `IPGS.RemoteControl.CcuUI`, khởi động app, xác nhận chạy được (fail → BLOCK, báo user) | documentation-writer | ⬜ | `steps/STEP-1.1-build-run-ccuui.md` | - |
+| 1.1 | Build Release `IPGS.RemoteControl.CcuUI`, khởi động app, xác nhận chạy được (fail → BLOCK, báo user) | documentation-writer | ✅ | `steps/STEP-1.1-build-run-ccuui.md` | 2026-07-26 16:44 |
 
 ### Phase 2: Chụp screenshot theo nhóm màn hình (app thật)
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
@@ -89,6 +89,7 @@ Không có (tại thời điểm tạo plan).
 | 2026-07-26 | User duyệt plan; chốt 4 quyết định (chạy liên tục, KeyGen+License trong scope, 1 file gộp, có thiết bị ZCU thật cho Phase 2); Bước 0.1 → In Progress | Dispatcher |
 | 2026-07-26 | Bước 0.1 ✅ — scope + mục lục 16 chương tại `_workspace/00_pm_docs-scope.md`; ghi nhận MainWindow ≡ ConnectionEntryWindow (18 view duy nhất) | product-manager |
 | 2026-07-26 | Bước 0.2 ✅ — Screen Inventory 18/18 view + checklist 79 ảnh (2.1=16, 2.2=28, 2.3=20, 2.4=15) tại `_workspace/00_docwriter_screen-inventory.md`; điều chỉnh: ConfirmDeleteDialog + SystemInventoryWindow chụp trong bước 2.2; LicenseWindow không có entry point UI → cần harness dev tạm; 5 mục cần quyết định trước Phase 2 (mục 4 inventory) | documentation-writer |
+| 2026-07-26 | Bước 1.1 ✅ — Build Release CcuUI 0 error; app chạy thật từ exe Release (PID 17180, để nguyên cho Phase 2); script chụp `temp/user-manual-ccu-zcu/capture-window.ps1` (PrintWindow + PW_RENDERFULLCONTENT — không bị cửa sổ khác che); kiểm chứng bằng ảnh thật `screenshots/connection-entry-default.png` (1216×799) | documentation-writer |
 
 ---
 **Status icons:** ⬜ Todo | 🔄 In Progress | ✅ Done | 🛑 Blocked | ⏭️ Skipped
