@@ -3,8 +3,10 @@ step: 4.1
 plan: ../PLAN-MASTER.md
 agent: documentation-writer
 status: done
-completed_at: 2026-07-26 18:18
+completed_at: 2026-07-26 21:52
 ---
+
+> **Bước này chạy 2 lần:** Lần 1 (18:18) xuất BẢN NHÁP khi mới có 19/80 ảnh. Lần 2 (21:52) — sau khi Phase 2 hoàn tất 75 ảnh — thay toàn bộ marker, xuất bản chính thức v1.0. Nội dung lần 1 giữ nguyên bên dưới làm lịch sử; kết quả lần 2 ở mục "Lần chạy 2".
 
 # STEP 4.1 — Xuất DOCX + PDF, kiểm tra Definition of Done
 
@@ -88,14 +90,58 @@ Chạy `python scripts/md_to_docx_kztek.py docs/user-manuals/MANUAL-ccu-zcu-remo
 - Giữ status plan `in-progress` (KHÔNG `done`): DoD coverage ảnh chưa đạt, Phase 2 còn 2.2 dở + 2.3/2.4 hoãn.
 - KHÔNG khôi phục profile store ở bước này — dữ liệu mẫu P01/P02/P03 còn cần cho phiên chụp bổ sung.
 
-## Handoff Log — bước sau cần biết
+## Handoff Log lần 1 (lịch sử — đã được lần 2 thay thế)
 - Đã làm: Rà soát MANUAL (19 ảnh/61 marker/61 dòng Phụ lục A khớp, 0 link chết, 0 credential thật, mục lục khớp), thêm dòng thống kê ảnh vào nhãn nháp, xuất DOCX (967 KB, 20 ảnh nhúng) + PDF (1,7 MB) thành công ngay lần 1.
 - File/module đã đọc hoặc đổi: đổi `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md` (nhãn nháp) + sinh `.docx`/`.pdf`; đổi step file này + `PLAN-MASTER.md`.
 - Quyết định quan trọng: plan giữ `in-progress`; profile store CHƯA khôi phục (giữ P01/P02/P03 cho phiên chụp bổ sung); ảnh mới đánh số từ Hình 20.
 - Bước sau cần biết: khi VM ZCU online → chạy lại 2.2 (24 ảnh + 2 bù), 2.3, 2.4 theo ràng buộc đã chốt trong PLAN-MASTER; thay 61 marker; khôi phục store từ `temp/user-manual-ccu-zcu/profiles.backup.json`; xuất lại DOCX/PDF rồi mới đóng plan.
 
+---
+
+# Lần chạy 2 — BẢN CHÍNH THỨC (2026-07-26 21:52)
+
+## Đã làm (lần 2)
+1. **Read từng ảnh mới (57 file) trước khi chèn** để viết alt/caption đúng nội dung thật — phát hiện và sửa theo thực tế: `remote-command-error` là lỗi [STDERR] trong Console Output (không phải status cam); `file-manager-error-connect` là lỗi quyền truy cập/đường dẫn; `health-monitor-loading` báo "đang tải dữ liệu"; `zcu-terminal-session-x11` kiểm tra qua `loginctl` (SSH); `zcu-terminal-ssh-install` xác nhận bằng `dpkg -l`; `zcu-terminal-ssh-keygen` dùng cú pháp Windows thay `ssh-copy-id`; `zcu-setup-wizard-error` là lỗi thiếu IP/SSH/Token.
+2. **Thay 57 marker ⏳ bằng ảnh thật** (script `temp/user-manual-ccu-zcu/finalize_manual.py` — assert từng chuỗi, không thay mù) + cập nhật caption Hình 2 (`connection-entry-default` bản P01 online). **4 marker không có ảnh** (`zcu-terminal-setup-script`, `kiosk-deploy-log`, `kiosk-deploy-error`, `remote-app-install-output`) → thay bằng mô tả chữ tự nhiên, không lộ lý do kỹ thuật nội bộ.
+3. **Đánh số Hình lại liên tục 1→75** toàn tài liệu; verify script: 75 `![]()` = 75 caption, số liên tục không trùng/nhảy, 0 marker còn lại, 75/75 PNG tồn tại, 0 ảnh dùng trùng, 0 PNG mồ côi.
+4. **Sửa nội dung lệch thực tế:** ch12.6 mục 3 viết lại — ufw `Status: inactive` là mặc định Ubuntu (thiết bị thật đang inactive), thêm khuyến nghị bật ufw + mở đúng cổng (gắn với finding F06); cập nhật dòng UFW ở bảng 13.5; thêm lưu ý kiểm tra phiên X11 qua SSH (11.2) và ssh-copy-id trên Windows (13.1).
+5. **Bỏ nhãn BẢN NHÁP** → phiên bản 1.0 chính thức (2026-07-26); Phụ lục A đổi thành "Ghi chú về ảnh minh họa" (bảng 4 thao tác mô tả bằng lời), mục lục cập nhật theo.
+6. **Khôi phục profile store thật:** app CCU không chạy → copy `temp/user-manual-ccu-zcu/profiles.backup.json` đè `%APPDATA%\iPGS\RemoteControl\profiles.json` → verify đủ 4 máy thật: Kiosk (192.168.21.230), Kien (192.168.21.68), VietAnh-VirtualMachine (192.168.0.101), ZCU (192.168.21.230).
+7. **Xuất DOCX + PDF chính thức:** DOCX 4.952.540 bytes (75 ảnh trong `word/media/`), PDF 5.101.623 bytes (%PDF-1.7). docx2pdf convert 100% thành công — chỉ báo lỗi phụ `Word.Application.Quit` SAU khi PDF đã ghi xong (verify timestamp + header PDF), không ảnh hưởng kết quả.
+
+## Checklist Definition of Done (documentation-writer) — lần 2
+| Nhóm | Mục | Kết quả |
+|---|---|---|
+| Completeness | Mọi screenshot chụp từ app/thiết bị thật | ✅ 75/75 (Phase 1–2, PrintWindow + terminal SSH thật) |
+| Completeness | Số màn hình = Screen Inventory (18/18) | ✅ đủ hướng dẫn + ảnh |
+| Completeness | Mỗi màn hình đủ trạng thái theo checklist | ✅ 75/79 ảnh checklist + 4 thao tác mô tả bằng chữ (lệnh cấm destructive của user — ghi Phụ lục A) |
+| Completeness | Ảnh chèn ngay tại chỗ mô tả, không gom cuối | ✅ 0 marker còn lại |
+| Completeness | Caption `*Hình X:*` từng ảnh, số liên tục | ✅ Hình 1–75 |
+| Completeness | Số PNG = số `![]()` (1:1) | ✅ 75 = 75, 0 mồ côi |
+| Brand | Logo KZTEK, Navy/Cam, bảng Navy chữ trắng | ✅ script tự áp |
+| Kỹ thuật | DOCX mở được, 75 ảnh nhúng | ✅ 4,95 MB |
+| Kỹ thuật | PDF xuất đúng | ✅ 5,1 MB (%PDF-1.7) |
+| Kỹ thuật | Không credential thật (password/token/key) | ✅ quét lại — chỉ giá trị minh họa/đã che |
+| Kỹ thuật | Ordered list đánh số đúng (fix text tĩnh) | ✅ không tái hiện |
+| Kỹ thuật | Profile store thật khôi phục + verify | ✅ 4 máy thật |
+
+> **Kết luận DoD lần 2:** ĐẠT đầy đủ WF-DOCS. Mục duy nhất có điều kiện: 4/79 ảnh checklist thay bằng mô tả chữ theo lệnh cấm destructive của user (đã minh bạch tại Phụ lục A của MANUAL).
+
+## Artifact (lần 2 — chính thức)
+- `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md` — v1.0, 75 hình, 0 marker
+- `docs/user-manuals/MANUAL-ccu-zcu-remote-control.docx` — 4,95 MB, 75 ảnh nhúng ✅
+- `docs/user-manuals/MANUAL-ccu-zcu-remote-control.pdf` — 5,1 MB ✅
+- `%APPDATA%\iPGS\RemoteControl\profiles.json` — khôi phục dữ liệu thật (ngoài repo)
+
+## Handoff Log — bước sau cần biết
+- Đã làm: Thay 57 marker bằng ảnh thật (Read từng ảnh trước khi viết caption) + 4 marker thành mô tả chữ; đánh số Hình 1–75 liên tục; sửa ch12.6 ufw theo thực tế inactive + khuyến nghị bật (F06); bỏ nhãn nháp → v1.0; khôi phục profile store thật (4 máy verify OK); xuất DOCX 4,95 MB (75 ảnh) + PDF 5,1 MB.
+- File/module đã đọc hoặc đổi: `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md/.docx/.pdf`; script tạm `temp/user-manual-ccu-zcu/finalize_manual.py` (không commit); step file này + PLAN-MASTER.
+- Quyết định quan trọng: PDF hợp lệ dù docx2pdf báo lỗi `Word.Application.Quit` (lỗi xảy ra sau khi convert 100% — verify bằng timestamp/header); plan đóng `done` — việc còn lại (F01–F06) thuộc WF-BUGFIX, ngoài plan này.
+- Bước sau cần biết: 6 finding F01–F06 trong `docs/bugs/BUG-ccu-ui-findings-2026-07-26.md` chờ senior-developer xử lý (WF-BUGFIX riêng); harness license + toolkit nằm trong `temp/` — KHÔNG commit; nếu chụp bổ sung sau này, backup store thật trước rồi khôi phục lại như quy trình bước 2.1/4.1.
+
 ## Commit
-- Hash: commit `[user-manual-ccu-zcu] Bước 4.1` trên nhánh main, 2026-07-26 (hash cuối: xem `git log --oneline -1 -- docs/user-manuals/MANUAL-ccu-zcu-remote-control.docx`)
+- Lần 1: commit `[user-manual-ccu-zcu] Bước 4.1` (bản nháp, hash `8231819`)
+- Lần 2: commit `[user-manual-ccu-zcu] Bước 4.1 (lần 2)` trên nhánh main, 2026-07-26 — hash ghi ở message tổng kết
 - Đã push: không (theo yêu cầu bước này)
 
 ---

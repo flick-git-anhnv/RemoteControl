@@ -1,12 +1,10 @@
 # Hệ Thống Remote Control CCU–ZCU — Hướng Dẫn Sử Dụng
 
-**Phiên bản:** 0.9 — `BẢN NHÁP — CHỜ BỔ SUNG ẢNH`
+**Phiên bản:** 1.0 — Bản chính thức
 **Ngày cập nhật:** 2026-07-26
 **Biên soạn:** KZTEK Documentation Team
 
-> ⚠️ **Trạng thái tài liệu:** Đây là bản nháp. Một số ảnh minh họa yêu cầu máy ZCU đang hoạt động chưa thể chụp tại thời điểm biên soạn — các vị trí đó được đánh dấu `⏳ [CHỜ ẢNH: ...]` và liệt kê đầy đủ tại **Phụ lục A** cuối tài liệu. Nội dung chữ đã hoàn chỉnh và bám đúng phần mềm thực tế.
->
-> **Ảnh minh họa hiện có: 19 (Hình 1–19) / còn 61 vị trí đang chờ chụp bổ sung.** Bản chính thức sẽ thay toàn bộ marker ⏳ bằng ảnh thật.
+> Tài liệu gồm 75 hình minh họa chụp trực tiếp từ phần mềm thật. Các giá trị IP, tên máy, Token xuất hiện trong ảnh chỉ mang tính minh họa — thay bằng thông tin thật của hệ thống bạn.
 
 ---
 
@@ -79,7 +77,7 @@
 14. [Câu hỏi thường gặp (FAQ)](#14-câu-hỏi-thường-gặp-faq)
 15. [Liên hệ hỗ trợ](#15-liên-hệ-hỗ-trợ)
 
-Phụ lục A — Danh sách ảnh còn thiếu
+Phụ lục A — Ghi chú về ảnh minh họa
 
 ---
 
@@ -197,9 +195,7 @@ Nếu đây là lần đầu sử dụng, danh sách máy còn trống:
 #### 3.2.1 Bố cục màn hình
 
 ![Màn hình chính với danh sách máy](screenshots/connection-entry-default.png)
-*Hình 2: Màn hình chính với danh sách máy đã lưu*
-
-> ⏳ **[CHỜ ẢNH: `connection-entry-default.png` (bản cập nhật)]** — Chụp lại màn hình chính khi máy P01 đang online: chấm SSH + Remote màu xanh, có badge CPU/RAM/Disk hiển thị cạnh tên máy. Cần ZCU online + 3 máy dữ liệu mẫu. Ảnh hiện tại (Hình 2) là phiên bản máy offline.
+*Hình 2: Màn hình chính với danh sách máy đã lưu — máy P01 đang online (chấm SSH + Remote xanh, badge CPU/RAM/Disk cạnh tên máy), hai máy còn lại offline*
 
 Màn hình chính gồm các khu vực từ trên xuống dưới:
 
@@ -383,7 +379,8 @@ Dùng khi muốn kết nối ngay tới một máy chưa có trong danh sách.
 
 Khi tìm thấy máy, mỗi máy hiện thành một thẻ gồm tên máy, địa chỉ IP, độ phân giải màn hình và nút **Thêm**:
 
-> ⏳ **[CHỜ ẢNH: `network-scan-results.png`]** — Chụp cửa sổ Quét mạng sau khi tìm thấy máy ZCU thật: thẻ kết quả có tên máy, IP, độ phân giải và nút Thêm. Cần ZCU online với ZcuAgent đang chạy.
+![Kết quả quét mạng tìm thấy máy ZCU](screenshots/network-scan-results.png)
+*Hình 13: Quét xong — tìm thấy 1 máy đã cài ZcuAgent: thẻ kết quả hiển thị tên agent, địa chỉ IP và độ phân giải màn hình (máy đã có trong danh sách nên nút hiển thị "✓ Đã thêm")*
 
 **Bước 4:** Nhấn **Thêm** trên máy muốn lưu → cửa sổ "Thông tin máy tính" (mục 4.1) mở ra với thông tin điền sẵn, bổ sung Token/SSH rồi **Lưu**.
 
@@ -417,25 +414,27 @@ Khi tìm thấy máy, mỗi máy hiện thành một thẻ gồm tên máy, đ�
 Ngay khi mở, cửa sổ hiển thị trạng thái đang kết nối ở thanh trên cùng:
 
 ![Cửa sổ điều khiển từ xa đang kết nối](screenshots/remote-screen-connecting.png)
-*Hình 13: Cửa sổ điều khiển từ xa vừa mở — thanh trạng thái báo đang kết nối tới máy đích*
+*Hình 14: Cửa sổ điều khiển từ xa vừa mở — thanh trạng thái báo đang kết nối tới máy đích*
 
 Khi kết nối thành công, màn hình máy ZCU hiện ra ở vùng giữa, chấm trạng thái chuyển xanh và các nút công cụ được bật:
 
-> ⏳ **[CHỜ ẢNH: `remote-screen-streaming.png`]** — Chụp cửa sổ đang hiển thị màn hình ZCU thật: chấm trạng thái xanh, các nút 🕶️ Privacy / 📊 SysInfo / 🔴 Record / Ngắt kết nối đã bật. Cần ZCU online. (Ảnh này đồng thời minh họa vùng hiển thị RemoteScreenControl ở mục 5.1.2.)
+![Đang xem màn hình máy ZCU](screenshots/remote-screen-streaming.png)
+*Hình 15: Kết nối thành công — màn hình Ubuntu của máy ZCU hiển thị ở vùng giữa, chấm trạng thái xanh "Đã kết nối", các nút Privacy / SysInfo / Record / Ngắt kết nối đã bật*
 
 **Ngắt kết nối:** Nhấn nút **Ngắt kết nối** (màu đỏ, góc trên bên phải).
 
-> ⏳ **[CHỜ ẢNH: `remote-screen-disconnected.png`]** — Chụp cửa sổ sau khi bấm Ngắt kết nối: trạng thái đổi, các nút công cụ mờ đi. Cần ZCU online để có phiên trước khi ngắt.
+![Cửa sổ sau khi ngắt kết nối](screenshots/remote-screen-disconnected.png)
+*Hình 16: Sau khi bấm Ngắt kết nối — thanh trạng thái báo "Đã ngắt kết nối", các nút công cụ Privacy / Record mờ đi*
 
 **Trường hợp máy chưa có SSH:** Nếu phần mềm phát hiện máy đích chưa cài SSH, một dòng nhắc màu xanh nhạt hiện dưới thanh trạng thái, kèm sẵn câu lệnh cài SSH để gõ trên máy đích:
 
 ![Dòng nhắc cài SSH](screenshots/remote-screen-ssh-help.png)
-*Hình 14: Dòng nhắc "💡 Cài SSH (nếu máy chưa có)" kèm câu lệnh cài đặt có thể sao chép*
+*Hình 17: Dòng nhắc "💡 Cài SSH (nếu máy chưa có)" kèm câu lệnh cài đặt có thể sao chép*
 
 **Trường hợp lỗi kết nối:** Nếu không thể kết nối tới máy (sai địa chỉ, máy tắt, sai Token...), sau nhiều lần tự thử lại phần mềm hiển thị dải thông báo lỗi màu đỏ:
 
 ![Lỗi kết nối](screenshots/remote-screen-faulted.png)
-*Hình 15: Không thể kết nối sau nhiều lần thử — dải đỏ báo lỗi kèm hướng khắc phục "Kiểm tra địa chỉ và kết nối mạng."*
+*Hình 18: Không thể kết nối sau nhiều lần thử — dải đỏ báo lỗi kèm hướng khắc phục "Kiểm tra địa chỉ và kết nối mạng."*
 
 > **Lưu ý:** Khi mất kết nối giữa chừng, phần mềm tự thử kết nối lại nhiều lần trước khi báo lỗi — hãy chờ trong giây lát. Nếu vẫn lỗi, kiểm tra máy ZCU còn bật không và Token có đúng không (mục 4.1).
 
@@ -446,7 +445,7 @@ Vùng giữa cửa sổ chính là màn hình máy ZCU truyền về theo thời
 - **Di chuột, nhấp chuột, nhấp đúp, cuộn** trong vùng này → thao tác được thực hiện y hệt trên máy ZCU.
 - **Gõ bàn phím** khi cửa sổ đang được chọn → ký tự được gửi sang máy ZCU.
 
-*(Ảnh minh họa dùng chung với ảnh đang kết nối ở mục 5.1.1 — xem marker `remote-screen-streaming.png`.)*
+*(Ảnh minh họa dùng chung với ảnh kết nối thành công ở mục 5.1.1.)*
 
 #### 5.1.3 Chat với người dùng máy ZCU
 
@@ -458,13 +457,15 @@ Thanh **💬 Chat:** nằm ở cạnh dưới cửa sổ.
 
 **Kết quả mong đợi:** Tin nhắn hiển thị trên màn hình máy ZCU để người ngồi tại máy đó đọc được.
 
-> ⏳ **[CHỜ ẢNH: `remote-screen-chat.png`]** — Chụp thanh chat sau khi đã gõ và gửi một tin nhắn. Cần phiên kết nối thật với ZCU.
+![Thanh chat với tin nhắn đã soạn](screenshots/remote-screen-chat.png)
+*Hình 19: Thanh 💬 Chat ở cạnh dưới với tin nhắn đã gõ — bấm Send để hiển thị lên màn hình máy ZCU*
 
 #### 5.1.4 Đồng bộ clipboard hai chiều
 
 Nhấn **📋 Sync Clipboard** (cạnh dưới, bên phải) để đồng bộ nội dung đã sao chép giữa máy CCU và máy ZCU — sau đó có thể dán (Ctrl+V) ở máy bên kia.
 
-> ⏳ **[CHỜ ẢNH: `remote-screen-clipboard-sync.png`]** — Chụp sau khi bấm 📋 Sync Clipboard (nếu có phản hồi giao diện). Cần phiên kết nối thật. *Ảnh best-effort — có thể bỏ qua nếu không có thay đổi trực quan.*
+![Nút Sync Clipboard trong phiên kết nối](screenshots/remote-screen-clipboard-sync.png)
+*Hình 20: Nút 📋 Sync Clipboard ở góc dưới bên phải trong phiên đang kết nối — thao tác đồng bộ chạy ngầm, giao diện không thay đổi*
 
 #### 5.1.5 Ghi hình phiên làm việc
 
@@ -474,7 +475,8 @@ Nhấn **📋 Sync Clipboard** (cạnh dưới, bên phải) để đồng bộ 
 
 **Bước 2:** Nhấn **🔴 Record** lần nữa để dừng ghi.
 
-> ⏳ **[CHỜ ẢNH: `remote-screen-record-on.png`]** — Chụp thanh công cụ khi nút 🔴 Record đang ở trạng thái bật (đang ghi hình). Cần phiên kết nối thật.
+![Đang ghi hình phiên làm việc](screenshots/remote-screen-record-on.png)
+*Hình 21: Đang ghi hình — nút 🔴 Record chuyển thành nút Stop màu xanh trên thanh công cụ; bấm Stop để dừng ghi*
 
 #### 5.1.6 Che màn hình riêng tư (Privacy)
 
@@ -484,7 +486,8 @@ Nhấn **📋 Sync Clipboard** (cạnh dưới, bên phải) để đồng bộ 
 
 **Bước 2:** Nhấn **🕶️ Privacy** lần nữa để mở lại màn hình cho máy ZCU.
 
-> ⏳ **[CHỜ ẢNH: `remote-screen-privacy-on.png`]** — Chụp khi toggle 🕶️ Privacy đang bật (màn hình đích bị che). Cần phiên kết nối thật.
+![Chế độ Privacy đang bật](screenshots/remote-screen-privacy-on.png)
+*Hình 22: Toggle 🕶️ Privacy đang bật (nút chuyển màu xanh) — màn hình vật lý của máy ZCU bị che, bạn vẫn xem và điều khiển bình thường*
 
 > **Lưu ý:** Nút **📊 SysInfo** trên cùng thanh công cụ mở cửa sổ thông tin cấu hình máy — xem mục 7.2.
 
@@ -501,7 +504,7 @@ Thanh trên cùng gồm: bộ đếm "N phiên đang kết nối", cụm **Chế
 Khi chưa có phiên nào (danh sách trống hoặc sau khi Ngắt tất cả):
 
 ![Dashboard trạng thái rỗng](screenshots/multi-remote-empty.png)
-*Hình 16: Multi-Remote Dashboard khi chưa có máy nào — gợi ý "Nhấn '+ Thêm máy' để chọn các máy Máy khách cần theo dõi song song."*
+*Hình 23: Multi-Remote Dashboard khi chưa có máy nào — gợi ý "Nhấn '+ Thêm máy' để chọn các máy Máy khách cần theo dõi song song."*
 
 #### 5.2.2 Thêm phiên vào lưới — hộp thoại chọn máy
 
@@ -510,24 +513,27 @@ Khi chưa có phiên nào (danh sách trống hoặc sau khi Ngắt tất cả):
 **Bước 2:** Trong hộp thoại "Chọn máy cần theo dõi", nhấp chọn một hoặc nhiều máy (nhấp để bật/tắt chọn, có thể giữ Ctrl). Máy đã có trong Dashboard không hiển thị ở đây.
 
 ![Hộp thoại chọn máy](screenshots/session-picker-default.png)
-*Hình 17: Hộp thoại chọn máy thêm vào Dashboard — chọn một hoặc nhiều máy rồi bấm "+ Thêm vào Dashboard"*
+*Hình 24: Hộp thoại chọn máy thêm vào Dashboard — chọn một hoặc nhiều máy rồi bấm "+ Thêm vào Dashboard"*
 
 **Bước 3:** Nhấn **+ Thêm vào Dashboard** (hoặc **Hủy** để thoát).
 
 **Kết quả mong đợi:** Các máy được chọn xuất hiện thành từng ô trong lưới, mỗi ô tự kết nối tới máy tương ứng.
 
-> ⏳ **[CHỜ ẢNH: `multi-remote-grid-2x2.png`]** — Chụp lưới 2x2 có phiên ZCU live (1 ô hiển thị màn hình thật + các ô trống). Cần ZCU online + dữ liệu mẫu.
+![Lưới 2x2 với phiên đang hoạt động](screenshots/multi-remote-grid-2x2.png)
+*Hình 25: Lưới 2x2 với 3 phiên — ô P01 đang hiển thị màn hình ZCU thật, hai ô còn lại đang chờ máy phản hồi*
 
 #### 5.2.3 Đổi chế độ xem, đóng phiên
 
 - Nhấn **Lưới 2x2** hoặc **Lưới 3x3** để đổi nhanh bố cục lưới.
 - Muốn lưới kích thước khác: gõ số hàng và số cột vào 2 ô nhỏ cạnh chữ **Lưới:** rồi nhấn **Áp dụng**.
 
-> ⏳ **[CHỜ ẢNH: `multi-remote-custom-grid.png`]** — Chụp sau khi nhập lưới tùy chỉnh (ví dụ 1x2) và bấm Áp dụng, có phiên live. Cần ZCU online.
+![Lưới tùy chỉnh 1x2](screenshots/multi-remote-custom-grid.png)
+*Hình 26: Lưới tùy chỉnh 1x2 sau khi bấm Áp dụng — bố cục đổi thành 1 hàng × 2 cột, ô P01 đang hiển thị màn hình live*
 
 - Nhấn **Thẻ Tab** để chuyển sang dạng mỗi máy một thẻ, xem từng máy toàn màn hình:
 
-> ⏳ **[CHỜ ẢNH: `multi-remote-tab-view.png`]** — Chụp chế độ Thẻ Tab với tab phiên đang mở. Cần ZCU online.
+![Chế độ Thẻ Tab](screenshots/multi-remote-tab-view.png)
+*Hình 27: Chế độ Thẻ Tab — mỗi máy một thẻ ngang trên đầu cửa sổ, thẻ P01 đang mở hiển thị màn hình ZCU toàn khung*
 
 - Nhấn **❌ Ngắt tất cả** để đóng toàn bộ phiên và quay về trạng thái rỗng.
 
@@ -543,7 +549,8 @@ Khi chưa có phiên nào (danh sách trống hoặc sau khi Ngắt tất cả):
 
 #### 6.1.1 Bố cục và duyệt thư mục
 
-> ⏳ **[CHỜ ẢNH: `file-manager-default.png`]** — Chụp cửa sổ Quản Lý File vừa mở: danh sách file thư mục nhà của người dùng, bảng 4 cột (Tên File / Loại / Kích thước / Ngày sửa), thanh trạng thái "Sẵn sàng". Cần SSH tới ZCU.
+![Cửa sổ Quản Lý File vừa mở](screenshots/file-manager-default.png)
+*Hình 28: Cửa sổ Quản Lý File vừa mở — danh sách thư mục của máy đích trong bảng 4 cột (Tên File / Loại / Kích thước / Ngày sửa), thanh trạng thái báo "Đã tải xong 25 mục"*
 
 Các thành phần chính:
 
@@ -561,11 +568,13 @@ Các thành phần chính:
 
 **Duyệt vào thư mục con:** Nhấp đúp tên thư mục trong danh sách, hoặc gõ đường dẫn vào ô phía trên rồi nhấn **Đi**.
 
-> ⏳ **[CHỜ ẢNH: `file-manager-navigate.png`]** — Chụp sau khi vào một thư mục con (dữ liệu mẫu `kztek-demo/`), thanh đường dẫn thay đổi. Cần SSH + dữ liệu mẫu trên ZCU.
+![Đã vào thư mục con](screenshots/file-manager-navigate.png)
+*Hình 29: Đã vào thư mục con `/home/kztek/kztek-demo` — ô đường dẫn thay đổi, danh sách hiển thị nội dung thư mục*
 
 **Lọc danh sách:** Gõ một phần tên file vào ô **Lọc file** — danh sách thu hẹp ngay khi gõ.
 
-> ⏳ **[CHỜ ẢNH: `file-manager-filter.png`]** — Chụp ô Lọc file đã gõ từ khóa, danh sách được lọc. Cần SSH + dữ liệu mẫu.
+![Lọc danh sách file](screenshots/file-manager-filter.png)
+*Hình 30: Gõ "bao" vào ô Lọc file — danh sách thu hẹp ngay, chỉ còn file khớp từ khóa*
 
 **Tải file lên:**
 
@@ -575,15 +584,18 @@ Các thành phần chính:
 
 **Kết quả mong đợi:** Thanh trạng thái báo tải lên thành công, file mới xuất hiện trong danh sách.
 
-> ⏳ **[CHỜ ẢNH: `file-manager-upload-success.png`]** — Chụp thanh trạng thái sau khi Upload File thành công (file mẫu `demo-upload.txt`). Cần SSH + dữ liệu mẫu.
+![Upload file thành công](screenshots/file-manager-upload-success.png)
+*Hình 31: Sau khi Upload — file `demo-upload.txt` xuất hiện trong danh sách, thanh trạng thái cập nhật số mục*
 
 **Đồng bộ thư mục:** Nhấn **🔄 Đồng bộ**, chọn một thư mục trên máy bạn — phần mềm đối chiếu và tải lên những file có thay đổi vào thư mục đang mở trên máy ZCU.
 
-> ⏳ **[CHỜ ẢNH: `file-manager-sync-result.png`]** — Chụp thanh trạng thái sau khi Đồng bộ thư mục xong. Cần SSH + dữ liệu mẫu.
+![Kết quả đồng bộ thư mục](screenshots/file-manager-sync-result.png)
+*Hình 32: Sau khi Đồng bộ thư mục — các file mới (`du-lieu.txt`, `sync-config.txt`) đã được tải lên thư mục đang mở trên máy ZCU*
 
-**Trường hợp lỗi:** Nếu mất kết nối tới máy ZCU giữa chừng, thanh trạng thái hiển thị thông báo lỗi — kiểm tra lại mạng và trạng thái SSH của máy rồi nhấn **🔄 Làm mới**.
+**Trường hợp lỗi:** Nếu mất kết nối tới máy ZCU giữa chừng, hoặc đi tới đường dẫn không có quyền truy cập / không tồn tại, thanh trạng thái hiển thị thông báo lỗi — kiểm tra lại đường dẫn, mạng và trạng thái SSH của máy rồi nhấn **🔄 Làm mới**.
 
-> ⏳ **[CHỜ ẢNH: `file-manager-error-connect.png`]** — Chụp thông báo lỗi ở thanh trạng thái khi không kết nối được/mất kết nối giữa chừng. *Ảnh best-effort — khó tái tạo chủ đích.*
+![Thông báo lỗi ở thanh trạng thái](screenshots/file-manager-error-connect.png)
+*Hình 33: Thanh trạng thái báo "Lỗi: Không có quyền truy cập hoặc thư mục không tồn tại" khi đi tới đường dẫn không truy cập được*
 
 #### 6.1.2 Xóa file/thư mục — xác nhận trước khi xóa
 
@@ -593,17 +605,20 @@ Các thành phần chính:
 
 **Kết quả:** Hộp thoại **"Xác nhận xóa"** hiện ra, liệt kê đầy đủ các mục sắp bị xóa vĩnh viễn trên máy đích:
 
-> ⏳ **[CHỜ ẢNH: `confirm-delete-default.png`]** — Chụp hộp thoại Xác nhận xóa (nền tối) liệt kê file sắp xóa + 2 nút Hủy / 🗑 Xóa vĩnh viễn. Cần SSH + dữ liệu mẫu.
+![Hộp thoại xác nhận xóa file](screenshots/confirm-delete-default.png)
+*Hình 34: Hộp thoại Xác nhận xóa liệt kê các mục sắp bị xóa vĩnh viễn trên máy đích, kèm 2 nút Hủy / 🗑 Xóa vĩnh viễn*
 
 **Bước 3:** Đọc kỹ danh sách, nhấn **🗑 Xóa vĩnh viễn** để thực hiện, hoặc **Hủy** để thoát.
 
 > ⚠️ **Cảnh báo:** Nếu trong danh sách có **thư mục**, hộp thoại hiển thị thêm dòng cảnh báo đỏ: toàn bộ nội dung bên trong thư mục sẽ bị xóa đệ quy và **không thể khôi phục**. Hãy chắc chắn trước khi xác nhận.
 
-> ⏳ **[CHỜ ẢNH: `confirm-delete-dir-warning.png`]** — Chụp hộp thoại khi có THƯ MỤC trong danh sách xóa — dòng cảnh báo đỏ "xóa đệ quy" hiện ra. Cần SSH + dữ liệu mẫu.
+![Cảnh báo xóa thư mục đệ quy](screenshots/confirm-delete-dir-warning.png)
+*Hình 35: Khi danh sách xóa có THƯ MỤC — hộp thoại hiển thị thêm dòng cảnh báo đỏ: toàn bộ nội dung bên trong sẽ bị xóa đệ quy (rm -rf), KHÔNG thể khôi phục*
 
 **Kết quả mong đợi sau khi xóa:** Danh sách được cập nhật, thanh trạng thái báo đã xóa xong.
 
-> ⏳ **[CHỜ ẢNH: `file-manager-after-delete.png`]** — Chụp thanh trạng thái sau khi xóa file thành công. Cần SSH + dữ liệu mẫu.
+![Danh sách sau khi xóa file](screenshots/file-manager-after-delete.png)
+*Hình 36: Sau khi xóa — file biến mất khỏi danh sách, thanh trạng thái cập nhật còn 6 mục*
 
 ### 6.2 Chạy lệnh từ xa qua SSH ⚙️ nâng cao
 
@@ -615,23 +630,27 @@ Cửa sổ "Quản lý File & Lệnh (SFTP / SSH)" có 2 tab:
 
 #### 6.2.1 Tab ">_ Console (CMD)" — chạy lệnh
 
-> ⏳ **[CHỜ ẢNH: `remote-command-console-default.png`]** — Chụp tab Console vừa mở: ô Sudo password, ô nhập lệnh, vùng kết quả trống. Cần SSH tới ZCU.
+![Tab Console vừa mở](screenshots/remote-command-console-default.png)
+*Hình 37: Tab Console (CMD) vừa mở — ô Sudo password, ô nhập lệnh kèm ô gợi ý lệnh mẫu, khung Kết quả trả về còn trống*
 
 **Bước 1 (nếu lệnh cần quyền quản trị):** Gõ mật khẩu sudo vào ô đầu tiên — để trống nếu giống mật khẩu SSH.
 
 **Bước 2:** Gõ lệnh cần chạy vào ô lệnh. Có thể gõ từ khóa (ví dụ "RAM") vào ô gợi ý bên cạnh để chọn nhanh một lệnh mẫu có sẵn:
 
-> ⏳ **[CHỜ ẢNH: `remote-command-snippet.png`]** — Chụp danh sách gợi ý lệnh mẫu đang mở khi gõ từ khóa (ví dụ "RAM"). Cần SSH.
+![Ô gợi ý lệnh mẫu](screenshots/remote-command-snippet.png)
+*Hình 38: Gõ từ khóa "RAM" vào ô gợi ý — chọn lệnh mẫu tương ứng, lệnh đầy đủ sẽ được điền vào ô lệnh bên dưới*
 
 **Bước 3:** Nhấn **🚀 Chạy lệnh**.
 
 **Kết quả mong đợi:** Kết quả hiện trong khung **💻 Kết quả trả về (Console Output)**:
 
-> ⏳ **[CHỜ ẢNH: `remote-command-console-output.png`]** — Chụp kết quả một lệnh vô hại (ví dụ `uname -a` hoặc `df -h`) trong Console Output. Cần SSH.
+![Kết quả lệnh trong Console Output](screenshots/remote-command-console-output.png)
+*Hình 39: Kết quả lệnh `uname -a && df -h` hiển thị trong khung Console Output, thanh trạng thái báo "Lệnh đã thực thi xong!"*
 
-**Trường hợp lỗi:** Lệnh sai hoặc mất kết nối → thông báo lỗi màu cam hiện ở thanh trạng thái dưới cùng.
+**Trường hợp lỗi:** Lệnh sai → khối cảnh báo **[STDERR / WARNING]** hiển thị ngay trong Console Output; mất kết nối → thông báo lỗi hiện ở thanh trạng thái dưới cùng.
 
-> ⏳ **[CHỜ ẢNH: `remote-command-error.png`]** — Chụp thông báo lỗi tiêu biểu ở thanh trạng thái (lệnh sai / mất kết nối). Cần SSH.
+![Lỗi khi chạy lệnh sai](screenshots/remote-command-error.png)
+*Hình 40: Gõ lệnh không tồn tại — khối [STDERR / WARNING] "command not found" hiển thị ngay trong Console Output*
 
 > ⚠️ **Cảnh báo:** Lệnh chạy từ xa tác động trực tiếp lên máy ZCU. Chỉ chạy lệnh bạn hiểu rõ hoặc được kỹ thuật viên cung cấp.
 
@@ -639,7 +658,8 @@ Cửa sổ "Quản lý File & Lệnh (SFTP / SSH)" có 2 tab:
 
 Tab này cung cấp bộ công cụ file thứ hai ngay trong cửa sổ lệnh: **⬆️ Lên** (lên thư mục cha), ô đường dẫn, **🔄 Tải lại**, **🔄 Sync (Local > Remote)** (đồng bộ thư mục máy bạn lên máy đích), **📤 Upload File** (hỗ trợ kéo-thả nhiều file cùng lúc), **📥 Download** (tải file/thư mục đang chọn về máy bạn), **🗑️ Xóa** (có hộp thoại xác nhận như mục 6.1.2). Nhấp đúp thư mục để mở.
 
-> ⏳ **[CHỜ ẢNH: `remote-command-sftp-tab.png`]** — Chụp tab Truyền nhận File: khung nhắc vàng + thanh công cụ Upload/Download/Xóa + danh sách file. Cần SSH.
+![Tab Truyền nhận File (SFTP)](screenshots/remote-command-sftp-tab.png)
+*Hình 41: Tab Truyền nhận File — khung nhắc vàng, thanh công cụ Sync (Local > Remote) / Upload File / Download / Xóa và danh sách file thư mục `/home/kztek`*
 
 > **Lưu ý:** Khác với mục 6.1, tab này có thêm nút **📥 Download** để tải file từ máy ZCU về máy của bạn.
 
@@ -649,7 +669,8 @@ Tab này cung cấp bộ công cụ file thứ hai ngay trong cửa sổ lệnh:
 
 **Cách mở:** Màn hình chính → tick chọn từ 1 máy trở lên (mục 3.2.5) → nhấn **🚀 Gửi lệnh / Upload File Hàng Loạt** ở thanh dưới.
 
-> ⏳ **[CHỜ ẢNH: `bulk-action-default.png`]** — Chụp cửa sổ Thực thi hàng loạt vừa mở: ô nhập lệnh + danh sách máy đã tick chưa chạy. Cần SSH + dữ liệu mẫu (1 máy online + 1 máy offline).
+![Cửa sổ Thực thi hàng loạt vừa mở](screenshots/bulk-action-default.png)
+*Hình 42: Cửa sổ Thực thi hàng loạt (Mass Deploy) — lệnh đã nhập, 2 máy đã tick nằm trong danh sách ở trạng thái "Đang chờ..."*
 
 **Các bước thực hiện:**
 
@@ -659,11 +680,13 @@ Tab này cung cấp bộ công cụ file thứ hai ngay trong cửa sổ lệnh:
 
 **Kết quả mong đợi:** Khung tiến trình hiện "Đang xử lý: n/N" trong lúc chạy lần lượt từng máy:
 
-> ⏳ **[CHỜ ẢNH: `bulk-action-running.png`]** — Chụp khung tiến trình "Đang xử lý: n/N" đang chạy. Cần SSH + dữ liệu mẫu.
+![Tiến trình chạy hàng loạt](screenshots/bulk-action-running.png)
+*Hình 43: Thanh tiến trình "Đang xử lý: 2/2" trong lúc phần mềm chạy lệnh lần lượt trên từng máy*
 
 Sau khi xong, danh sách kết quả hiển thị từng máy: biểu tượng xanh kèm kết quả trả về nếu thành công, biểu tượng đỏ nếu thất bại (máy tắt, sai SSH...):
 
-> ⏳ **[CHỜ ẢNH: `bulk-action-results.png`]** — Chụp danh sách kết quả: 1 máy thành công (icon xanh + output) và 1 máy thất bại (icon đỏ) trong cùng 1 ảnh. Cần SSH + dữ liệu mẫu.
+![Kết quả từng máy sau khi chạy](screenshots/bulk-action-results.png)
+*Hình 44: Kết quả từng máy — P01 Thành công (biểu tượng xanh kèm kết quả lệnh trả về), P02 Lỗi (biểu tượng đỏ kèm thông báo lỗi)*
 
 > ⚠️ **Cảnh báo:** Lệnh hàng loạt tác động lên tất cả máy đã tick cùng lúc — kiểm tra kỹ danh sách máy và nội dung lệnh trước khi chạy.
 
@@ -673,7 +696,8 @@ Sau khi xong, danh sách kết quả hiển thị từng máy: biểu tượng x
 
 **Cách mở:** Màn hình chính → nhấn **⏰ Cron Jobs** trên thẻ máy (cần chấm **SSH** xanh).
 
-> ⏳ **[CHỜ ẢNH: `cron-job-default.png`]** — Chụp cửa sổ Quản Lý Cron Jobs vừa mở: bảng danh sách lịch hiện có (có thể rỗng) + khung "Thêm Cron Job Mới" bên phải. Cần SSH.
+![Cửa sổ Quản Lý Cron Jobs vừa mở](screenshots/cron-job-default.png)
+*Hình 45: Cửa sổ Quản Lý Cron Jobs vừa mở — bảng lịch bên trái còn trống ("Không có cron job nào."), khung Thêm Cron Job Mới bên phải*
 
 Cửa sổ gồm 2 phần: bên trái là bảng lịch hiện có (cột **Lịch trình** và **Lệnh**, kèm nút **🔄 Tải lại**, **🗑 Xóa mục chọn**); bên phải là khung **Thêm Cron Job Mới**.
 
@@ -687,11 +711,13 @@ Cửa sổ gồm 2 phần: bên trái là bảng lịch hiện có (cột **Lị
 
 **Kết quả mong đợi:** Lịch mới xuất hiện trong bảng bên trái, thanh trạng thái báo thành công:
 
-> ⏳ **[CHỜ ẢNH: `cron-job-added.png`]** — Chụp sau khi ➕ Thêm Job: lịch mẫu xuất hiện trong bảng + thanh trạng thái. Cần SSH + dữ liệu mẫu.
+![Đã thêm lịch cron mới](screenshots/cron-job-added.png)
+*Hình 46: Sau khi ➕ Thêm Job — lịch `0 3 * * *` chạy script sao lưu xuất hiện trong bảng bên trái, thanh trạng thái báo "Tải thành công 1 jobs."*
 
 **Xóa lịch:** Nhấp chọn dòng trong bảng → nhấn **🗑 Xóa mục chọn**.
 
-> ⏳ **[CHỜ ẢNH: `cron-job-after-delete.png`]** — Chụp sau khi xóa: lịch biến mất khỏi bảng + thanh trạng thái. Cần SSH + dữ liệu mẫu.
+![Danh sách sau khi xóa lịch](screenshots/cron-job-after-delete.png)
+*Hình 47: Sau khi 🗑 Xóa mục chọn — bảng trống trở lại, thanh trạng thái báo "Không có cron job nào."*
 
 > ⚠️ **Cảnh báo:** Lịch cron chạy tự động lặp lại trên máy ZCU kể cả khi không ai theo dõi. Chỉ thêm lệnh đã được kiểm chứng; xóa lịch không dùng nữa để tránh máy chạy lệnh ngoài ý muốn.
 
@@ -705,13 +731,15 @@ Cửa sổ gồm 2 phần: bên trái là bảng lịch hiện có (cột **Lị
 
 **Cách mở:** Màn hình chính → nhấn **📊 Giám sát** trên thẻ máy (cần chấm **SSH** xanh).
 
-Khi vừa mở, các ô số liệu hiển thị `--%` và trạng thái "Đang kết nối...":
+Khi vừa mở, các ô số liệu hiển thị `--` và thanh trạng thái báo đang tải dữ liệu:
 
-> ⏳ **[CHỜ ẢNH: `health-monitor-loading.png`]** — Chụp cửa sổ Giám Sát Sức Khỏe lúc vừa mở: các ô "--%", trạng thái "Đang kết nối...". Cần SSH.
+![Cửa sổ giám sát lúc vừa mở](screenshots/health-monitor-loading.png)
+*Hình 48: Cửa sổ Giám Sát vừa mở — các ô CPU / RAM / Ổ cứng hiển thị "--", thanh trạng thái báo đang tải dữ liệu*
 
 **Kết quả mong đợi:** Sau vài giây, 3 ô **CPU**, **RAM**, **Ổ cứng ( / )** hiển thị số liệu thật, kèm bảng **Top Process Đang Chạy** (các cột PID, Người dùng, CPU %, RAM %, Lệnh):
 
-> ⏳ **[CHỜ ẢNH: `health-monitor-data.png`]** — Chụp khi CPU/RAM/Ổ cứng có số liệu thật + bảng Top Process. Cần SSH.
+![Số liệu giám sát thật](screenshots/health-monitor-data.png)
+*Hình 49: Số liệu thật của máy — CPU, RAM (MB đã dùng / tổng), Ổ cứng ( / ) kèm bảng Top Process Đang Chạy (PID, Người dùng, CPU %, RAM %, Lệnh)*
 
 - Nhấn **🔄 Làm mới ngay** để cập nhật tức thì (ngoài chu kỳ tự động).
 - Nhấn **Đóng** khi xong.
@@ -726,7 +754,8 @@ Khi vừa mở, các ô số liệu hiển thị `--%` và trạng thái "Đang 
 
 **Kết quả mong đợi:** Cửa sổ "System Inventory" hiện 4 mục: **CPU**, **Memory (RAM)**, **Operating System**, **Architecture** với thông tin thật của máy:
 
-> ⏳ **[CHỜ ẢNH: `system-inventory-data.png`]** — Chụp cửa sổ System Inventory hiển thị CPU / Memory / OS / Architecture của ZCU thật. Cần ZCU online và đang trong phiên điều khiển.
+![Cửa sổ System Inventory](screenshots/system-inventory-data.png)
+*Hình 50: Cửa sổ System Inventory — 4 mục CPU, Memory (RAM), Operating System, Architecture với thông tin thật của máy ZCU*
 
 > **Lưu ý:** Cửa sổ này chỉ mở được từ phiên điều khiển từ xa đang kết nối — không có nút mở riêng ở màn hình chính.
 
@@ -747,14 +776,14 @@ Khi vừa mở, các ô số liệu hiển thị `--%` và trạng thái "Đang 
 **Kết quả thành công:** Hộp thoại xác nhận đã gửi tín hiệu bật nguồn:
 
 ![Gửi tín hiệu bật nguồn thành công](screenshots/connection-entry-wol-success.png)
-*Hình 18: Hộp thoại "Thành công" — đã gửi tín hiệu bật nguồn (Magic Packet) tới máy*
+*Hình 51: Hộp thoại "Thành công" — đã gửi tín hiệu bật nguồn (Magic Packet) tới máy*
 
 **Bước 2:** Chờ khoảng 1–2 phút để máy khởi động, quan sát chấm trạng thái trên thẻ máy chuyển xanh.
 
 **Trường hợp lỗi — máy chưa có địa chỉ MAC:** Nếu máy chưa được điền MAC, phần mềm báo lỗi:
 
 ![Lỗi Wake-on-LAN khi thiếu MAC](screenshots/connection-entry-wol-error-no-mac.png)
-*Hình 19: Hộp thoại "Lỗi Wake-on-LAN" khi máy chưa được điền địa chỉ MAC*
+*Hình 52: Hộp thoại "Lỗi Wake-on-LAN" khi máy chưa được điền địa chỉ MAC*
 
 **Khắc phục:** Nhấn **Sửa** trên thẻ máy → điền **Địa chỉ MAC** (dạng `XX:XX:XX:XX:XX:XX`) → **Lưu** → thử lại.
 
@@ -779,7 +808,8 @@ Phần mềm **tự động** kiểm tra định kỳ mọi máy trong danh sác
 
 **Cách mở:** Màn hình chính → nhấn **⚡ Cài remote** trên thẻ máy (cần chấm **SSH** xanh — thông tin SSH lấy từ hồ sơ máy, vào **Sửa** để thay đổi).
 
-> ⏳ **[CHỜ ẢNH: `zcu-setup-wizard-default.png`]** — Chụp cửa sổ Cài đặt Remote Agent vừa mở: khung "Đang cài đặt cho: <máy>", cổng 17600, FPS 15, JPEG 70, ô AllowedIPs. Cần SSH.
+![Cửa sổ Cài đặt Remote Agent vừa mở](screenshots/zcu-setup-wizard-default.png)
+*Hình 53: Cửa sổ Cài đặt Remote Agent — khung 🎯 máy đích, cổng TCP 17600, FPS 15, JPEG 70, AllowedClientIPs `0.0.0.0/0`, khung Nhật ký Cài đặt "Sẵn sàng"*
 
 **Các bước thực hiện:**
 
@@ -799,7 +829,8 @@ Phần mềm **tự động** kiểm tra định kỳ mọi máy trong danh sác
 
 **Bước 3:** Nhấn **🎲 Sinh Token** nếu chưa có Token — ô Token được điền mã ngẫu nhiên. **Ghi lại Token này** để nhập vào thông tin máy (mục 4.1).
 
-> ⏳ **[CHỜ ẢNH: `zcu-setup-wizard-token-generated.png`]** — Chụp sau khi bấm 🎲 Sinh Token: ô Token có giá trị (che một phần). Cần SSH.
+![Đã sinh Token ngẫu nhiên](screenshots/zcu-setup-wizard-token-generated.png)
+*Hình 54: Sau khi bấm 🎲 Sinh Token — ô Token được điền mã ngẫu nhiên (giá trị trong ảnh chỉ là minh họa)*
 
 **Bước 4:** Giữ ô tick **"Tự động lưu máy tính này vào danh sách quản lý sau khi cài đặt thành công"** (mặc định bật) nếu muốn phần mềm tự cập nhật danh sách.
 
@@ -807,15 +838,18 @@ Phần mềm **tự động** kiểm tra định kỳ mọi máy trong danh sác
 
 **Kết quả mong đợi:** Thanh tiến trình chạy, khung **💻 Nhật ký Cài đặt (Console Output)** hiện log từng bước:
 
-> ⏳ **[CHỜ ẢNH: `zcu-setup-wizard-installing.png`]** — Chụp thanh tiến trình + log console đang chạy sau khi bấm Bắt đầu Cài đặt. Cần SSH + xác nhận của người phụ trách (cài thật sẽ ghi đè agent hiện có trên ZCU).
+![Đang cài đặt Remote Agent](screenshots/zcu-setup-wizard-installing.png)
+*Hình 55: Đang cài đặt — Nhật ký Cài đặt hiện log từng bước [3/7]…[6/7] (cài thư viện X11, .NET Runtime, tải agent, tạo service), tiến trình đạt 85%*
 
 Khi hoàn tất, tiến trình đạt 100% và log báo cài đặt thành công:
 
-> ⏳ **[CHỜ ẢNH: `zcu-setup-wizard-success.png`]** — Chụp trạng thái hoàn tất: log kết thúc, tiến trình 100%. Cần SSH + xác nhận cài thật.
+![Cài đặt Remote Agent hoàn tất](screenshots/zcu-setup-wizard-success.png)
+*Hình 56: Hoàn tất — tiến trình 100%, log kết thúc bằng dòng "CÀI ĐẶT THÀNH CÔNG! ZcuAgent service đang HOẠT ĐỘNG trên cổng 17600."*
 
-**Trường hợp lỗi:** Sai mật khẩu SSH hoặc không tới được máy → thông báo lỗi đỏ ở thanh trạng thái dưới cùng. Kiểm tra lại thông tin SSH trong hồ sơ máy (nút **Sửa**) rồi thử lại.
+**Trường hợp lỗi:** Hồ sơ máy thiếu thông tin (IP / SSH user / Token), sai mật khẩu SSH hoặc không tới được máy → thông báo lỗi đỏ ở thanh trạng thái dưới cùng. Kiểm tra lại thông tin trong hồ sơ máy (nút **Sửa**) rồi thử lại.
 
-> ⏳ **[CHỜ ẢNH: `zcu-setup-wizard-error.png`]** — Chụp thông báo lỗi tiêu biểu (SSH sai mật khẩu / host không tới được) — tạo bằng hồ sơ máy có SSH sai. Cần dữ liệu mẫu.
+![Lỗi khi thiếu thông tin cài đặt](screenshots/zcu-setup-wizard-error.png)
+*Hình 57: Thông báo lỗi đỏ ở thanh trạng thái khi hồ sơ máy thiếu thông tin (IP / SSH user / Token)*
 
 ### 9.2 Cài ứng dụng lên máy ZCU từ xa
 
@@ -823,7 +857,8 @@ Khi hoàn tất, tiến trình đạt 100% và log báo cài đặt thành công
 
 **Cách mở:** Màn hình chính → nhấn **📦 Cài App** trên thẻ máy (cần chấm **SSH** xanh).
 
-> ⏳ **[CHỜ ẢNH: `remote-app-install-default.png`]** — Chụp cửa sổ Cài đặt phần mềm từ xa vừa mở: khung máy đích, ô sudo, ô chọn file, ô gỡ package. Cần SSH.
+![Cửa sổ Cài đặt phần mềm từ xa](screenshots/remote-app-install-default.png)
+*Hình 58: Cửa sổ Cài đặt phần mềm từ xa — khung máy đích, ô Sudo password, ô chọn file cài đặt (.deb/.sh/.run) và ô Gỡ cài đặt kèm nút 🗑️ Gỡ ứng dụng*
 
 **Cài đặt phần mềm:**
 
@@ -831,13 +866,14 @@ Khi hoàn tất, tiến trình đạt 100% và log báo cài đặt thành công
 
 **Bước 2:** Nhấn **Duyệt File...** và chọn gói cài đặt (`.deb`, `.sh` hoặc `.run`) trên máy của bạn.
 
-> ⏳ **[CHỜ ẢNH: `remote-app-install-file-selected.png`]** — Chụp sau khi Duyệt File... đã chọn 1 file .deb mẫu, đường dẫn hiện trong ô. Cần file .deb vô hại.
+![Đã chọn file cài đặt](screenshots/remote-app-install-file-selected.png)
+*Hình 59: Sau khi Duyệt File... — đường dẫn gói cài đặt đã chọn hiển thị trong ô Cài đặt*
 
 **Bước 3:** Nhấn **🚀 Bắt đầu Cài đặt**.
 
 **Kết quả mong đợi:** Khung **💻 Nhật ký cài đặt (Console Output)** hiện tiến trình tải lên và cài đặt; kết thúc bằng thông báo thành công:
 
-> ⏳ **[CHỜ ẢNH: `remote-app-install-output.png`]** — Chụp log console sau khi cài xong một gói .deb vô hại. Cần SSH + dữ liệu mẫu.
+Log lần lượt hiển thị: kết nối SSH tới máy đích, tải gói cài đặt lên qua SFTP, chạy lệnh cài đặt trên máy ZCU, và kết thúc bằng dòng xác nhận cài đặt thành công ở cuối nhật ký.
 
 **Gỡ phần mềm:**
 
@@ -845,11 +881,13 @@ Khi hoàn tất, tiến trình đạt 100% và log báo cài đặt thành công
 
 **Bước 2:** Nhấn **🗑️ Gỡ ứng dụng**.
 
-> ⏳ **[CHỜ ẢNH: `remote-app-install-uninstall.png`]** — Chụp danh sách gợi ý package đang mở (bấm ▼) hoặc log sau khi gỡ gói vô hại vừa cài. Cần SSH + dữ liệu mẫu.
+![Danh sách package đã cài](screenshots/remote-app-install-uninstall.png)
+*Hình 60: Bấm ▼ — danh sách các package đã cài trên máy đích mở ra để chọn gói cần gỡ*
 
-**Trường hợp lỗi:** Thông báo lỗi màu cam ở thanh trạng thái dưới cùng (sai SSH, gói không hợp lệ...).
+**Trường hợp lỗi:** Thông báo lỗi màu đỏ ở thanh trạng thái dưới cùng (chưa chọn file cài đặt, sai SSH, gói không hợp lệ...).
 
-> ⏳ **[CHỜ ẢNH: `remote-app-install-error.png`]** — Chụp thông báo lỗi tiêu biểu ở thanh trạng thái — tạo bằng hồ sơ SSH sai. Cần dữ liệu mẫu.
+![Lỗi ở thanh trạng thái](screenshots/remote-app-install-error.png)
+*Hình 61: Thông báo lỗi đỏ ở thanh trạng thái — ví dụ bấm Bắt đầu Cài đặt khi chưa chọn file cài đặt*
 
 > ⚠️ **Cảnh báo:** Chỉ cài gói phần mềm có nguồn gốc tin cậy (do KZTEK hoặc đơn vị quản lý cung cấp). Gỡ nhầm gói hệ thống có thể làm máy ZCU ngừng hoạt động.
 
@@ -863,7 +901,8 @@ Cửa sổ "Deploy Kiosk Setup" gồm: khung máy đích, ô **Sudo password** (
 
 #### Tab "🖥️ Config máy tính"
 
-> ⏳ **[CHỜ ẢNH: `kiosk-deploy-tab-computer.png`]** — Chụp tab Config máy tính: ô Kiosk user + 2 cột ô tick (ẩn giao diện GNOME / hành vi máy). Cần SSH.
+![Tab Config máy tính](screenshots/kiosk-deploy-tab-computer.png)
+*Hình 62: Tab Config máy tính — ô Kiosk user (autologin) và 2 cột ô tick: ① Ẩn giao diện GNOME, ② Hành vi máy / màn hình; mỗi dòng có dấu ❓ giải thích*
 
 - **Kiosk user (autologin):** tài khoản trên máy ZCU sẽ được tự đăng nhập.
 - **Cột ① Ẩn giao diện GNOME:** Ẩn Top Bar, Ẩn nút Activities, Ẩn Workspace Switcher, Ẩn Dash, Tắt Ubuntu Dock + Desktop Icons.
@@ -873,7 +912,8 @@ Cửa sổ "Deploy Kiosk Setup" gồm: khung máy đích, ô **Sudo password** (
 
 #### Tab "⚙️ Config phần mềm"
 
-> ⏳ **[CHỜ ẢNH: `kiosk-deploy-tab-software.png`]** — Chụp tab Config phần mềm: ô App exec + 2 ô tick update/autostart. Cần SSH.
+![Tab Config phần mềm](screenshots/kiosk-deploy-tab-software.png)
+*Hình 63: Tab Config phần mềm — ô App exec (lệnh autostart app) và 2 ô tick: Tắt popup Software Updater, Autostart app + unclutter khi vào desktop*
 
 - **App exec:** lệnh mở phần mềm kiosk khi máy khởi động.
 - **Tắt popup + auto-download Software Updater:** chặn trình cập nhật hệ điều hành hiện thông báo che màn hình kiosk.
@@ -887,11 +927,9 @@ Cửa sổ "Deploy Kiosk Setup" gồm: khung máy đích, ô **Sudo password** (
 
 **Kết quả mong đợi:** Khung **💻 Nhật ký Deploy (Console Output)** hiện log từng bước cấu hình cho tới khi hoàn tất:
 
-> ⏳ **[CHỜ ẢNH: `kiosk-deploy-log.png`]** — Chụp log console sau khi Deploy. Cần SSH + **xác nhận của người phụ trách** (Deploy thật SẼ THAY ĐỔI cấu hình giao diện GNOME/autologin của máy ZCU).
+Log hiển thị lần lượt từng nhóm thiết lập được áp dụng theo các ô đã tick (cài extension ẩn giao diện, thiết lập autologin, tắt thông báo / khóa màn hình, đăng ký autostart phần mềm...) và kết thúc bằng dòng xác nhận deploy hoàn tất. Khởi động lại máy ZCU để toàn bộ thiết lập có hiệu lực.
 
-**Trường hợp lỗi:** Thông báo lỗi màu cam ở thanh trạng thái (thường do SSH sai hoặc mất kết nối).
-
-> ⏳ **[CHỜ ẢNH: `kiosk-deploy-error.png`]** — Chụp thông báo lỗi tiêu biểu (SSH fail) — tạo bằng hồ sơ SSH sai. Cần dữ liệu mẫu.
+**Trường hợp lỗi:** Thanh trạng thái dưới cùng hiển thị thông báo lỗi màu đỏ nêu rõ nguyên nhân (thường do sai thông tin SSH hoặc mất kết nối tới máy đích) — kiểm tra lại hồ sơ máy (nút **Sửa**) rồi Deploy lại.
 
 > ⚠️ **Cảnh báo:** Deploy thay đổi cấu hình hệ điều hành của máy ZCU (giao diện, tự đăng nhập, tự mở phần mềm). Chỉ thực hiện khi được phân công và đã thống nhất cấu hình với đơn vị quản lý. Muốn hoàn tác, bỏ tick các mục tương ứng rồi Deploy lại.
 
@@ -905,7 +943,8 @@ Cửa sổ "Deploy Kiosk Setup" gồm: khung máy đích, ô **Sudo password** (
 
 **Cách mở:** Cửa sổ kích hoạt bản quyền do KZTEK kích hoạt kèm theo bản phát hành khi có yêu cầu quản lý bản quyền — trong bản phần mềm hiện tại, cửa sổ này không có nút mở từ giao diện chính. Liên hệ KZTEK (chương 15) nếu bạn cần kích hoạt bản quyền.
 
-> ⏳ **[CHỜ ẢNH: `license-default.png`]** — Chụp cửa sổ Kích hoạt bản quyền: ô Hardware ID hiển thị sẵn (che một phần), ô nhập key trống. Cần công cụ hỗ trợ mở cửa sổ (harness) — quyết định ở bước chụp bổ sung.
+![Cửa sổ Kích hoạt bản quyền](screenshots/license-default.png)
+*Hình 64: Cửa sổ Kích hoạt bản quyền — ô Mã thiết bị (Hardware ID) hiển thị sẵn kèm nút 📋 Copy, ô Nhập mã kích hoạt còn trống*
 
 **Các bước thực hiện:**
 
@@ -919,17 +958,20 @@ Cửa sổ "Deploy Kiosk Setup" gồm: khung máy đích, ô **Sudo password** (
 
 **Kết quả thành công:** Thông báo màu xanh "Kích hoạt thành công! Ứng dụng sẽ khởi động lại..." — chờ phần mềm tự mở lại.
 
-> ⏳ **[CHỜ ẢNH: `license-success.png`]** — Chụp thông báo kích hoạt thành công (xanh). Cần harness + License Key hợp lệ do công cụ nội bộ KZTEK ký — **ứng viên BLOCK**, nếu không tạo được key hợp lệ thì giữ mô tả chữ.
+![Kích hoạt bản quyền thành công](screenshots/license-success.png)
+*Hình 65: Kích hoạt thành công — thông báo xanh "Kích hoạt thành công! Ứng dụng sẽ khởi động lại..."*
 
 **Trường hợp lỗi:**
 
 - Bỏ trống ô mã rồi bấm **Kích hoạt** → thông báo đỏ "Vui lòng nhập License Key."
 
-> ⏳ **[CHỜ ẢNH: `license-error-empty.png`]** — Chụp thông báo đỏ khi bấm Kích hoạt lúc ô mã còn trống. Cần harness.
+![Lỗi khi chưa nhập mã](screenshots/license-error-empty.png)
+*Hình 66: Bấm Kích hoạt khi ô mã còn trống — thông báo đỏ "Vui lòng nhập License Key."*
 
 - Mã sai hoặc không khớp thiết bị → thông báo đỏ báo mã không hợp lệ.
 
-> ⏳ **[CHỜ ẢNH: `license-error-invalid.png`]** — Chụp thông báo đỏ khi nhập key sai. Cần harness.
+![Lỗi mã không hợp lệ](screenshots/license-error-invalid.png)
+*Hình 67: Nhập mã sai — thông báo đỏ "Chữ ký số License không hợp lệ (Bị giả mạo)."*
 
 ### 10.2 Câu hỏi khi bản quyền không hợp lệ
 
@@ -975,7 +1017,10 @@ echo $XDG_SESSION_TYPE
 - Kết quả `x11` → đạt yêu cầu, sang mục 11.3.
 - Kết quả `wayland` → làm tiếp Bước 2.
 
-> ⏳ **[CHỜ ẢNH: `zcu-terminal-session-x11.png`]** — Chụp terminal ZCU chạy `echo $XDG_SESSION_TYPE` cho kết quả `x11`.
+> **Lưu ý:** Nếu kiểm tra từ xa qua SSH (không ngồi trực tiếp tại máy), biến `XDG_SESSION_TYPE` của phiên SSH không phản ánh phiên đồ họa. Khi đó dùng `loginctl list-sessions` để xem số phiên, rồi `loginctl show-session <số phiên> -p Type` — kết quả phải là `Type=x11`:
+
+![Kiểm tra loại phiên bằng loginctl](screenshots/zcu-terminal-session-x11.png)
+*Hình 68: Kiểm tra qua SSH bằng `loginctl list-sessions` và `loginctl show-session <số> -p Type` — phiên đồ họa của người dùng trả về `Type=x11`, đạt yêu cầu*
 
 **Bước 2 (nếu đang là Wayland):** Đăng xuất khỏi phiên hiện tại. Tại màn hình đăng nhập, nhấp biểu tượng **bánh răng** (góc dưới bên phải, hiện sau khi chọn tên người dùng) và chọn **"Ubuntu on Xorg"**, rồi đăng nhập lại.
 
@@ -992,7 +1037,8 @@ sudo systemctl enable --now ssh     # bật ngay và tự chạy khi khởi đ�
 systemctl status ssh                # kiểm tra: phải thấy "active (running)"
 ```
 
-> ⏳ **[CHỜ ẢNH: `zcu-terminal-ssh-install.png`]** — Chụp terminal ZCU sau khi cài openssh-server: `systemctl status ssh` hiển thị `active (running)`.
+![Xác nhận openssh-server đã cài](screenshots/zcu-terminal-ssh-install.png)
+*Hình 69: Xác nhận trên máy ZCU — `dpkg -l openssh-server` báo trạng thái `ii` (đã cài đặt) và gói đang ở phiên bản mới nhất*
 
 ### 11.4 Kiểm tra kết nối mạng giữa CCU và ZCU
 
@@ -1067,7 +1113,7 @@ chmod +x ~/setup-zcu-agent.sh          # cấp quyền thực thi cho script
 
 Script lần lượt: cảnh báo nếu phiên là Wayland → cài thư viện X11 → cài .NET 8 Runtime (nếu thiếu) → ghi `appsettings.json` → tạo + enable service `ipgs-remote-agent.service` → mở cổng trên tường lửa UFW → tắt tự khóa màn hình GNOME (tránh màn hình đen khi remote). Trong quá trình chạy, script hỏi mật khẩu `sudo` khi cần.
 
-> ⏳ **[CHỜ ẢNH: `zcu-terminal-setup-script.png`]** — Chụp terminal ZCU đang chạy `setup-zcu-agent.sh`: các dòng bước [1/7]–[7/7] và khối "HOÀN THÀNH CÀI ĐẶT" cuối script (che giá trị Token).
+Trên màn hình terminal, script in tiến trình theo từng bước đánh số **[1/7] → [7/7]** (kiểm tra phiên, cài thư viện X11, cài .NET Runtime, ghi cấu hình, tạo service, mở tường lửa, tắt khóa màn hình) và kết thúc bằng khối **"HOÀN THÀNH CÀI ĐẶT"** — trong đó in ra giá trị Cổng và Token đã cài. **Ghi lại Token này** để khai báo máy trên CCU.
 
 **Bước 3:** Chép file thực thi vào thư mục cài đặt và khởi động service (script đã tự làm nếu file có sẵn từ trước; nếu script báo "File ... chưa có" thì làm tay):
 
@@ -1125,7 +1171,8 @@ Xem nhanh cấu hình hiện tại trên máy:
 cat ~/ipgs/remote-agent/appsettings.json
 ```
 
-> ⏳ **[CHỜ ẢNH: `zcu-terminal-appsettings.png`]** — Chụp terminal ZCU chạy `cat ~/ipgs/remote-agent/appsettings.json` (che giá trị Token).
+![Nội dung appsettings.json trên máy thật](screenshots/zcu-terminal-appsettings.png)
+*Hình 70: Nội dung `appsettings.json` trên máy ZCU — khối RemoteControl với Port 17600, AllowedClientIPs, TargetFps 15, JpegQuality 70 (giá trị Token đã che)*
 
 > ⚠️ **Cảnh báo:** Sau khi sửa tay `appsettings.json`, phải khởi động lại service (mục 12.5) thì thay đổi mới có hiệu lực. Nếu đổi `Port` hoặc `Token`, nhớ cập nhật lại hồ sơ máy trên CCU (mục 4.1) và tường lửa (`sudo ufw allow <cổng mới>/tcp`).
 
@@ -1142,7 +1189,8 @@ systemctl --user enable  ipgs-remote-agent.service   # tự chạy khi đăng nh
 systemctl --user disable ipgs-remote-agent.service   # bỏ tự chạy
 ```
 
-> ⏳ **[CHỜ ẢNH: `zcu-terminal-service-status.png`]** — Chụp `systemctl --user status ipgs-remote-agent.service` với trạng thái `active (running)`, thấy dòng Loaded/Active và vài dòng log cuối.
+![Trạng thái service ipgs-remote-agent](screenshots/zcu-terminal-service-status.png)
+*Hình 71: `systemctl --user status ipgs-remote-agent` — service Loaded (enabled), Active: active (running), kèm các dòng log phiên kết nối gần nhất*
 
 **Xem log của agent** (log ghi vào systemd journal):
 
@@ -1152,7 +1200,8 @@ journalctl --user -u ipgs-remote-agent.service -f     # theo dõi log thời gia
 journalctl --user -u ipgs-remote-agent.service --since "1 hour ago"   # log 1 giờ gần nhất
 ```
 
-> ⏳ **[CHỜ ẢNH: `zcu-terminal-journalctl.png`]** — Chụp `journalctl --user -u ipgs-remote-agent.service -e` hiển thị các dòng log khởi động của agent.
+![Log agent trong systemd journal](screenshots/zcu-terminal-journalctl.png)
+*Hình 72: `journalctl --user -u ipgs-remote-agent` — log hoạt động của agent: TcpServer nhận kết nối từ máy CCU, các phiên mở/đóng*
 
 **Để agent chạy cả khi chưa ai đăng nhập terminal:** trình cài đã bật *lingering* cho tài khoản (`sudo loginctl enable-linger <tên người dùng>`). Tuy nhiên phần truyền màn hình chỉ hoạt động khi phiên đồ họa X11 đang mở — với máy trạm không người trực, kết hợp **Autologin** (thiết lập được qua Kiosk Deploy, mục 9.3) để máy tự vào màn hình chính sau khi khởi động.
 
@@ -1168,13 +1217,17 @@ Theo thứ tự từ máy ZCU ra tới máy CCU:
 ss -tlnp | grep 17600      # phải thấy một dòng LISTEN trên cổng 17600
 ```
 
-**3. Tường lửa đã mở cổng?**
+**3. Tường lửa có chặn cổng không?**
 
 ```bash
-sudo ufw status            # nếu UFW đang bật, phải có luật ALLOW cho 17600/tcp
+sudo ufw status            # xem trạng thái tường lửa UFW
 ```
 
-> ⏳ **[CHỜ ẢNH: `zcu-terminal-ufw-status.png`]** — Chụp `sudo ufw status` có luật `17600/tcp ALLOW` (comment "IPGS Remote Control Agent").
+- `Status: inactive` — tường lửa chưa bật (mặc định của Ubuntu), không chặn cổng nào nên agent kết nối được ngay. Vì lý do bảo mật, khi đưa máy vào vận hành nên bật tường lửa và chỉ mở đúng các cổng cần dùng: `sudo ufw allow 22/tcp && sudo ufw allow 17600/tcp && sudo ufw enable` (xem mục 13.5).
+- `Status: active` — phải có luật `ALLOW` cho cổng agent; nếu thiếu, chạy `sudo ufw allow 17600/tcp`.
+
+![Trạng thái tường lửa UFW](screenshots/zcu-terminal-ufw-status.png)
+*Hình 73: `sudo ufw status verbose` trên máy thử nghiệm — `Status: inactive`: tường lửa chưa bật nên không chặn cổng nào (xem khuyến nghị bật UFW ở mục 13.5)*
 
 **4. Từ máy CCU:** mở phần mềm CCU → chấm **Remote** của máy chuyển xanh (mục 3.2.2) → nhấn **Kết nối** thấy màn hình ZCU. Hoặc dùng **🔍 Quét mạng** (mục 4.2) — máy phải xuất hiện trong kết quả quét.
 
@@ -1214,7 +1267,10 @@ ssh-copy-id <tên người dùng>@192.168.1.x         # cài khóa công khai l�
 ssh <tên người dùng>@192.168.1.x                 # từ nay đăng nhập không cần mật khẩu
 ```
 
-> ⏳ **[CHỜ ẢNH: `zcu-terminal-ssh-keygen.png`]** — Chụp terminal chạy `ssh-keygen -t ed25519` và `ssh-copy-id` thành công tới máy ZCU (che fingerprint nếu cần).
+> **Lưu ý:** Trên Windows không có sẵn `ssh-copy-id` — thay bằng: `type $env:USERPROFILE\.ssh\<tên khóa>.pub | ssh <tên người dùng>@192.168.1.x "cat >> ~/.ssh/authorized_keys"` (PowerShell).
+
+![Sinh và cài khóa SSH](screenshots/zcu-terminal-ssh-keygen.png)
+*Hình 74: Sinh cặp khóa ed25519 trên máy kỹ thuật viên (Windows) rồi cài khóa công khai lên máy ZCU — dòng cuối xác nhận đã thêm vào `authorized_keys` (fingerprint đã che)*
 
 > ⚠️ **Cảnh báo:** Không tắt xác thực mật khẩu SSH (`PasswordAuthentication no`) trên máy ZCU khi hệ thống vẫn dùng phần mềm CCU để quản trị — phiên bản hiện tại của phần mềm CCU đăng nhập SSH bằng mật khẩu, tắt đi sẽ làm mọi nút quản trị (📁, >_, ⚡ Cài remote...) ngừng hoạt động.
 
@@ -1240,7 +1296,8 @@ cd KeyGen
 dotnet run          # in ra "Public Key:" và "Private Key (Keep Secret):" dạng XML
 ```
 
-> ⏳ **[CHỜ ẢNH: `keygen-output.png`]** — Chụp console KeyGen in ra hai khối Public Key / Private Key (che gần hết nội dung khóa, chỉ giữ vài ký tự đầu để minh họa).
+![Kết quả chạy công cụ KeyGen](screenshots/keygen-output.png)
+*Hình 75: Console KeyGen in ra hai khối Public Key (XML RSA) và Private Key — phần khóa bí mật đã được che hoàn toàn*
 
 - **Public Key:** nhúng vào mã nguồn phần mềm CCU (thay giá trị trong `LicenseManagerService`) rồi build lại bản phát hành.
 - **Private Key:** lưu trữ tuyệt mật tại KZTEK (không đưa vào mã nguồn, không gửi qua mạng) — dùng cho công cụ ký license nội bộ.
@@ -1262,7 +1319,7 @@ Thao tác kích hoạt trên máy CCU đã mô tả tại **mục 10.1**. Quy tr
 | Hạng mục | Khuyến nghị |
 |---|---|
 | `AllowedClientIPs` | Thu hẹp về dải mạng thật (ví dụ `192.168.1.0/24`) hoặc chỉ đúng IP máy CCU — không để `0.0.0.0/0` khi vận hành lâu dài |
-| Tường lửa (UFW) | Chỉ mở cổng 22 và cổng agent (17600); xóa các luật không dùng (`sudo ufw status numbered` → `sudo ufw delete <số>`) |
+| Tường lửa (UFW) | Bật UFW khi vận hành thực tế (Ubuntu mặc định để `inactive`): `sudo ufw allow 22/tcp && sudo ufw allow 17600/tcp && sudo ufw enable`; chỉ mở cổng 22 và cổng agent (17600); xóa các luật không dùng (`sudo ufw status numbered` → `sudo ufw delete <số>`) |
 | Mật khẩu | Đổi mật khẩu mặc định của mọi tài khoản trên máy ZCU ngay khi triển khai; dùng mật khẩu khác nhau giữa các máy |
 | Token | Mỗi máy một Token ngẫu nhiên; đổi khi nghi lộ (mục 13.2) |
 | Mạng | Đặt các máy CCU/ZCU trong mạng LAN/VLAN nội bộ — **không** mở cổng agent ra Internet |
@@ -1335,75 +1392,16 @@ VP HCM: 6B11 Đường số 9, Khu phố 4, Phường An Khánh, TP. HCM
 
 ---
 
-## Phụ lục A — Danh sách ảnh còn thiếu
+## Phụ lục A — Ghi chú về ảnh minh họa
 
-> Checklist cho phiên chụp bổ sung khi máy ZCU hoạt động trở lại. Điều kiện tiên quyết: **ZCU** = cần máy ZCU `192.168.1.x` online (cổng 17600); **SSH** = cần SSH tới ZCU (cổng 22); **DATA** = cần dữ liệu mẫu (3 máy P01/P02/P03, thư mục demo trên ZCU); **Harness** = cần công cụ dev mở LicenseWindow (không có đường mở từ giao diện); **User OK** = cần người phụ trách xác nhận vì thao tác thay đổi máy ZCU thật; **ZCU-TERM** = cần thao tác trực tiếp trên terminal của máy ZCU (ngồi tại máy hoặc SSH); **DEV** = chụp trên máy phát triển có mã nguồn, không cần ZCU.
+Toàn bộ 75 hình trong tài liệu được chụp trực tiếp từ phần mềm và thiết bị thật. Riêng 4 thao tác dưới đây được mô tả bằng lời thay vì ảnh chụp, do việc thực hiện thật sẽ thay đổi cấu hình của máy đang vận hành:
 
-| # | Tên file | Màn hình | Trạng thái cần chụp | Điều kiện |
-|---|---|---|---|---|
-| 1 | `connection-entry-default.png` (chụp lại) | Màn hình chính | P01 online: chấm SSH+Remote xanh, badge CPU/RAM/Disk | ZCU + DATA |
-| 2 | `network-scan-results.png` | Quét mạng | Tìm thấy ZCU thật: tên, IP, độ phân giải, nút Thêm | ZCU |
-| 3 | `remote-screen-streaming.png` | Điều khiển từ xa | Đang hiển thị màn hình ZCU, chấm xanh, các nút công cụ bật | ZCU |
-| 4 | `remote-screen-privacy-on.png` | Điều khiển từ xa | Toggle 🕶️ Privacy đang bật | ZCU |
-| 5 | `remote-screen-record-on.png` | Điều khiển từ xa | Toggle 🔴 Record đang bật | ZCU |
-| 6 | `remote-screen-chat.png` | Điều khiển từ xa | Đã gõ + gửi tin nhắn chat | ZCU |
-| 7 | `remote-screen-clipboard-sync.png` | Điều khiển từ xa | Sau khi bấm 📋 Sync Clipboard (best-effort) | ZCU |
-| 8 | `remote-screen-disconnected.png` | Điều khiển từ xa | Sau khi Ngắt kết nối — nút mờ đi | ZCU |
-| 9 | `multi-remote-grid-2x2.png` | Multi-Remote | Lưới 2x2 có phiên live | ZCU + DATA |
-| 10 | `multi-remote-custom-grid.png` | Multi-Remote | Lưới tùy chỉnh (1x2) sau Áp dụng | ZCU + DATA |
-| 11 | `multi-remote-tab-view.png` | Multi-Remote | Chế độ Thẻ Tab có phiên | ZCU + DATA |
-| 12 | `file-manager-default.png` | Quản lý File | Danh sách thư mục nhà, status "Sẵn sàng" | SSH |
-| 13 | `file-manager-navigate.png` | Quản lý File | Đã vào thư mục con demo | SSH + DATA |
-| 14 | `file-manager-filter.png` | Quản lý File | Ô Lọc file đã gõ, danh sách lọc | SSH + DATA |
-| 15 | `file-manager-upload-success.png` | Quản lý File | Status sau Upload thành công | SSH + DATA |
-| 16 | `file-manager-sync-result.png` | Quản lý File | Status sau Đồng bộ thư mục | SSH + DATA |
-| 17 | `file-manager-after-delete.png` | Quản lý File | Status sau khi xóa file | SSH + DATA |
-| 18 | `file-manager-error-connect.png` | Quản lý File | Lỗi kết nối ở status (best-effort) | DATA |
-| 19 | `confirm-delete-default.png` | Xác nhận xóa | Dialog liệt kê file sắp xóa | SSH + DATA |
-| 20 | `confirm-delete-dir-warning.png` | Xác nhận xóa | Có thư mục → cảnh báo đỏ rm -rf | SSH + DATA |
-| 21 | `remote-command-console-default.png` | CMD Shell | Tab Console trống | SSH |
-| 22 | `remote-command-snippet.png` | CMD Shell | Gợi ý lệnh mẫu đang mở (gõ "RAM") | SSH |
-| 23 | `remote-command-console-output.png` | CMD Shell | Kết quả `uname -a` / `df -h` | SSH |
-| 24 | `remote-command-sftp-tab.png` | CMD Shell | Tab Truyền nhận File | SSH |
-| 25 | `remote-command-error.png` | CMD Shell | Lỗi tiêu biểu ở status cam | SSH |
-| 26 | `bulk-action-default.png` | Thực thi hàng loạt | Form + danh sách máy tick, chưa chạy | SSH + DATA |
-| 27 | `bulk-action-running.png` | Thực thi hàng loạt | "Đang xử lý: n/N" | SSH + DATA |
-| 28 | `bulk-action-results.png` | Thực thi hàng loạt | 1 máy success + 1 máy fail trong 1 ảnh | SSH + DATA |
-| 29 | `cron-job-default.png` | Cron Jobs | Danh sách + panel Thêm Job | SSH |
-| 30 | `cron-job-added.png` | Cron Jobs | Job mẫu xuất hiện sau ➕ Thêm Job | SSH + DATA |
-| 31 | `cron-job-after-delete.png` | Cron Jobs | Job biến mất sau 🗑 Xóa | SSH + DATA |
-| 32 | `health-monitor-loading.png` | Giám sát sức khỏe | "--%" + "Đang kết nối..." | SSH |
-| 33 | `health-monitor-data.png` | Giám sát sức khỏe | Số liệu thật + Top Process | SSH |
-| 34 | `system-inventory-data.png` | System Inventory | CPU/RAM/OS/Arch của ZCU (mở từ 📊 SysInfo khi stream) | ZCU (đang stream) |
-| 35 | `zcu-setup-wizard-default.png` | Cài Remote Agent | Form mặc định: 17600 / FPS 15 / JPEG 70 | SSH |
-| 36 | `zcu-setup-wizard-token-generated.png` | Cài Remote Agent | Ô token có giá trị sau 🎲 Sinh Token (che 1 phần) | SSH |
-| 37 | `zcu-setup-wizard-installing.png` | Cài Remote Agent | Progress + log đang chạy | SSH + User OK |
-| 38 | `zcu-setup-wizard-success.png` | Cài Remote Agent | Log hoàn tất, 100% | SSH + User OK |
-| 39 | `zcu-setup-wizard-error.png` | Cài Remote Agent | Lỗi SSH (hồ sơ sai) | DATA |
-| 40 | `remote-app-install-default.png` | Cài App | Form mặc định | SSH |
-| 41 | `remote-app-install-file-selected.png` | Cài App | Đã chọn file .deb mẫu | DATA (.deb vô hại) |
-| 42 | `remote-app-install-output.png` | Cài App | Log cài gói .deb vô hại | SSH + DATA |
-| 43 | `remote-app-install-uninstall.png` | Cài App | Danh sách package (▼) hoặc log gỡ gói | SSH + DATA |
-| 44 | `remote-app-install-error.png` | Cài App | Lỗi tiêu biểu ở status cam | DATA |
-| 45 | `kiosk-deploy-tab-computer.png` | Kiosk Deploy | Tab Config máy tính | SSH |
-| 46 | `kiosk-deploy-tab-software.png` | Kiosk Deploy | Tab Config phần mềm | SSH |
-| 47 | `kiosk-deploy-log.png` | Kiosk Deploy | Log sau 🚀 Deploy | SSH + User OK (thay đổi GNOME máy thật) |
-| 48 | `kiosk-deploy-error.png` | Kiosk Deploy | Lỗi SSH fail | DATA |
-| 49 | `license-default.png` | Kích hoạt bản quyền | Hardware ID (che 1 phần), ô key trống | Harness |
-| 50 | `license-error-empty.png` | Kích hoạt bản quyền | "Vui lòng nhập License Key." | Harness |
-| 51 | `license-error-invalid.png` | Kích hoạt bản quyền | Lỗi key sai | Harness |
-| 52 | `license-success.png` | Kích hoạt bản quyền | Kích hoạt thành công | Harness + key hợp lệ (ứng viên BLOCK) |
-| 53 | `zcu-terminal-session-x11.png` | Terminal ZCU (ch11.2) | `echo $XDG_SESSION_TYPE` trả về `x11` | ZCU-TERM |
-| 54 | `zcu-terminal-ssh-install.png` | Terminal ZCU (ch11.3) | `systemctl status ssh` sau khi cài openssh-server: `active (running)` | ZCU-TERM |
-| 55 | `zcu-terminal-setup-script.png` | Terminal ZCU (ch12.2) | Chạy `setup-zcu-agent.sh`: các bước [1/7]–[7/7] + khối "HOÀN THÀNH" (che Token) | ZCU-TERM + User OK (cài thật) |
-| 56 | `zcu-terminal-appsettings.png` | Terminal ZCU (ch12.4) | `cat ~/ipgs/remote-agent/appsettings.json` (che Token) | ZCU-TERM (agent đã cài) |
-| 57 | `zcu-terminal-service-status.png` | Terminal ZCU (ch12.5) | `systemctl --user status ipgs-remote-agent.service` → `active (running)` | ZCU-TERM (agent đã cài) |
-| 58 | `zcu-terminal-journalctl.png` | Terminal ZCU (ch12.5) | `journalctl --user -u ipgs-remote-agent.service -e` — log khởi động agent | ZCU-TERM (agent đã cài) |
-| 59 | `zcu-terminal-ufw-status.png` | Terminal ZCU (ch12.6) | `sudo ufw status` có luật `17600/tcp ALLOW` | ZCU-TERM (agent đã cài) |
-| 60 | `zcu-terminal-ssh-keygen.png` | Terminal kỹ thuật viên (ch13.1) | `ssh-keygen -t ed25519` + `ssh-copy-id` thành công tới ZCU (che fingerprint) | ZCU-TERM |
-| 61 | `keygen-output.png` | Console KeyGen (ch13.3) | `dotnet run` in Public/Private Key (che gần hết nội dung khóa) | DEV |
-
-> **Lưu ý cho phiên chụp bổ sung:** (1) Ảnh #7 và #18 là best-effort — thiếu không tính thiếu coverage; (2) các ảnh Phần 2 (terminal ZCU #53–60, KeyGen #61) đã được bổ sung vào bảng này ở bước viết Phần 2 — riêng #61 chụp được ngay trên máy phát triển, không cần chờ ZCU; (3) sau khi bổ sung ảnh, thay marker `⏳ [CHỜ ẢNH]` tương ứng bằng thẻ chèn ảnh Markdown + caption và **đánh số lại toàn bộ Hình** theo thứ tự xuất hiện.
+| Thao tác | Vị trí trong tài liệu |
+|---|---|
+| Log console khi chạy script `setup-zcu-agent.sh` trên máy ZCU | Mục 12.2 |
+| Log console khi cài gói phần mềm từ xa hoàn tất | Mục 9.2 |
+| Log console khi Deploy chế độ Kiosk | Mục 9.3 |
+| Thông báo lỗi khi Deploy Kiosk thất bại | Mục 9.3 |
 
 ---
 

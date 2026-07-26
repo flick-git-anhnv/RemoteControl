@@ -1,8 +1,8 @@
 ---
 task: user-manual-ccu-zcu
 created: 2026-07-26
-updated: 2026-07-26 21:28
-status: in-progress
+updated: 2026-07-26 21:52
+status: done
 workflow: WF-DOCS
 priority: P2
 ---
@@ -60,13 +60,13 @@ Screenshot BẮT BUỘC chụp từ app chạy thật (build Release trên máy 
 ### Phase 4: Xuất & nghiệm thu
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
 |---|------|-------|--------|-----------|-----------------|
-| 4.1 | Xuất DOCX + PDF (`scripts/md_to_docx_kztek.py`), kiểm tra Definition of Done của documentation-writer | documentation-writer | ✅ | `steps/STEP-4.1-export-verify.md` | 2026-07-26 18:18 (BẢN NHÁP — chạy lại sau khi đủ ảnh) |
+| 4.1 | Xuất DOCX + PDF (`scripts/md_to_docx_kztek.py`), kiểm tra Definition of Done của documentation-writer | documentation-writer | ✅ | `steps/STEP-4.1-export-verify.md` | 2026-07-26 21:52 (lần 2 — BẢN CHÍNH THỨC v1.0, 75 ảnh; lần 1 nháp 18:18) |
 
 ## Artifacts dự kiến (tổng)
-- [x] `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md` — ✅ BẢN NHÁP (19 ảnh thật, 61 marker ⏳)
-- [x] `docs/user-manuals/MANUAL-ccu-zcu-remote-control.docx` — ✅ BẢN NHÁP (967 KB, 20 ảnh nhúng)
-- [x] `docs/user-manuals/MANUAL-ccu-zcu-remote-control.pdf` — ✅ BẢN NHÁP (1,7 MB)
-- [ ] `docs/user-manuals/screenshots/*.png` (đủ 100% màn hình theo Screen Inventory bước 0.2) — hiện 19/80, còn 61 chờ VM ZCU
+- [x] `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md` — ✅ BẢN CHÍNH THỨC v1.0 (75 hình thật, 0 marker)
+- [x] `docs/user-manuals/MANUAL-ccu-zcu-remote-control.docx` — ✅ 4,95 MB, 75 ảnh nhúng
+- [x] `docs/user-manuals/MANUAL-ccu-zcu-remote-control.pdf` — ✅ 5,1 MB
+- [x] `docs/user-manuals/screenshots/*.png` — ✅ 75 file, đủ 18/18 màn hình theo Screen Inventory (4 thao tác destructive mô tả bằng chữ theo lệnh cấm user — Phụ lục A)
 - [x] `_workspace/` trung gian: `00_pm_docs-scope.md`, `00_docwriter_screen-inventory.md` (không commit)
 
 ## Blockers
@@ -74,8 +74,8 @@ Screenshot BẮT BUỘC chụp từ app chạy thật (build Release trên máy 
 - ✅ **[GỠ 2026-07-26 21:06 — bước 2.3] Agent ZCU cũ đã cập nhật:** ZcuSetupWizard cài agent build 2026-07-26 lên `192.168.0.101` (giữ Token/Port), `system-inventory-data.png` đã chụp bù, F02 hết. (Blocker cũ giữ lại bên dưới để tham chiếu.)
 - ~~🛑~~ **[Blocker cũ — ĐÃ GỠ] Agent ZCU cũ hơn client:** agent đang chạy (build 2026-07-24, `/home/kztek/ipgs/remote-agent`) CŨ hơn commit thêm SysInfo/Chat/Privacy/Clipboard (`52e93ae`, 2026-07-25). Hệ quả: `system-inventory-data.png` (1 ảnh cuối của nhóm 2.2) KHÔNG chụp được, và Privacy/Chat/Clipboard không hoạt động thật. **Cần bước 2.3 deploy lại agent bản mới (đã được user cho phép chạy ZcuSetupWizard cài thật)** rồi mới chụp bù `system-inventory-data`. Ghi nhận F02 trong `docs/bugs/BUG-ccu-ui-findings-2026-07-26.md`.
 - ✅ **[HOÀN TẤT 2026-07-26 21:28 — bước 2.4] Phase 2 XONG:** 14/15 ảnh nhóm 2.4 (HealthMonitor 2, License 4 qua harness tạm, KeyGen 1, terminal ZCU 7). **Tổng 75 ảnh PNG toàn dự án.** Thêm F06 (P2 bảo mật: backdoor `ANHNV` + agent 0.0.0.0/0 + ufw inactive) vào file BUG.
-- ℹ️ **4 marker MANUAL còn thiếu ảnh (bước thay-marker thay bằng MÔ TẢ CHỮ, không có ảnh):** `zcu-terminal-setup-script` (2.4 — BLOCK: chạy lại setup ghi đè agent, ngoài scope đọc), `kiosk-deploy-log`, `kiosk-deploy-error`, `remote-app-install-output` (2.3 — BLOCK vĩnh viễn theo lệnh cấm user, destructive). **57/61 marker đã có file khớp.**
-- ℹ️ **Việc còn lại (Phase 3+):** thay marker ⏳ trong MANUAL (lưu ý ch12.6 ufw: thiết bị thật INACTIVE, chỉnh câu chữ hoặc gắn F06) → khôi phục profile store từ `temp/user-manual-ccu-zcu/profiles.backup.json` → xuất lại DOCX/PDF (chạy lại 4.1).
+- ✅ **[HOÀN TẤT 2026-07-26 21:52 — 4.1 lần 2] Plan KHÔNG còn blocker.** 57 marker đã thay bằng ảnh thật (Hình 1–75 liên tục), 4 marker destructive thay bằng mô tả chữ (ghi Phụ lục A của MANUAL); ch12.6 ufw đã viết lại theo thực tế inactive + khuyến nghị bật (gắn F06); profile store thật đã khôi phục và verify 4 máy; DOCX/PDF chính thức đã xuất.
+- ℹ️ **Việc còn lại NGOÀI plan này:** 6 finding F01–F06 trong `docs/bugs/BUG-ccu-ui-findings-2026-07-26.md` chuyển senior-developer xử lý theo WF-BUGFIX (F01/F02/F06 P2; F03/F04/F05 P3).
 
 **Rủi ro đã nhận diện:**
 1. Một số màn hình/trạng thái (RemoteScreen đang stream, FileManager kết nối SFTP, HealthMonitor có dữ liệu, ZcuSetupWizard cài thật...) cần thiết bị ZCU thật hoặc kết nối SSH đang hoạt động. Nếu không có thiết bị → bước screenshot tương ứng ghi 🛑 BLOCK + báo user, KHÔNG bịa ảnh, KHÔNG dùng placeholder. Tài liệu vẫn viết phần text, đánh dấu vị trí ảnh chờ bổ sung.
@@ -117,6 +117,7 @@ Screenshot BẮT BUỘC chụp từ app chạy thật (build Release trên máy 
 | 2026-07-26 | Bước 2.1 ✅ — 15/16 ảnh nhóm Kết nối & Quản lý thiết bị (verify từng ảnh bằng Read); 🛑 thiếu `network-scan-results` + ⚠️ `connection-entry-default` chụp bản P01-offline (ZCU 192.168.1.4 không mở cổng 22/17600 — cần user kiểm tra thiết bị trước bước 2.2); dữ liệu mẫu P01/P02/P03 giữ trong store, backup store thật tại `temp/user-manual-ccu-zcu/profiles.backup.json` (khôi phục ở 4.1) | documentation-writer |
 | 2026-07-26 | Bước 2.3 ✅ — Cập nhật ZcuAgent bản mới (build 07-26, giữ Token/Port) lên ZCU IP mới `192.168.0.101` qua ZcuSetupWizard cài thật (7/7 bước, agent user-unit `ipgs-remote-agent` active); 17/20 ảnh nhóm 2.3 (verify từng ảnh bằng Read; 3 BLOCK theo lệnh cấm: kiosk-deploy-log/error, remote-app-install-output) + chụp bù `system-inventory-data.png` (nhóm 2.2 đủ 28/28); F02 xác nhận do version mismatch → ĐÃ HẾT; thêm F04 (status cũ không reset, P3) + F05 (BulkAction lộ raw exception, P3) vào file BUG | documentation-writer |
 | 2026-07-26 | Bước 2.2 ✅ (ZCU online) — hoàn tất 27/28 ảnh nhóm 2.2 + 2/2 ảnh bù 2.1 (verify từng ảnh bằng Read); chỉ thiếu `system-inventory-data` do agent ZCU cũ (build 07-24 < feature SysInfo 07-25) → chuyển sang bù ở bước 2.3 sau khi deploy lại agent; tạo dữ liệu demo SSH `/home/kztek/kztek-demo/`; gỡ blocker ZCU offline. **Kiểm thử phát hiện 3 lỗi** → `docs/bugs/BUG-ccu-ui-findings-2026-07-26.md`: F01 (record tự dừng "độ phân giải thay đổi", P2), F02 (SysInfo/Privacy/Chat/Clipboard fail âm thầm với agent cũ, P2), F03 (snippet dropdown không mở, P3) | documentation-writer |
+| 2026-07-26 | Bước 4.1 ✅ lần 2 — **BẢN CHÍNH THỨC v1.0, PLAN ĐÓNG (status: done).** Thay 57 marker bằng ảnh thật (Read từng ảnh viết caption đúng thực tế), 4 marker destructive → mô tả chữ; đánh số Hình 1–75 liên tục (verify 75 `![]()` = 75 caption = 75 PNG, 0 marker, 0 mồ côi); sửa ch12.6 ufw inactive + khuyến nghị bật (F06), bổ sung lưu ý loginctl (11.2) + ssh-copy-id Windows (13.1); bỏ nhãn nháp, Phụ lục A → ghi chú 4 thao tác không ảnh; khôi phục profile store thật (4 máy verify); xuất DOCX 4,95 MB (75 ảnh nhúng) + PDF 5,1 MB. Việc còn lại F01–F06 → WF-BUGFIX | documentation-writer |
 | 2026-07-26 | Bước 2.4 ✅ — **Phase 2 XONG.** 14/15 ảnh nhóm 2.4 (HealthMonitor 2, License 4 qua harness dev tạm `temp/.../license-harness`, KeyGen 1 che private key, terminal ZCU 7 qua SSH thật; verify từng ảnh bằng Read). 1 BLOCK: `zcu-terminal-setup-script` (chạy lại setup ghi đè agent — ngoài scope đọc). Đổi tên 3 file khớp marker MANUAL. **Tổng 75 ảnh PNG; 57/61 marker có file** (4 marker còn lại thay bằng mô tả chữ). Kiểm thử thêm **F06** (P2 bảo mật: backdoor `ANHNV` + agent 0.0.0.0/0 + ufw inactive) | documentation-writer |
 
 ---
