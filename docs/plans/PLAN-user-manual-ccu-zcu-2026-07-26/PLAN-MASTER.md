@@ -1,7 +1,7 @@
 ---
 task: user-manual-ccu-zcu
 created: 2026-07-26
-updated: 2026-07-26 18:06
+updated: 2026-07-26 18:13
 status: planning
 workflow: WF-DOCS
 priority: P2
@@ -55,7 +55,7 @@ Screenshot BẮT BUỘC chụp từ app chạy thật (build Release trên máy 
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
 |---|------|-------|--------|-----------|-----------------|
 | 3.2 | **(chạy trước)** Viết phần CCU: thao tác từng màn hình theo Screen Inventory, chèn ảnh đúng chỗ — trở thành Phần 1 của MANUAL | documentation-writer | ✅ | `steps/STEP-3.2-write-ccu.md` | 2026-07-26 18:05 |
-| 3.1 | **(chạy sau)** Viết phần ZCU: cài đặt .deb, systemd service, khóa SSH, kiểm tra hoạt động — trở thành Phần 2 của MANUAL | documentation-writer | ⬜ | `steps/STEP-3.1-write-zcu.md` | - |
+| 3.1 | **(chạy sau)** Viết phần ZCU: cài đặt .deb, systemd service, khóa SSH, kiểm tra hoạt động — trở thành Phần 2 của MANUAL | documentation-writer | ✅ | `steps/STEP-3.1-write-zcu.md` | 2026-07-26 18:13 |
 
 ### Phase 4: Xuất & nghiệm thu
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
@@ -106,6 +106,7 @@ Screenshot BẮT BUỘC chụp từ app chạy thật (build Release trên máy 
 | 2026-07-26 | Bước 1.1 ✅ — Build Release CcuUI 0 error; app chạy thật từ exe Release (PID 17180, để nguyên cho Phase 2); script chụp `temp/user-manual-ccu-zcu/capture-window.ps1` (PrintWindow + PW_RENDERFULLCONTENT — không bị cửa sổ khác che); kiểm chứng bằng ảnh thật `screenshots/connection-entry-default.png` (1216×799) | documentation-writer |
 | 2026-07-26 | Bước 2.2 🛑 BLOCKED — ZCU 192.168.1.4 vẫn offline (ping+cổng 22/17600 fail ~6 phút, quét subnet không thấy); chụp được 4/28 ảnh không cần ZCU (`remote-screen-connecting/-ssh-help/-faulted`, `multi-remote-empty` — verify bằng Read); 2 ảnh bù 2.1 (`network-scan-results`, `connection-entry-default` P01 online) CHƯA chụp được — cùng chờ ZCU; tool mới `temp/user-manual-ccu-zcu/actions-22.ps1` (double-click item mở RemoteScreen) | documentation-writer |
 | 2026-07-26 | Bước 3.2 ✅ — Tạo `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md` (BẢN NHÁP): Phần 1 CCU hoàn chỉnh phủ 18/18 màn hình (ch3–10, đánh số chương MỚI: CCU trước, ZCU sau), 19 ảnh thật chèn (Hình 1–19), 52 marker ⏳ CHỜ ẢNH + Phụ lục A checklist bổ sung; Phần 2 ZCU (ch11–13) để khung 🚧 chờ bước 3.1; verify 0 link ảnh chết | documentation-writer |
+| 2026-07-26 | Bước 3.1 ✅ — Viết trọn Phần 2 ZCU (ch11 Chuẩn bị, ch12 Cài ZcuAgent 2 cách + systemd + gỡ/nâng cấp, ch13 Khóa & bảo mật + KeyGen + license) + FAQ 14.1 (7 câu), bám code/script thật; Phụ lục A mở rộng #53–61 (8 ảnh terminal ZCU + KeyGen); tổng marker ⏳ = 61; hết 🚧; 0 link ảnh chết. Phát hiện: không có .deb cho ZcuAgent (deb là của IPGSUseCam); appsettings.json hiện đã 17600 (5900 chỉ còn trong CODE-GRAPH cũ) | documentation-writer |
 | 2026-07-26 | Bước 2.1 ✅ — 15/16 ảnh nhóm Kết nối & Quản lý thiết bị (verify từng ảnh bằng Read); 🛑 thiếu `network-scan-results` + ⚠️ `connection-entry-default` chụp bản P01-offline (ZCU 192.168.1.4 không mở cổng 22/17600 — cần user kiểm tra thiết bị trước bước 2.2); dữ liệu mẫu P01/P02/P03 giữ trong store, backup store thật tại `temp/user-manual-ccu-zcu/profiles.backup.json` (khôi phục ở 4.1) | documentation-writer |
 
 ---

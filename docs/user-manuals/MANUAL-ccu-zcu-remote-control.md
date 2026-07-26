@@ -54,8 +54,25 @@
 **PHẦN 2 — TRIỂN KHAI ZCU (dành cho Kỹ thuật viên)**
 
 11. [Chuẩn bị máy ZCU trước khi cài đặt](#11-chuẩn-bị-máy-zcu-trước-khi-cài-đặt)
+    - 11.1 Yêu cầu phần cứng & hệ điều hành
+    - 11.2 Kiểm tra và chuyển phiên làm việc sang X11
+    - 11.3 Cài đặt & bật SSH server
+    - 11.4 Kiểm tra kết nối mạng giữa CCU và ZCU
+    - 11.5 Checklist trước khi cài
 12. [Cài đặt ZcuAgent](#12-cài-đặt-zcuagent)
+    - 12.1 Cách 1 — Cài từ xa bằng phần mềm CCU (khuyến nghị)
+    - 12.2 Cách 2 — Cài thủ công bằng script setup-zcu-agent.sh
+    - 12.3 Vị trí file sau khi cài
+    - 12.4 Cấu hình appsettings.json
+    - 12.5 Quản lý dịch vụ systemd
+    - 12.6 Kiểm tra sau cài đặt
+    - 12.7 Gỡ cài đặt / Nâng cấp
 13. [Khóa & bảo mật hệ thống](#13-khóa--bảo-mật-hệ-thống)
+    - 13.1 Khóa SSH
+    - 13.2 Token ZcuAgent
+    - 13.3 Sinh cặp khóa bản quyền bằng công cụ KeyGen ⚙️ nội bộ KZTEK
+    - 13.4 Quy trình cấp & kích hoạt bản quyền
+    - 13.5 Khuyến nghị bảo mật khi triển khai
 
 14. [Câu hỏi thường gặp (FAQ)](#14-câu-hỏi-thường-gặp-faq)
 15. [Liên hệ hỗ trợ](#15-liên-hệ-hỗ-trợ)
@@ -929,21 +946,325 @@ A: Không — Hardware ID thay đổi theo máy. Liên hệ KZTEK để được
 
 ## 11. Chuẩn bị máy ZCU trước khi cài đặt
 
-> 🚧 Nội dung Phần 2 được viết ở bước 3.1.
+Chương này liệt kê những việc **bắt buộc kiểm tra** trên máy ZCU trước khi cài ZcuAgent. Bỏ qua bất kỳ mục nào cũng có thể khiến agent cài xong nhưng không chạy được.
 
-*(Nội dung dự kiến: 11.1 Kiểm tra và chuyển phiên làm việc sang X11 (Ubuntu on Xorg) — 11.2 Cài đặt & bật SSH server — 11.3 Kiểm tra kết nối mạng giữa CCU và ZCU.)*
+### 11.1 Yêu cầu phần cứng & hệ điều hành
+
+| Thành phần | Yêu cầu |
+|---|---|
+| Hệ điều hành | Ubuntu 22.04 (bản Desktop — cần môi trường đồ họa để truyền màn hình) |
+| Phiên làm việc | **X11 (Ubuntu on Xorg)** — ZcuAgent không hoạt động trên Wayland |
+| Tài khoản | Một tài khoản người dùng có quyền `sudo` (dùng để cài thư viện, mở tường lửa) |
+| Mạng | Cắm cùng mạng LAN với máy CCU, có địa chỉ IP cố định hoặc DHCP reservation (khuyến nghị) |
+| Dung lượng trống | ≥ 500 MB (cho .NET 8 Runtime + agent) |
+
+> **Lưu ý:** Nên đặt IP tĩnh (hoặc gán IP cố định trên router) cho máy ZCU — nếu IP đổi sau mỗi lần khởi động, hồ sơ máy trên CCU sẽ sai địa chỉ và báo trạng thái đỏ.
+
+### 11.2 Kiểm tra và chuyển phiên làm việc sang X11
+
+ZcuAgent chụp màn hình và bơm chuột/bàn phím qua giao thức X11 (XShm/XTest). Khi khởi động, agent **tự kiểm tra biến môi trường `XDG_SESSION_TYPE` và từ chối chạy** nếu không phải `x11` — đây là hành vi có chủ đích, không phải lỗi.
+
+**Bước 1:** Mở Terminal trên máy ZCU, kiểm tra loại phiên hiện tại:
+
+```bash
+echo $XDG_SESSION_TYPE
+```
+
+- Kết quả `x11` → đạt yêu cầu, sang mục 11.3.
+- Kết quả `wayland` → làm tiếp Bước 2.
+
+> ⏳ **[CHỜ ẢNH: `zcu-terminal-session-x11.png`]** — Chụp terminal ZCU chạy `echo $XDG_SESSION_TYPE` cho kết quả `x11`.
+
+**Bước 2 (nếu đang là Wayland):** Đăng xuất khỏi phiên hiện tại. Tại màn hình đăng nhập, nhấp biểu tượng **bánh răng** (góc dưới bên phải, hiện sau khi chọn tên người dùng) và chọn **"Ubuntu on Xorg"**, rồi đăng nhập lại.
+
+**Bước 3:** Chạy lại lệnh ở Bước 1 để xác nhận kết quả đã là `x11`.
+
+### 11.3 Cài đặt & bật SSH server
+
+SSH không bắt buộc để agent chạy, nhưng **bắt buộc** nếu muốn dùng: cài agent từ xa (mục 9.1), Quản lý File, chạy lệnh, giám sát, cài app và Kiosk từ CCU. Khuyến nghị luôn cài.
+
+```bash
+sudo apt update                     # cập nhật danh sách gói
+sudo apt install -y openssh-server  # cài SSH server
+sudo systemctl enable --now ssh     # bật ngay và tự chạy khi khởi động
+systemctl status ssh                # kiểm tra: phải thấy "active (running)"
+```
+
+> ⏳ **[CHỜ ẢNH: `zcu-terminal-ssh-install.png`]** — Chụp terminal ZCU sau khi cài openssh-server: `systemctl status ssh` hiển thị `active (running)`.
+
+### 11.4 Kiểm tra kết nối mạng giữa CCU và ZCU
+
+Thực hiện từ **máy CCU** (Windows, mở Command Prompt):
+
+```powershell
+ping 192.168.1.x        # thay bằng IP máy ZCU — phải có phản hồi (Reply)
+```
+
+Sau khi cài SSH (mục 11.3), kiểm tra thêm cổng 22 từ máy CCU:
+
+```powershell
+Test-NetConnection 192.168.1.x -Port 22   # PowerShell — TcpTestSucceeded : True
+```
+
+Nếu ping không thông: kiểm tra hai máy có cùng dải mạng không, dây mạng/Wi-Fi của ZCU, và tường lửa giữa hai máy (cần mở cổng **22** và **17600** theo chiều CCU → ZCU, xem mục 2.3).
+
+### 11.5 Checklist trước khi cài
+
+- [ ] Ubuntu 22.04, phiên đăng nhập là **Ubuntu on Xorg** (`XDG_SESSION_TYPE` = `x11`)
+- [ ] Có tài khoản với quyền `sudo`, biết mật khẩu
+- [ ] `openssh-server` đang chạy (`systemctl status ssh` → active)
+- [ ] Máy CCU ping được IP máy ZCU
+- [ ] Đã ghi lại: IP máy ZCU, tên người dùng, mật khẩu — để nhập vào hồ sơ máy trên CCU (mục 4.1)
+
+---
 
 ## 12. Cài đặt ZcuAgent
 
-> 🚧 Nội dung Phần 2 được viết ở bước 3.1.
+Có **2 cách cài** ZcuAgent. Cách 1 làm hoàn toàn từ máy CCU, không cần gõ lệnh trên máy ZCU — dùng khi SSH đã sẵn sàng (chương 11). Cách 2 thao tác trực tiếp trên máy ZCU — dùng khi chưa có SSH hoặc cần chủ động kiểm soát từng bước.
 
-*(Nội dung dự kiến: 12.1 Cách 1 — cài từ xa bằng app CCU (thao tác chi tiết tại mục 9.1) — 12.2 Cách 2 — script setup-zcu-agent.sh — 12.3 Cách 3 — gói .deb — 12.4 Cấu hình appsettings.json (Port, Token, AllowedClientIPs, EnableDesktopIntegration) — 12.5 Quản lý dịch vụ systemd — 12.6 Kiểm tra sau cài đặt & xử lý sự cố.)*
+> **Lưu ý:** Gói `.deb` nhắc đến ở mục 9.2 là gói **phần mềm ứng dụng** (ví dụ IPGSUseCam) cài lên máy ZCU — không phải gói cài ZcuAgent. ZcuAgent được triển khai bằng 2 cách dưới đây.
+
+### 12.1 Cách 1 — Cài từ xa bằng phần mềm CCU (khuyến nghị)
+
+Toàn bộ thao tác màn hình đã mô tả chi tiết tại **mục 9.1** (nút **⚡ Cài remote** → Trình hướng dẫn cài Remote Agent). Về mặt kỹ thuật, trình hướng dẫn tự động làm trên máy ZCU qua SSH đúng những việc sau (để kỹ thuật viên biết chuyện gì xảy ra):
+
+1. Cài các thư viện X11 cần thiết: `libx11-6`, `libxext6`, `libxtst6` (qua `apt-get`, cần mật khẩu sudo).
+2. Cài .NET 8 Runtime vào `~/.dotnet` nếu máy chưa có.
+3. Tải file thực thi `IPGS.RemoteControl.ZcuAgent` lên thư mục `~/ipgs/remote-agent/`.
+4. Ghi file cấu hình `~/ipgs/remote-agent/appsettings.json` theo tham số đã nhập trên wizard (cổng, Token, AllowedClientIPs, FPS, JPEG).
+5. Tạo **systemd user service** `ipgs-remote-agent.service`, bật `enable` + `loginctl enable-linger` để agent tự chạy cùng máy.
+6. Khởi động service và kiểm tra trạng thái `active`.
+
+Sau khi wizard báo hoàn tất, kiểm tra lại theo mục 12.5.
+
+### 12.2 Cách 2 — Cài thủ công bằng script `setup-zcu-agent.sh`
+
+Thực hiện trực tiếp trên máy ZCU (hoặc qua một phiên SSH tự mở).
+
+**Bước 1:** Chép 2 thứ sang máy ZCU (bằng USB hoặc `scp`): script `setup-zcu-agent.sh` và file thực thi `IPGS.RemoteControl.ZcuAgent` (bản publish `linux-x64` do KZTEK cung cấp kèm bản phát hành).
+
+```bash
+# Ví dụ chép bằng scp từ một máy khác trong mạng:
+scp setup-zcu-agent.sh IPGS.RemoteControl.ZcuAgent <tên người dùng>@192.168.1.x:~/
+```
+
+**Bước 2:** Trên máy ZCU, chạy script với các tham số theo thứ tự `[CỔNG] [TOKEN] [ALLOWED_IPS] [FPS] [JPEG]` — tham số nào bỏ trống sẽ dùng mặc định:
+
+```bash
+chmod +x ~/setup-zcu-agent.sh          # cấp quyền thực thi cho script
+~/setup-zcu-agent.sh 17600 "<mã kết nối>" 192.168.1.0/24 15 70
+```
+
+| Tham số | Mặc định nếu bỏ trống | Ý nghĩa |
+|---|---|---|
+| CỔNG | `17600` | Cổng TCP agent lắng nghe |
+| TOKEN | Sinh ngẫu nhiên bằng `openssl rand -hex 16` | Mã bảo mật — **ghi lại giá trị hiển thị cuối script** để nhập vào CCU |
+| ALLOWED_IPS | `0.0.0.0/0` (mọi IP) | Dải IP được phép kết nối — nên thu hẹp, ví dụ `192.168.1.0/24` |
+| FPS | `15` | Số khung hình/giây |
+| JPEG | `70` | Chất lượng nén ảnh (%) |
+
+Script lần lượt: cảnh báo nếu phiên là Wayland → cài thư viện X11 → cài .NET 8 Runtime (nếu thiếu) → ghi `appsettings.json` → tạo + enable service `ipgs-remote-agent.service` → mở cổng trên tường lửa UFW → tắt tự khóa màn hình GNOME (tránh màn hình đen khi remote). Trong quá trình chạy, script hỏi mật khẩu `sudo` khi cần.
+
+> ⏳ **[CHỜ ẢNH: `zcu-terminal-setup-script.png`]** — Chụp terminal ZCU đang chạy `setup-zcu-agent.sh`: các dòng bước [1/7]–[7/7] và khối "HOÀN THÀNH CÀI ĐẶT" cuối script (che giá trị Token).
+
+**Bước 3:** Chép file thực thi vào thư mục cài đặt và khởi động service (script đã tự làm nếu file có sẵn từ trước; nếu script báo "File ... chưa có" thì làm tay):
+
+```bash
+mkdir -p ~/ipgs/remote-agent
+cp ~/IPGS.RemoteControl.ZcuAgent ~/ipgs/remote-agent/     # chép binary vào thư mục cài đặt
+chmod +x ~/ipgs/remote-agent/IPGS.RemoteControl.ZcuAgent  # cấp quyền thực thi
+systemctl --user start ipgs-remote-agent.service           # khởi động agent
+```
+
+**Bước 4:** Kiểm tra theo mục 12.5, rồi khai báo máy vào CCU (mục 4.1) với đúng IP + cổng + Token vừa cài.
+
+### 12.3 Vị trí file sau khi cài
+
+| Thành phần | Đường dẫn trên máy ZCU |
+|---|---|
+| File thực thi agent | `~/ipgs/remote-agent/IPGS.RemoteControl.ZcuAgent` |
+| File cấu hình | `~/ipgs/remote-agent/appsettings.json` |
+| Unit file systemd (user service) | `~/.config/systemd/user/ipgs-remote-agent.service` |
+| .NET Runtime (nếu cài bởi script/wizard) | `~/.dotnet/` |
+| Log | systemd journal (xem `journalctl`, mục 12.5) — agent không ghi file log riêng |
+
+*(`~` là thư mục nhà của tài khoản đã dùng để cài, ví dụ `/home/<tên người dùng>`.)*
+
+### 12.4 Cấu hình `appsettings.json`
+
+File `~/ipgs/remote-agent/appsettings.json` do trình cài đặt **tự sinh** theo tham số bạn nhập — bình thường không cần sửa tay. Cấu trúc (khối `RemoteControl`):
+
+```json
+{
+  "RemoteControl": {
+    "Port": 17600,
+    "Token": "<mã kết nối>",
+    "AllowedClientIPs": [ "192.168.1.0/24" ],
+    "TargetFps": 15,
+    "JpegQuality": 70,
+    "MaxFrameBytes": 8388608
+  }
+}
+```
+
+| Khóa | Ý nghĩa | Ghi chú |
+|---|---|---|
+| `Port` | Cổng TCP agent lắng nghe | Mặc định 17600. **Giá trị thực tế là giá trị trình cài đặt đã ghi vào file này** — nếu tài liệu/bản mẫu nào đó ghi cổng khác (ví dụ bản cấu hình mẫu cũ dùng 5900), hãy lấy nội dung file trên máy làm chuẩn |
+| `Token` | Mã bảo mật dùng chung với CCU | Bắt buộc — agent từ chối kết nối sai Token. Không gửi Token qua kênh không an toàn |
+| `AllowedClientIPs` | Danh sách IP/dải CIDR được phép kết nối | **Danh sách rỗng = chặn tất cả** (mặc định an toàn). `0.0.0.0/0` = cho phép mọi IP — agent chấp nhận nhưng ghi cảnh báo lúc khởi động |
+| `EnableDesktopIntegration` | Cho phép chat notification (`notify-send`) và đồng bộ clipboard (`xclip`) | Mặc định `true`; đặt `false` nếu muốn cấm agent gọi tiến trình ngoài |
+| `TargetFps` | Khung hình/giây (5–30) | Giảm nếu mạng yếu |
+| `JpegQuality` | Chất lượng nén (40–95) | Giảm nếu mạng yếu |
+| `MaxFrameBytes` | Giới hạn kích thước 1 khung hình | Giữ mặc định 8388608 (8 MB) |
+
+Xem nhanh cấu hình hiện tại trên máy:
+
+```bash
+cat ~/ipgs/remote-agent/appsettings.json
+```
+
+> ⏳ **[CHỜ ẢNH: `zcu-terminal-appsettings.png`]** — Chụp terminal ZCU chạy `cat ~/ipgs/remote-agent/appsettings.json` (che giá trị Token).
+
+> ⚠️ **Cảnh báo:** Sau khi sửa tay `appsettings.json`, phải khởi động lại service (mục 12.5) thì thay đổi mới có hiệu lực. Nếu đổi `Port` hoặc `Token`, nhớ cập nhật lại hồ sơ máy trên CCU (mục 4.1) và tường lửa (`sudo ufw allow <cổng mới>/tcp`).
+
+### 12.5 Quản lý dịch vụ systemd
+
+ZcuAgent chạy dưới dạng **systemd user service** (gắn với tài khoản đã cài, không phải service hệ thống) — vì agent cần truy cập màn hình X11 của phiên đăng nhập. Các lệnh dưới đây chạy bằng chính tài khoản đó, **không dùng `sudo`**:
+
+```bash
+systemctl --user status  ipgs-remote-agent.service   # xem trạng thái — cần "active (running)"
+systemctl --user restart ipgs-remote-agent.service   # khởi động lại (sau khi đổi cấu hình)
+systemctl --user stop    ipgs-remote-agent.service   # dừng tạm
+systemctl --user start   ipgs-remote-agent.service   # chạy lại
+systemctl --user enable  ipgs-remote-agent.service   # tự chạy khi đăng nhập (trình cài đã bật sẵn)
+systemctl --user disable ipgs-remote-agent.service   # bỏ tự chạy
+```
+
+> ⏳ **[CHỜ ẢNH: `zcu-terminal-service-status.png`]** — Chụp `systemctl --user status ipgs-remote-agent.service` với trạng thái `active (running)`, thấy dòng Loaded/Active và vài dòng log cuối.
+
+**Xem log của agent** (log ghi vào systemd journal):
+
+```bash
+journalctl --user -u ipgs-remote-agent.service -e     # nhảy tới log mới nhất
+journalctl --user -u ipgs-remote-agent.service -f     # theo dõi log thời gian thực (Ctrl+C để thoát)
+journalctl --user -u ipgs-remote-agent.service --since "1 hour ago"   # log 1 giờ gần nhất
+```
+
+> ⏳ **[CHỜ ẢNH: `zcu-terminal-journalctl.png`]** — Chụp `journalctl --user -u ipgs-remote-agent.service -e` hiển thị các dòng log khởi động của agent.
+
+**Để agent chạy cả khi chưa ai đăng nhập terminal:** trình cài đã bật *lingering* cho tài khoản (`sudo loginctl enable-linger <tên người dùng>`). Tuy nhiên phần truyền màn hình chỉ hoạt động khi phiên đồ họa X11 đang mở — với máy trạm không người trực, kết hợp **Autologin** (thiết lập được qua Kiosk Deploy, mục 9.3) để máy tự vào màn hình chính sau khi khởi động.
+
+### 12.6 Kiểm tra sau cài đặt
+
+Theo thứ tự từ máy ZCU ra tới máy CCU:
+
+**1. Service đang chạy?** — `systemctl --user status ipgs-remote-agent.service` → `active (running)`.
+
+**2. Agent đang lắng nghe đúng cổng?**
+
+```bash
+ss -tlnp | grep 17600      # phải thấy một dòng LISTEN trên cổng 17600
+```
+
+**3. Tường lửa đã mở cổng?**
+
+```bash
+sudo ufw status            # nếu UFW đang bật, phải có luật ALLOW cho 17600/tcp
+```
+
+> ⏳ **[CHỜ ẢNH: `zcu-terminal-ufw-status.png`]** — Chụp `sudo ufw status` có luật `17600/tcp ALLOW` (comment "IPGS Remote Control Agent").
+
+**4. Từ máy CCU:** mở phần mềm CCU → chấm **Remote** của máy chuyển xanh (mục 3.2.2) → nhấn **Kết nối** thấy màn hình ZCU. Hoặc dùng **🔍 Quét mạng** (mục 4.2) — máy phải xuất hiện trong kết quả quét.
+
+**Nếu chưa được:** xem FAQ mục 14.1.
+
+### 12.7 Gỡ cài đặt / Nâng cấp
+
+**Gỡ cài đặt** (chạy trên máy ZCU bằng tài khoản đã cài):
+
+```bash
+systemctl --user stop ipgs-remote-agent.service       # dừng agent
+systemctl --user disable ipgs-remote-agent.service    # bỏ tự chạy
+rm ~/.config/systemd/user/ipgs-remote-agent.service   # xóa unit file
+systemctl --user daemon-reload                        # nạp lại cấu hình systemd
+rm -rf ~/ipgs/remote-agent                            # xóa thư mục cài đặt (binary + cấu hình)
+sudo ufw delete allow 17600/tcp                       # (tùy chọn) đóng cổng trên tường lửa
+```
+
+**Nâng cấp phiên bản:** chạy lại trình cài (Cách 1 mục 9.1 hoặc Cách 2 mục 12.2) — trình cài tự dừng service cũ, ghi đè binary và khởi động lại. Cấu hình sẽ được ghi lại theo tham số nhập lần này, vì vậy **nhập lại đúng Token/cổng đang dùng** nếu không muốn phải cập nhật lại hồ sơ máy trên CCU.
+
+---
 
 ## 13. Khóa & bảo mật hệ thống
 
-> 🚧 Nội dung Phần 2 được viết ở bước 3.1.
+### 13.1 Khóa SSH
 
-*(Nội dung dự kiến: 13.1 Khóa SSH — 13.2 Token ZcuAgent — 13.3 Sinh cặp khóa bản quyền bằng công cụ KeyGen — 13.4 Quy trình cấp & kích hoạt bản quyền (thao tác chi tiết tại mục 10.1).)*
+Kênh SSH là "chìa khóa quản trị" máy ZCU — mọi chức năng file/lệnh/cài đặt từ CCU đều đi qua đây. Phần mềm CCU đăng nhập SSH bằng **tên người dùng + mật khẩu** lưu trong hồ sơ máy (mục 4.1), vì vậy tối thiểu phải:
+
+- Dùng mật khẩu mạnh cho tài khoản trên máy ZCU (không dùng mật khẩu mặc định/dễ đoán).
+- Chỉ những người được phân công mới biết mật khẩu; đổi mật khẩu khi nhân sự thay đổi (`passwd` trên máy ZCU, sau đó cập nhật hồ sơ máy trên CCU).
+
+**Dùng thêm khóa SSH (khuyến nghị cho kỹ thuật viên):** khi cần truy cập SSH thủ công (ngoài phần mềm CCU), nên xác thực bằng cặp khóa thay vì mật khẩu. Trên máy của kỹ thuật viên:
+
+```bash
+ssh-keygen -t ed25519 -C "kythuat@kztek"        # sinh cặp khóa (Enter để nhận mặc định, nên đặt passphrase)
+ssh-copy-id <tên người dùng>@192.168.1.x         # cài khóa công khai lên máy ZCU (nhập mật khẩu lần cuối)
+ssh <tên người dùng>@192.168.1.x                 # từ nay đăng nhập không cần mật khẩu
+```
+
+> ⏳ **[CHỜ ẢNH: `zcu-terminal-ssh-keygen.png`]** — Chụp terminal chạy `ssh-keygen -t ed25519` và `ssh-copy-id` thành công tới máy ZCU (che fingerprint nếu cần).
+
+> ⚠️ **Cảnh báo:** Không tắt xác thực mật khẩu SSH (`PasswordAuthentication no`) trên máy ZCU khi hệ thống vẫn dùng phần mềm CCU để quản trị — phiên bản hiện tại của phần mềm CCU đăng nhập SSH bằng mật khẩu, tắt đi sẽ làm mọi nút quản trị (📁, >_, ⚡ Cài remote...) ngừng hoạt động.
+
+### 13.2 Token ZcuAgent
+
+Token là mã bí mật dùng chung: CCU gửi Token khi kết nối, agent đối chiếu với giá trị trong `appsettings.json` — sai là từ chối. Quy tắc quản lý:
+
+- **Sinh ngẫu nhiên, đủ dài:** dùng nút **🎲 Sinh Token** trên wizard (mục 9.1) hoặc `openssl rand -hex 16` — không tự nghĩ chuỗi ngắn dễ đoán.
+- **Mỗi máy một Token riêng** — lộ một máy không ảnh hưởng máy khác.
+- **Lưu trữ:** Token nằm trong `appsettings.json` trên máy ZCU và trong hồ sơ máy trên CCU. Không gửi Token qua chat/email không mã hóa.
+- **Đổi Token định kỳ hoặc khi nghi lộ:** sửa `Token` trong `appsettings.json` (hoặc chạy lại trình cài với Token mới) → `systemctl --user restart ipgs-remote-agent.service` → cập nhật hồ sơ máy trên CCU (nút **Sửa**).
+
+### 13.3 Sinh cặp khóa bản quyền bằng công cụ KeyGen ⚙️ nội bộ KZTEK
+
+*(Mục này dành riêng cho bộ phận phát hành của KZTEK — kỹ thuật viên hiện trường không cần thực hiện.)*
+
+Cơ chế bản quyền dùng chữ ký số RSA 2048: **khóa công khai** nhúng sẵn trong phần mềm CCU để kiểm tra chữ ký; **khóa bí mật** do KZTEK giữ, dùng để ký mã kích hoạt cấp cho khách.
+
+Công cụ `KeyGen` (project console trong bộ mã nguồn) sinh cặp khóa:
+
+```bash
+cd KeyGen
+dotnet run          # in ra "Public Key:" và "Private Key (Keep Secret):" dạng XML
+```
+
+> ⏳ **[CHỜ ẢNH: `keygen-output.png`]** — Chụp console KeyGen in ra hai khối Public Key / Private Key (che gần hết nội dung khóa, chỉ giữ vài ký tự đầu để minh họa).
+
+- **Public Key:** nhúng vào mã nguồn phần mềm CCU (thay giá trị trong `LicenseManagerService`) rồi build lại bản phát hành.
+- **Private Key:** lưu trữ tuyệt mật tại KZTEK (không đưa vào mã nguồn, không gửi qua mạng) — dùng cho công cụ ký license nội bộ.
+
+> ⚠️ **Cảnh báo:** Sinh cặp khóa mới đồng nghĩa **mọi mã kích hoạt đã cấp bằng khóa cũ trở nên không hợp lệ** với bản phần mềm nhúng khóa mới. Chỉ thay khóa khi có chủ trương, và quản lý phiên bản khóa ↔ phiên bản phần mềm cẩn thận.
+
+### 13.4 Quy trình cấp & kích hoạt bản quyền
+
+Thao tác kích hoạt trên máy CCU đã mô tả tại **mục 10.1**. Quy trình đầy đủ hai phía:
+
+1. Khách/kỹ thuật viên lấy **Hardware ID** trên cửa sổ kích hoạt của máy CCU (mã sinh từ địa chỉ phần cứng mạng của máy, dạng `XXXX-XXXX-XXXX-XXXX`) và gửi cho KZTEK.
+2. KZTEK tạo mã kích hoạt: gói thông tin *Tên khách hàng | Hardware ID | Ngày hết hạn* và **ký bằng khóa bí mật** (mục 13.3).
+3. Khách dán mã vào cửa sổ kích hoạt → phần mềm kiểm tra chữ ký bằng khóa công khai, đối chiếu Hardware ID và hạn dùng → hợp lệ thì lưu vào máy (file `license.key` trong thư mục dữ liệu ứng dụng của Windows) và báo thành công.
+
+> **Lưu ý về hiện trạng:** Ở phiên bản phần mềm hiện tại, cơ chế bản quyền đã có đầy đủ phần kiểm tra mã, nhưng **chưa khóa chức năng khi thiếu bản quyền** — phần mềm CCU vẫn dùng được bình thường khi chưa kích hoạt, và cửa sổ kích hoạt không có nút mở từ giao diện chính (xem mục 10.1). Việc bật ràng buộc bản quyền (nếu cần) do KZTEK quyết định theo từng bản phát hành — tài liệu này không cam kết hành vi khóa ứng dụng.
+
+### 13.5 Khuyến nghị bảo mật khi triển khai
+
+| Hạng mục | Khuyến nghị |
+|---|---|
+| `AllowedClientIPs` | Thu hẹp về dải mạng thật (ví dụ `192.168.1.0/24`) hoặc chỉ đúng IP máy CCU — không để `0.0.0.0/0` khi vận hành lâu dài |
+| Tường lửa (UFW) | Chỉ mở cổng 22 và cổng agent (17600); xóa các luật không dùng (`sudo ufw status numbered` → `sudo ufw delete <số>`) |
+| Mật khẩu | Đổi mật khẩu mặc định của mọi tài khoản trên máy ZCU ngay khi triển khai; dùng mật khẩu khác nhau giữa các máy |
+| Token | Mỗi máy một Token ngẫu nhiên; đổi khi nghi lộ (mục 13.2) |
+| Mạng | Đặt các máy CCU/ZCU trong mạng LAN/VLAN nội bộ — **không** mở cổng agent ra Internet |
+| Cập nhật | Cập nhật bảo mật Ubuntu định kỳ (`sudo apt update && sudo apt upgrade`) theo lịch bảo trì |
 
 ---
 
@@ -951,7 +1272,26 @@ A: Không — Hardware ID thay đổi theo máy. Liên hệ KZTEK để được
 
 ### 14.1 FAQ triển khai ZCU
 
-> 🚧 Nội dung Phần 2 được viết ở bước 3.1.
+**Q: Cài xong nhưng service báo `failed` / agent không chạy?**
+A: Xem lý do trong log: `journalctl --user -u ipgs-remote-agent.service -e`. Ba nguyên nhân hay gặp: (1) phiên đăng nhập là **Wayland** — agent in lỗi `XDG_SESSION_TYPE` và tự thoát, chuyển sang "Ubuntu on Xorg" (mục 11.2); (2) thiếu thư viện X11 — chạy `sudo apt install -y libx11-6 libxext6 libxtst6`; (3) file thực thi chưa có hoặc chưa có quyền chạy — kiểm tra `ls -l ~/ipgs/remote-agent/` và `chmod +x` (mục 12.2 Bước 3).
+
+**Q: Agent đang `active (running)` nhưng CCU quét mạng/kết nối không thấy máy?**
+A: Kiểm tra theo thứ tự: (1) `ss -tlnp | grep 17600` — agent có lắng nghe đúng cổng không, và cổng đó có khớp với cổng nhập trên CCU không; (2) `sudo ufw status` — tường lửa đã mở cổng chưa (`sudo ufw allow 17600/tcp` nếu thiếu); (3) từ máy CCU `ping` tới IP máy ZCU; (4) `AllowedClientIPs` trong `appsettings.json` có chứa IP/dải mạng của máy CCU không — **danh sách rỗng là chặn tất cả**; sửa xong nhớ restart service.
+
+**Q: Kết nối bị từ chối dù mạng thông — nghi sai Token?**
+A: Token hai bên phải trùng từng ký tự. So sánh giá trị `Token` trong `~/ipgs/remote-agent/appsettings.json` trên máy ZCU với ô Token trong hồ sơ máy trên CCU (nút **Sửa**). Lưu ý: nếu vừa chạy lại trình cài đặt với Token mới sinh, hồ sơ cũ trên CCU vẫn giữ Token cũ — cập nhật lại.
+
+**Q: Máy ZCU khởi động lại xong là mất kết nối, phải vào máy bật lại agent?**
+A: Kiểm tra 3 điều: (1) service đã `enable` chưa — `systemctl --user is-enabled ipgs-remote-agent.service` phải trả về `enabled`; (2) lingering đã bật chưa — `loginctl show-user <tên người dùng> | grep Linger` phải là `Linger=yes` (bật bằng `sudo loginctl enable-linger <tên người dùng>`); (3) máy có tự đăng nhập vào phiên đồ họa X11 không — agent cần phiên màn hình đang mở, thiết lập Autologin qua Kiosk Deploy (mục 9.3) cho máy không người trực.
+
+**Q: Nghi ngờ firewall chặn cổng — kiểm tra thế nào?**
+A: Trên máy ZCU: `sudo ufw status verbose` — nếu `Status: active` mà không có luật ALLOW cho cổng agent, chạy `sudo ufw allow 17600/tcp`. Kiểm tra chiều từ CCU: PowerShell `Test-NetConnection 192.168.1.x -Port 17600` — `TcpTestSucceeded : True` là thông. Đừng quên thiết bị mạng trung gian (router/switch có ACL) cũng có thể chặn.
+
+**Q: Xem log của agent ở đâu? Có file log không?**
+A: Agent không ghi file log riêng — toàn bộ log vào systemd journal. Dùng `journalctl --user -u ipgs-remote-agent.service -e` (mới nhất), thêm `-f` để theo dõi trực tiếp, hoặc `--since "1 hour ago"` để giới hạn thời gian (mục 12.5).
+
+**Q: Kết nối được nhưng màn hình truyền về đen thui?**
+A: Thường do máy ZCU đã tự khóa màn hình/tắt màn hình. Trình cài đặt đã tắt tự khóa GNOME, nhưng nếu máy cài tay hoặc ai đó bật lại: chạy `gsettings set org.gnome.desktop.screensaver lock-enabled false` và `gsettings set org.gnome.desktop.session idle-delay 0` trên máy ZCU. Cũng kiểm tra máy có đang đứng ở màn hình đăng nhập (chưa vào desktop) không — cần Autologin cho máy không người trực.
 
 ### 14.2 FAQ vận hành CCU
 
@@ -995,7 +1335,7 @@ VP HCM: 6B11 Đường số 9, Khu phố 4, Phường An Khánh, TP. HCM
 
 ## Phụ lục A — Danh sách ảnh còn thiếu
 
-> Checklist cho phiên chụp bổ sung khi máy ZCU hoạt động trở lại. Điều kiện tiên quyết: **ZCU** = cần máy ZCU `192.168.1.x` online (cổng 17600); **SSH** = cần SSH tới ZCU (cổng 22); **DATA** = cần dữ liệu mẫu (3 máy P01/P02/P03, thư mục demo trên ZCU); **Harness** = cần công cụ dev mở LicenseWindow (không có đường mở từ giao diện); **User OK** = cần người phụ trách xác nhận vì thao tác thay đổi máy ZCU thật.
+> Checklist cho phiên chụp bổ sung khi máy ZCU hoạt động trở lại. Điều kiện tiên quyết: **ZCU** = cần máy ZCU `192.168.1.x` online (cổng 17600); **SSH** = cần SSH tới ZCU (cổng 22); **DATA** = cần dữ liệu mẫu (3 máy P01/P02/P03, thư mục demo trên ZCU); **Harness** = cần công cụ dev mở LicenseWindow (không có đường mở từ giao diện); **User OK** = cần người phụ trách xác nhận vì thao tác thay đổi máy ZCU thật; **ZCU-TERM** = cần thao tác trực tiếp trên terminal của máy ZCU (ngồi tại máy hoặc SSH); **DEV** = chụp trên máy phát triển có mã nguồn, không cần ZCU.
 
 | # | Tên file | Màn hình | Trạng thái cần chụp | Điều kiện |
 |---|---|---|---|---|
@@ -1051,8 +1391,17 @@ VP HCM: 6B11 Đường số 9, Khu phố 4, Phường An Khánh, TP. HCM
 | 50 | `license-error-empty.png` | Kích hoạt bản quyền | "Vui lòng nhập License Key." | Harness |
 | 51 | `license-error-invalid.png` | Kích hoạt bản quyền | Lỗi key sai | Harness |
 | 52 | `license-success.png` | Kích hoạt bản quyền | Kích hoạt thành công | Harness + key hợp lệ (ứng viên BLOCK) |
+| 53 | `zcu-terminal-session-x11.png` | Terminal ZCU (ch11.2) | `echo $XDG_SESSION_TYPE` trả về `x11` | ZCU-TERM |
+| 54 | `zcu-terminal-ssh-install.png` | Terminal ZCU (ch11.3) | `systemctl status ssh` sau khi cài openssh-server: `active (running)` | ZCU-TERM |
+| 55 | `zcu-terminal-setup-script.png` | Terminal ZCU (ch12.2) | Chạy `setup-zcu-agent.sh`: các bước [1/7]–[7/7] + khối "HOÀN THÀNH" (che Token) | ZCU-TERM + User OK (cài thật) |
+| 56 | `zcu-terminal-appsettings.png` | Terminal ZCU (ch12.4) | `cat ~/ipgs/remote-agent/appsettings.json` (che Token) | ZCU-TERM (agent đã cài) |
+| 57 | `zcu-terminal-service-status.png` | Terminal ZCU (ch12.5) | `systemctl --user status ipgs-remote-agent.service` → `active (running)` | ZCU-TERM (agent đã cài) |
+| 58 | `zcu-terminal-journalctl.png` | Terminal ZCU (ch12.5) | `journalctl --user -u ipgs-remote-agent.service -e` — log khởi động agent | ZCU-TERM (agent đã cài) |
+| 59 | `zcu-terminal-ufw-status.png` | Terminal ZCU (ch12.6) | `sudo ufw status` có luật `17600/tcp ALLOW` | ZCU-TERM (agent đã cài) |
+| 60 | `zcu-terminal-ssh-keygen.png` | Terminal kỹ thuật viên (ch13.1) | `ssh-keygen -t ed25519` + `ssh-copy-id` thành công tới ZCU (che fingerprint) | ZCU-TERM |
+| 61 | `keygen-output.png` | Console KeyGen (ch13.3) | `dotnet run` in Public/Private Key (che gần hết nội dung khóa) | DEV |
 
-> **Lưu ý cho phiên chụp bổ sung:** (1) Ảnh #7 và #18 là best-effort — thiếu không tính thiếu coverage; (2) các ảnh Phần 2 (terminal ZCU, KeyGen) không nằm trong bảng này — thuộc phạm vi bước viết Phần 2; (3) sau khi bổ sung ảnh, thay marker `⏳ [CHỜ ẢNH]` tương ứng bằng thẻ chèn ảnh Markdown + caption và **đánh số lại toàn bộ Hình** theo thứ tự xuất hiện.
+> **Lưu ý cho phiên chụp bổ sung:** (1) Ảnh #7 và #18 là best-effort — thiếu không tính thiếu coverage; (2) các ảnh Phần 2 (terminal ZCU #53–60, KeyGen #61) đã được bổ sung vào bảng này ở bước viết Phần 2 — riêng #61 chụp được ngay trên máy phát triển, không cần chờ ZCU; (3) sau khi bổ sung ảnh, thay marker `⏳ [CHỜ ẢNH]` tương ứng bằng thẻ chèn ảnh Markdown + caption và **đánh số lại toàn bộ Hình** theo thứ tự xuất hiện.
 
 ---
 
