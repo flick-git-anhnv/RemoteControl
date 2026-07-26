@@ -1,7 +1,7 @@
 ---
 task: user-manual-ccu-zcu
 created: 2026-07-26
-updated: 2026-07-26 17:28
+updated: 2026-07-26 17:52
 status: planning
 workflow: WF-DOCS
 priority: P2
@@ -43,15 +43,19 @@ Screenshot BẮT BUỘC chụp từ app chạy thật (build Release trên máy 
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
 |---|------|-------|--------|-----------|-----------------|
 | 2.1 | Nhóm Kết nối & Quản lý thiết bị: MainWindow, ConnectionEntryWindow, ComputerEditWindow, NetworkScanWindow, SessionPickerWindow, ConfirmDeleteDialog | documentation-writer | ✅ | `steps/STEP-2.1-shots-connection.md` | 2026-07-26 17:28 |
-| 2.2 | Nhóm Remote & Điều khiển: RemoteScreenWindow, RemoteScreenControl, MultiRemoteWindow, RemoteCommandWindow, FileManagerWindow | documentation-writer | ⬜ | `steps/STEP-2.2-shots-remote.md` | - |
+| 2.2 | Nhóm Remote & Điều khiển: RemoteScreenWindow, RemoteScreenControl, MultiRemoteWindow, RemoteCommandWindow, FileManagerWindow | documentation-writer | 🛑 | `steps/STEP-2.2-shots-remote.md` | - (4/28 ảnh — chờ ZCU online) |
 | 2.3 | Nhóm Triển khai & Quản trị: ZcuSetupWizardWindow, KioskDeployWindow, RemoteAppInstallWindow, BulkActionWindow, CronJobWindow | documentation-writer | ⬜ | `steps/STEP-2.3-shots-deploy.md` | - |
 | 2.4 | Nhóm Giám sát & Hệ thống: HealthMonitorWindow, SystemInventoryWindow, LicenseWindow (+ ảnh terminal ZCU nếu có thiết bị) | documentation-writer | ⬜ | `steps/STEP-2.4-shots-monitor.md` | - |
 
 ### Phase 3: Viết nội dung Markdown
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
 |---|------|-------|--------|-----------|-----------------|
-| 3.1 | Viết phần ZCU: cài đặt .deb, systemd service, khóa SSH, kiểm tra hoạt động | documentation-writer | ⬜ | `steps/STEP-3.1-write-zcu.md` | - |
-| 3.2 | Viết phần CCU: thao tác từng màn hình theo Screen Inventory, chèn ảnh đúng chỗ, hoàn thiện MANUAL .md | documentation-writer | ⬜ | `steps/STEP-3.2-write-ccu.md` | - |
+> ⚠️ **[USER CHỐT 2026-07-26] ĐỔI THỨ TỰ:** viết phần **CCU TRƯỚC**, ZCU sau. Trong MANUAL: **Phần 1 = CCU (thao tác app)**, **Phần 2 = ZCU (triển khai)** — ngược với dự kiến ban đầu của plan/scope doc. Bước **3.2 chạy TRƯỚC 3.1**.
+
+| # | Bước | Agent | Status | Step file | Hoàn thành lúc |
+|---|------|-------|--------|-----------|-----------------|
+| 3.2 | **(chạy trước)** Viết phần CCU: thao tác từng màn hình theo Screen Inventory, chèn ảnh đúng chỗ — trở thành Phần 1 của MANUAL | documentation-writer | ⬜ | `steps/STEP-3.2-write-ccu.md` | - |
+| 3.1 | **(chạy sau)** Viết phần ZCU: cài đặt .deb, systemd service, khóa SSH, kiểm tra hoạt động — trở thành Phần 2 của MANUAL | documentation-writer | ⬜ | `steps/STEP-3.1-write-zcu.md` | - |
 
 ### Phase 4: Xuất & nghiệm thu
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
@@ -66,7 +70,7 @@ Screenshot BẮT BUỘC chụp từ app chạy thật (build Release trên máy 
 - [ ] `_workspace/` trung gian: `00_pm_docs-scope.md`, `00_docwriter_screen-inventory.md` (không commit)
 
 ## Blockers
-Không có (tại thời điểm tạo plan).
+- 🛑 **[2026-07-26 17:52 — Bước 2.2] ZCU `192.168.1.4` vẫn OFFLINE dù user báo đã bật lại VM.** Ping fail ~6 phút liên tục (Destination host unreachable); cổng 22/17600 đóng; quét cả subnet 192.168.1.1–254 không thấy máy nào mở 2 cổng này (loại trừ khả năng đổi IP DHCP). Nghi vấn: VM đang ở network mode **NAT thay vì Bridged**, hoặc VM chưa boot xong/treo. **Cần user:** kiểm tra VM (chế độ mạng Bridged, chạy `ip a` trong VM xác nhận IP) rồi yêu cầu chạy tiếp bước 2.2 — 24/28 ảnh nhóm 2.2 + 2 ảnh bù 2.1 + dữ liệu demo SSH đang chờ.
 
 **Rủi ro đã nhận diện:**
 1. Một số màn hình/trạng thái (RemoteScreen đang stream, FileManager kết nối SFTP, HealthMonitor có dữ liệu, ZcuSetupWizard cài thật...) cần thiết bị ZCU thật hoặc kết nối SSH đang hoạt động. Nếu không có thiết bị → bước screenshot tương ứng ghi 🛑 BLOCK + báo user, KHÔNG bịa ảnh, KHÔNG dùng placeholder. Tài liệu vẫn viết phần text, đánh dấu vị trí ảnh chờ bổ sung.
@@ -76,7 +80,9 @@ Không có (tại thời điểm tạo plan).
 ## Quyết định / Ghi chú tổng
 - **[USER DUYỆT 2026-07-26]** Plan được duyệt, chạy liên tục các bước (không dừng chờ OK giữa từng bước).
 - **[USER CHỐT 2026-07-26]** Scope BAO GỒM cả `KeyGen` (quy trình sinh khóa) và `LicenseWindow` — không loại trừ. Bước 0.1 không cần đề xuất lại vấn đề này.
-- **[USER CHỐT 2026-07-26]** 1 file duy nhất `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md` — Phần 1 = triển khai ZCU, Phần 2 = thao tác CCU. KHÔNG tách 2 file.
+- **[USER CHỐT 2026-07-26]** 1 file duy nhất `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md`. KHÔNG tách 2 file.
+- **[USER ĐỔI Ý 2026-07-26 — ưu tiên cao hơn mọi ghi chú cũ]** Thứ tự trong MANUAL: **Phần 1 = CCU (thao tác app)**, **Phần 2 = ZCU (triển khai)**. Viết CCU trước, ZCU sau → chạy **STEP-3.2 trước STEP-3.1**. Mục lục 16 chương ở `_workspace/00_pm_docs-scope.md` phải đánh số lại theo thứ tự mới khi viết.
+- **[USER 2026-07-26]** Máy ảo ZCU `192.168.1.4` đã được bật lại sau bước 2.1 → bước 2.2 kiểm tra kết nối lại và chụp bù `network-scan-results.png` + chụp lại `connection-entry-default.png` (P01 online).
 - **[USER CUNG CẤP 2026-07-26]** Thiết bị ZCU thật cho Phase 2: host `192.168.1.4`, user `kztek`. **Credential đầy đủ (kèm mật khẩu) lưu tại `temp/user-manual-ccu-zcu/zcu-connection.md` — thư mục `temp/` đã gitignore, TUYỆT ĐỐI KHÔNG chép mật khẩu vào bất kỳ file nào dưới `docs/` hoặc `_workspace/`.** Trong MANUAL phải dùng giá trị ví dụ giả (`192.168.1.x`, `<user>`), không ghi credential thật.
 - **[USER CHỐT 2026-07-26 — Phase 2, trả lời 5 mục cần quyết ở `_workspace/00_docwriter_screen-inventory.md` §4]**
   - ✅ **ĐƯỢC PHÉP** chạy thật ZcuSetupWizard cài/cập nhật ZcuAgent lên `192.168.1.4` (giữ nguyên Token/Port hiện tại, chấp nhận restart agent) → chụp `zcu-setup-wizard-installing/success`, `zcu-terminal-*`.
@@ -95,6 +101,7 @@ Không có (tại thời điểm tạo plan).
 | 2026-07-26 | Bước 0.1 ✅ — scope + mục lục 16 chương tại `_workspace/00_pm_docs-scope.md`; ghi nhận MainWindow ≡ ConnectionEntryWindow (18 view duy nhất) | product-manager |
 | 2026-07-26 | Bước 0.2 ✅ — Screen Inventory 18/18 view + checklist 79 ảnh (2.1=16, 2.2=28, 2.3=20, 2.4=15) tại `_workspace/00_docwriter_screen-inventory.md`; điều chỉnh: ConfirmDeleteDialog + SystemInventoryWindow chụp trong bước 2.2; LicenseWindow không có entry point UI → cần harness dev tạm; 5 mục cần quyết định trước Phase 2 (mục 4 inventory) | documentation-writer |
 | 2026-07-26 | Bước 1.1 ✅ — Build Release CcuUI 0 error; app chạy thật từ exe Release (PID 17180, để nguyên cho Phase 2); script chụp `temp/user-manual-ccu-zcu/capture-window.ps1` (PrintWindow + PW_RENDERFULLCONTENT — không bị cửa sổ khác che); kiểm chứng bằng ảnh thật `screenshots/connection-entry-default.png` (1216×799) | documentation-writer |
+| 2026-07-26 | Bước 2.2 🛑 BLOCKED — ZCU 192.168.1.4 vẫn offline (ping+cổng 22/17600 fail ~6 phút, quét subnet không thấy); chụp được 4/28 ảnh không cần ZCU (`remote-screen-connecting/-ssh-help/-faulted`, `multi-remote-empty` — verify bằng Read); 2 ảnh bù 2.1 (`network-scan-results`, `connection-entry-default` P01 online) CHƯA chụp được — cùng chờ ZCU; tool mới `temp/user-manual-ccu-zcu/actions-22.ps1` (double-click item mở RemoteScreen) | documentation-writer |
 | 2026-07-26 | Bước 2.1 ✅ — 15/16 ảnh nhóm Kết nối & Quản lý thiết bị (verify từng ảnh bằng Read); 🛑 thiếu `network-scan-results` + ⚠️ `connection-entry-default` chụp bản P01-offline (ZCU 192.168.1.4 không mở cổng 22/17600 — cần user kiểm tra thiết bị trước bước 2.2); dữ liệu mẫu P01/P02/P03 giữ trong store, backup store thật tại `temp/user-manual-ccu-zcu/profiles.backup.json` (khôi phục ở 4.1) | documentation-writer |
 
 ---
