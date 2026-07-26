@@ -82,6 +82,50 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
     public partial class BulkActionWindow : Window
     {
+        /// <summary>
+        /// S3: Chỉ match "sudo" ở VỊ TRÍ LỆNH (đầu chuỗi hoặc ngay sau ; &amp; | ( ) —
+        /// không match chuỗi "sudo " nằm trong string literal giữa lệnh.
+        /// (Helper cục bộ — ShellQuote bên CcuClient là internal, xem Handoff bước 1.1.)
+        /// </summary>
+        private static readonly System.Text.RegularExpressions.Regex SudoPattern =
+            new(@"(^|[;&|(])(\s*)sudo(?=\s)", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        /// <summary>Quote single-quote POSIX ('...' với ' bên trong → '\'').</summary>
+        private static string ShQuote(string value)
+            => "'" + value.Replace("'", "'\\''") + "'";
+
+        /// <summary>
+        /// S3: Chạy lệnh SSH. Password sudo ghi vào STDIN của channel (mỗi sudo 1 dòng)
+        /// thay vì nhúng vào command line — không lộ qua `ps -ef` / `/proc/*/environ` trên máy remote.
+        /// Lệnh không có sudo thì không pipe password (tránh lệnh đọc stdin nhận nhầm password).
+        /// </summary>
+        private static async Task<(string Output, string Error)> RunSshCommandAsync(SshClient ssh, string command, string sudoPassword)
+        {
+            int sudoCount = SudoPattern.Matches(command).Count;
+            bool feedPassword = sudoCount > 0 && !string.IsNullOrEmpty(sudoPassword);
+
+            string finalCmd = feedPassword ? SudoPattern.Replace(command, "$1$2sudo -S -p ''") : command;
+            string bashCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus bash -c {ShQuote(finalCmd)}";
+
+            using var cmd = ssh.CreateCommand(bashCmd, Encoding.UTF8);
+            if (feedPassword)
+            {
+                var execTask = cmd.ExecuteAsync();
+                using (var input = cmd.CreateInputStream())
+                {
+                    var passBytes = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat(sudoPassword + "\n", sudoCount)));
+                    await input.WriteAsync(passBytes);
+                }
+                await execTask;
+            }
+            else
+            {
+                await cmd.ExecuteAsync();
+            }
+
+            return (cmd.Result ?? string.Empty, cmd.Error ?? string.Empty);
+        }
+
         private readonly List<ComputerProfile> _targets;
         private readonly ObservableCollection<BulkTaskResult> _results;
 
@@ -176,14 +220,9 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 using var ssh = new SshClient(profile.Host, sshPort, profile.SshUsername ?? "", profile.SshPassword ?? "");
                 ssh.Connect();
 
-                string escapedSudoPass = (profile.SshPassword ?? "").Replace("'", "'\\''").Replace("\n", "").Replace("\r", "");
-                string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS='{escapedSudoPass}'";
-                
-                using var cmd = ssh.CreateCommand($"{envCmd} bash -c '{cmdToRun.Replace("'", "'\\''")}'", Encoding.UTF8);
-                cmd.Execute();
-                
-                string result = (cmd.Result ?? string.Empty) + "\n" + (cmd.Error ?? string.Empty);
-                return result;
+                // S3: password sudo đi qua stdin của channel, không nhúng vào command line / env
+                var (output, error) = await RunSshCommandAsync(ssh, cmdToRun, profile.SshPassword ?? "");
+                return output + "\n" + error;
             });
         }
 
@@ -252,11 +291,12 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 }
                 finally
                 {
-                    completed++;
-                    Dispatcher.UIThread.Post(() => 
+                    // Q15: nhiều task song song cùng tăng biến đếm — phải Interlocked, dùng giá trị trả về
+                    int done = System.Threading.Interlocked.Increment(ref completed);
+                    Dispatcher.UIThread.Post(() =>
                     {
-                        if (pb != null) pb.Value = completed;
-                        if (textProgress != null) textProgress.Text = $"Đang xử lý: {completed}/{_results.Count}";
+                        if (pb != null) pb.Value = done;
+                        if (textProgress != null) textProgress.Text = $"Đang xử lý: {done}/{_results.Count}";
                     });
                 }
             });

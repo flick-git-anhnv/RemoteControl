@@ -1,0 +1,37 @@
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.ConfirmDeleteDialog"
+        Title="Xác nhận xóa"
+        Width="500" SizeToContent="Height" MaxHeight="480"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        Background="#1E1E2E">
+
+  <StackPanel Margin="20" Spacing="12">
+
+    <TextBlock Text="⚠️ Bạn sắp xóa vĩnh viễn các mục sau trên máy đích:"
+               Foreground="White" FontSize="14" FontWeight="Bold" TextWrapping="Wrap"/>
+
+    <Border Background="#11111B" BorderBrush="#313244" BorderThickness="1"
+            CornerRadius="6" Padding="10" MaxHeight="220">
+      <ScrollViewer>
+        <TextBlock x:Name="PART_ItemList"
+                   Foreground="#CDD6F4" FontSize="12"
+                   FontFamily="Consolas,Courier New,monospace"
+                   TextWrapping="Wrap"/>
+      </ScrollViewer>
+    </Border>
+
+    <TextBlock x:Name="PART_DirWarning"
+               Text="Trong danh sách có THƯ MỤC — toàn bộ nội dung bên trong sẽ bị xóa đệ quy (rm -rf), KHÔNG thể khôi phục."
+               Foreground="#F38BA8" FontSize="12" TextWrapping="Wrap"
+               IsVisible="False"/>
+
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
+      <kz:KzButton x:Name="PART_BtnCancel" Content="Hủy" KzSize="Sm"/>
+      <kz:KzButton x:Name="PART_BtnConfirm" Content="🗑 Xóa vĩnh viễn" KzSize="Sm" Classes="kz-primary"/>
+    </StackPanel>
+
+  </StackPanel>
+</Window>

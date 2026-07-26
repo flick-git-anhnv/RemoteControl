@@ -39,6 +39,51 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
     public partial class RemoteCommandWindow : Window
     {
+        /// <summary>
+        /// S3: Chỉ match "sudo" ở VỊ TRÍ LỆNH (đầu chuỗi hoặc ngay sau ; &amp; | ( ) —
+        /// không match chuỗi "sudo " nằm trong string literal giữa lệnh.
+        /// </summary>
+        private static readonly System.Text.RegularExpressions.Regex SudoPattern =
+            new(@"(^|[;&|(])(\s*)sudo(?=\s)", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        /// <summary>Quote single-quote POSIX ('...' với ' bên trong → '\'') — như CronJobWindow.ShQuote.</summary>
+        private static string ShQuote(string value)
+            => "'" + value.Replace("'", "'\\''") + "'";
+
+        /// <summary>
+        /// S3: Chạy lệnh SSH. Password sudo được ghi vào STDIN của channel (mỗi lần sudo 1 dòng)
+        /// thay vì nhúng vào command line — không còn lộ qua `ps -ef` / `/proc/*/environ` trên máy remote.
+        /// Lệnh KHÔNG có sudo thì không pipe gì cả (tránh lệnh đọc stdin nhận nhầm password làm input).
+        /// </summary>
+        private static async Task<(string Output, string Error)> RunSshCommandAsync(SshClient ssh, string command, string sudoPassword)
+        {
+            int sudoCount = SudoPattern.Matches(command).Count;
+            bool feedPassword = sudoCount > 0 && !string.IsNullOrEmpty(sudoPassword);
+
+            // -S: đọc password từ stdin; -p '': không in prompt ra stderr
+            string finalCmd = feedPassword ? SudoPattern.Replace(command, "$1$2sudo -S -p ''") : command;
+            string bashCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus bash -c {ShQuote(finalCmd)}";
+
+            using var cmd = ssh.CreateCommand(bashCmd, Encoding.UTF8);
+            if (feedPassword)
+            {
+                var execTask = cmd.ExecuteAsync();
+                using (var input = cmd.CreateInputStream())
+                {
+                    // Mỗi sudo -S đọc đúng 1 dòng password từ stdin
+                    var passBytes = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat(sudoPassword + "\n", sudoCount)));
+                    await input.WriteAsync(passBytes);
+                }
+                await execTask;
+            }
+            else
+            {
+                await cmd.ExecuteAsync();
+            }
+
+            return (cmd.Result ?? string.Empty, cmd.Error ?? string.Empty);
+        }
+
         private readonly string _sshHost;
         private readonly int _sshPort;
         private readonly string _sshUser;
@@ -102,13 +147,14 @@ namespace IPGS.RemoteControl.CcuUI.Views
             var btnDelete = this.FindControl<Button>("PART_BtnFileDelete");
             if (btnDelete != null) btnDelete.Click += OnFileDeleteClick;
 
-            this.Closed += (s, e) => 
+            // Q17: LUÔN dispose — kể cả khi client đã tạo nhưng connect fail (IsConnected == false)
+            this.Closed += (s, e) =>
             {
-                if (_sftpClient != null && _sftpClient.IsConnected)
-                {
-                    _sftpClient.Disconnect();
-                    _sftpClient.Dispose();
-                }
+                var client = _sftpClient;
+                _sftpClient = null;
+                if (client == null) return;
+                try { if (client.IsConnected) client.Disconnect(); } catch { /* đóng cửa sổ — bỏ qua lỗi mạng */ }
+                try { client.Dispose(); } catch { }
             };
 
             var btnSync = this.FindControl<Button>("PART_BtnFileSync");
@@ -196,43 +242,28 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             try
             {
-                await Task.Run(() =>
+                await Task.Run(async () =>
                 {
                     using var ssh = new SshClient(_sshHost, _sshPort, _sshUser, _sshPassword);
                     ssh.Connect();
                     if (!ssh.IsConnected)
                         throw new Exception("Không thể mở kết nối SSH tới máy đích.");
 
-                    string escapedSudoPass = sudoPass
-                        .Replace("'", "'\\''")
-                        .Replace("\n", "")
-                        .Replace("\r", "");
-                    
-                    string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS='{escapedSudoPass}'";
-                    
-                    string finalCmdToRun = cmdToRun.Replace("sudo ", "sudo -S ");
-                    string bashCmd = $"{envCmd} bash -c '{finalCmdToRun.Replace("'", "'\\''")}'";
-                    if (!string.IsNullOrEmpty(sudoPass))
-                    {
-                        bashCmd = $"echo '{escapedSudoPass}' | {bashCmd}";
-                    }
-                    
-                    using var cmd = ssh.CreateCommand(bashCmd, Encoding.UTF8);
-                    
-                    cmd.Execute();
-                    
-                    string result = (cmd.Result ?? string.Empty).TrimEnd();
+                    // S3: password đi qua stdin của channel — không nhúng vào command line
+                    var (result, err) = await RunSshCommandAsync(ssh, cmdToRun, sudoPass);
+
+                    result = result.TrimEnd();
                     if (!string.IsNullOrEmpty(result))
                     {
                         Log(result);
                     }
 
-                    string err = (cmd.Error ?? string.Empty).TrimEnd();
+                    err = err.TrimEnd();
                     if (!string.IsNullOrEmpty(err))
                     {
                         Log("[STDERR / WARNING]:\n" + err);
                     }
-                    
+
                     ssh.Disconnect();
                 });
 
@@ -581,41 +612,64 @@ namespace IPGS.RemoteControl.CcuUI.Views
             var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
             string currentPath = txtPath?.Text?.Trim() ?? "/home";
 
-            // Ideally we should ask for confirmation, but for now we proceed.
-            // Since Avalonia MessageBox isn't built-in easily without a package, we just delete.
+            // Q14: BẮT BUỘC xác nhận trước khi xóa — nêu rõ danh sách đường dẫn + cảnh báo rm -rf cho thư mục
+            bool hasDirectory = items.Any(i => i.IsDirectory);
+            var paths = items.Select(i => (i.IsDirectory ? "📁 " : "📄 ") + i.FullName).ToList();
+            bool confirmed = await ConfirmDeleteDialog.ShowAsync(this, paths, hasDirectory);
+            if (!confirmed) return;
+
             SetStatus($"Đang xóa {items.Count} mục...", false);
 
+            var failures = new List<string>();
             try
             {
                 await EnsureSftpConnectedAsync();
 
                 foreach (var item in items)
                 {
-                    await Task.Run(() => 
+                    await Task.Run(() =>
                     {
                         if (item.IsDirectory)
                         {
-                            // simple delete directory might fail if not empty, but SftpClient.DeleteDirectory requires empty.
-                            // To force delete we could run a ssh command "rm -rf", but let's try SFTP first.
+                            // SftpClient.DeleteDirectory chỉ xóa được thư mục rỗng — fallback rm -rf qua SSH.
                             try { _sftpClient!.DeleteDirectory(item.FullName); }
-                            catch 
+                            catch
                             {
-                                // fallback to rm -rf via SSH
-                                using var ssh = new SshClient(_sshHost, _sshPort, _sshUser, _sshPassword);
-                                ssh.Connect();
-                                using var cmd = ssh.CreateCommand($"rm -rf '{item.FullName.Replace("'", "'\\''")}'");
-                                cmd.Execute();
-                                ssh.Disconnect();
+                                // Q14: fallback rm -rf phải báo lỗi nếu thất bại, không nuốt im lặng
+                                try
+                                {
+                                    using var ssh = new SshClient(_sshHost, _sshPort, _sshUser, _sshPassword);
+                                    ssh.Connect();
+                                    using var cmd = ssh.CreateCommand($"rm -rf {ShQuote(item.FullName)}");
+                                    cmd.Execute();
+                                    string err = (cmd.Error ?? "").Trim();
+                                    if (cmd.ExitStatus != 0)
+                                        failures.Add($"{item.FullName}: {(string.IsNullOrEmpty(err) ? $"rm -rf exit {cmd.ExitStatus}" : err)}");
+                                    ssh.Disconnect();
+                                }
+                                catch (Exception sshEx)
+                                {
+                                    failures.Add($"{item.FullName}: {sshEx.Message}");
+                                }
                             }
                         }
                         else
                         {
-                            _sftpClient!.DeleteFile(item.FullName);
+                            try { _sftpClient!.DeleteFile(item.FullName); }
+                            catch (Exception fileEx) { failures.Add($"{item.FullName}: {fileEx.Message}"); }
                         }
                     });
                 }
 
-                SetStatus("🎉 Đã xóa thành công!", false, true);
+                if (failures.Count == 0)
+                {
+                    SetStatus("🎉 Đã xóa thành công!", false, true);
+                }
+                else
+                {
+                    SetStatus($"⚠️ Xóa xong nhưng {failures.Count}/{items.Count} mục bị lỗi (xem log).", true);
+                    Log("❌ Các mục xóa thất bại:\n" + string.Join("\n", failures));
+                }
                 await LoadDirectoryAsync(currentPath);
             }
             catch (Exception ex)

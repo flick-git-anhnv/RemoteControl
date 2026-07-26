@@ -15,10 +15,28 @@ public partial class ConnectionEntryWindow : Window
     private readonly IComputerProfileStore _store;
     private bool _showRecentOnly;
 
+    // L7: chống "bão probe" theo keystroke — debounce search + hủy batch probe cũ khi có batch mới
+    private CancellationTokenSource? _probeCts;
+    private readonly DispatcherTimer _searchDebounceTimer;
+
     public ConnectionEntryWindow()
     {
         InitializeComponent();
         _store = ComputerProfileStore.Instance;
+
+        // L7: gõ liên tục chỉ refresh 1 lần sau khi ngừng gõ ~300ms
+        _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _searchDebounceTimer.Tick += (_, _) =>
+        {
+            _searchDebounceTimer.Stop();
+            RefreshList();
+        };
+
+        Closed += (_, _) =>
+        {
+            _searchDebounceTimer.Stop();
+            try { _probeCts?.Cancel(); } catch { }
+        };
 
         // Toolbar buttons
         if (this.FindControl<KzButton>("PART_BtnScanNetwork") is { } btnScan)
@@ -37,14 +55,15 @@ public partial class ConnectionEntryWindow : Window
         if (this.FindControl<KzButton>("PART_BtnTabRecent") is { } btnRecent)
             btnRecent.Click += (_, _) => SwitchTab(recentOnly: true);
 
-        // Search box
+        // Search box — L7: debounce thay vì refresh + probe mỗi keystroke
         if (this.FindControl<KzTextBox>("PART_SearchBox") is { } searchBox)
         {
             searchBox.PropertyChanged += (_, e) =>
             {
                 if (e.Property.Name == nameof(TextBox.Text))
                 {
-                    RefreshList();
+                    _searchDebounceTimer.Stop();
+                    _searchDebounceTimer.Start();
                 }
             };
         }
@@ -107,23 +126,50 @@ public partial class ConnectionEntryWindow : Window
             emptyState.IsVisible = resultList.Count == 0;
         }
 
-        _ = CheckAllStatusesAsync(resultList);
+        // L7: hủy batch probe cũ trước khi chạy batch mới — batch cũ hoàn thành muộn
+        // không được ghi đè trạng thái bằng kết quả lỗi thời.
+        // Không Dispose CTS cũ ngay: task in-flight còn giữ token (tránh ObjectDisposedException).
+        _probeCts?.Cancel();
+        _probeCts = new CancellationTokenSource();
+        _ = CheckAllStatusesAsync(resultList, _probeCts.Token);
     }
 
-    private async Task CheckAllStatusesAsync(List<ComputerProfile> profiles)
+    private async Task CheckAllStatusesAsync(List<ComputerProfile> profiles, CancellationToken ct)
     {
-        foreach (var profile in profiles)
+        // L7: fire-and-forget PHẢI có try/catch — tránh unobserved task exception
+        try
         {
-            profile.MarkChecking();
+            foreach (var profile in profiles)
+            {
+                profile.MarkChecking();
+            }
+
+            var tasks = profiles.Select(async profile =>
+            {
+                // Truyền uiDispatch để mutation CpuUsage/RamUsage/DiskUsage xảy ra trên UI thread
+                // (param mới của ProbeAsync — xem bước 1.1)
+                var result = await ComputerStatusChecker.ProbeAsync(
+                    profile, ct, action => Dispatcher.UIThread.Post(action));
+
+                if (ct.IsCancellationRequested) return; // batch đã bị thay thế — bỏ kết quả cũ
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (!ct.IsCancellationRequested)
+                        profile.ApplyStatusResult(result);
+                });
+            });
+
+            await Task.WhenAll(tasks);
         }
-
-        var tasks = profiles.Select(async profile =>
+        catch (OperationCanceledException)
         {
-            var result = await ComputerStatusChecker.ProbeAsync(profile);
-            Dispatcher.UIThread.Post(() => profile.ApplyStatusResult(result));
-        });
-
-        await Task.WhenAll(tasks);
+            // batch bị hủy do có batch mới / cửa sổ đóng — bình thường
+        }
+        catch (Exception)
+        {
+            // lỗi probe nền không được làm crash app; trạng thái giữ nguyên "checking/unknown"
+        }
     }
 
     private async void OnAddComputerClick(object? sender, RoutedEventArgs e)

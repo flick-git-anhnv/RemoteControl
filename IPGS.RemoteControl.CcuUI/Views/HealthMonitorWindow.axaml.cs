@@ -27,6 +27,10 @@ public partial class HealthMonitorWindow : Window
     private DispatcherTimer? _timer;
     private bool _isConnecting;
 
+    // Q18: giữ 1 kết nối SSH xuyên suốt thay vì mở kết nối mới mỗi tick 5s (chậm + nặng cho ZCU)
+    private SshClient? _sshClient;
+    private bool _isClosed;
+
     public ObservableCollection<ProcessItem> Processes { get; set; } = new();
 
     public HealthMonitorWindow()
@@ -73,6 +77,45 @@ public partial class HealthMonitorWindow : Window
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         _timer?.Stop();
+        _isClosed = true;
+
+        // Q18: nếu đang có refresh in-flight thì finally của RefreshMetricsAsync sẽ dispose
+        // (cả Closed lẫn finally đều chạy trên UI thread → không race).
+        if (!_isConnecting)
+            DisposeSshClient();
+    }
+
+    private void DisposeSshClient()
+    {
+        var client = _sshClient;
+        _sshClient = null;
+        if (client == null) return;
+        try { if (client.IsConnected) client.Disconnect(); } catch { /* đang đóng — bỏ qua lỗi mạng */ }
+        try { client.Dispose(); } catch { }
+    }
+
+    /// <summary>Q18: đảm bảo có kết nối SSH sống — chỉ tạo/connect lại khi chưa có hoặc đã rớt.</summary>
+    private SshClient EnsureSshConnected()
+    {
+        var client = _sshClient;
+        if (client != null && client.IsConnected) return client;
+
+        // Kết nối cũ rớt → dọn trước khi tạo mới
+        if (client != null)
+        {
+            try { client.Dispose(); } catch { }
+            _sshClient = null;
+        }
+
+        string host = _profile.Host;
+        int port = _profile.SshPort > 0 ? _profile.SshPort : 22;
+        string username = !string.IsNullOrWhiteSpace(_profile.SshUsername) ? _profile.SshUsername : "kztek";
+        string password = _profile.SshPassword ?? "";
+
+        var newClient = new SshClient(host, port, username, password);
+        newClient.Connect();
+        _sshClient = newClient;
+        return newClient;
     }
 
     private async void OnRefreshClick(object? sender, RoutedEventArgs e)
@@ -93,39 +136,34 @@ public partial class HealthMonitorWindow : Window
 
     private async Task RefreshMetricsAsync()
     {
-        if (_isConnecting) return;
+        if (_isConnecting || _isClosed) return;
         _isConnecting = true;
         SetStatus($"Đang tải dữ liệu lúc {DateTime.Now:HH:mm:ss}...");
 
         try
         {
-            string host = _profile.Host;
-            int port = _profile.SshPort > 0 ? _profile.SshPort : 22;
-            string username = !string.IsNullOrWhiteSpace(_profile.SshUsername) ? _profile.SshUsername : "kztek";
-            string password = _profile.SshPassword ?? "";
-
             await Task.Run(() =>
             {
-                using var ssh = new SshClient(host, port, username, password);
-                ssh.Connect();
+                // Q18: tái sử dụng kết nối; chỉ reconnect khi rớt
+                var ssh = EnsureSshConnected();
 
                 // 1. RAM Usage
-                var ramCmd = ssh.CreateCommand("free -m");
+                using var ramCmd = ssh.CreateCommand("free -m");
                 string ramResult = ramCmd.Execute();
-                
+
                 // 2. Disk Usage
-                var diskCmd = ssh.CreateCommand("df -h /");
+                using var diskCmd = ssh.CreateCommand("df -h /");
                 string diskResult = diskCmd.Execute();
-                
+
                 // 3. Top Processes & CPU
                 // top -b -n 1 returns batch mode output once.
-                var topCmd = ssh.CreateCommand("top -b -n 1 | head -n 15");
+                using var topCmd = ssh.CreateCommand("top -b -n 1 | head -n 15");
                 string topResult = topCmd.Execute();
-
-                ssh.Disconnect();
 
                 Dispatcher.UIThread.Post(() =>
                 {
+                    // Q18: guard — refresh in-flight không được post UI vào window đã đóng
+                    if (_isClosed) return;
                     ParseAndUpdateUI(ramResult, diskResult, topResult);
                     SetStatus($"Cập nhật lần cuối: {DateTime.Now:HH:mm:ss}");
                 });
@@ -133,11 +171,17 @@ public partial class HealthMonitorWindow : Window
         }
         catch (Exception ex)
         {
-            SetStatus($"Lỗi kết nối: {ex.Message}");
+            // Kết nối có thể đã hỏng — dispose để tick sau tự reconnect
+            DisposeSshClient();
+            if (!_isClosed)
+                SetStatus($"Lỗi kết nối: {ex.Message}");
         }
         finally
         {
             _isConnecting = false;
+            // Q18: cửa sổ đã đóng trong lúc refresh chạy → dispose tại đây (op cuối cùng)
+            if (_isClosed)
+                DisposeSshClient();
         }
     }
 
