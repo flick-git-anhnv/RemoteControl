@@ -554,8 +554,18 @@ Trong lúc verify Q1/Q9 phát hiện **F11 (P2)**: script ghi file `.bak-*` củ
 | **Ảnh hưởng phụ** | Vì backup byte-đúng nên hiện tại lockdown vẫn hoạt động ĐÚNG (fail an toàn về phía "vẫn khoá") — KHÔNG hạ bảo mật. Rủi ro thực: (a) đường bảo trì gỡ khoá bị hỏng khiến kỹ thuật viên tưởng máy lỗi; (b) nếu tương lai một lần deploy GỠ BỚT 1 key khỏi lockdown, các `.bak` cũ vẫn chứa key đó → key bị "gỡ" vẫn bị khoá âm thầm qua backup cũ (khó chẩn đoán). |
 | **Đề xuất cho Senior Developer** | Đổi `BAK_SUFFIX`/đường dẫn backup của mục [9/9] (dòng 362, 500-502, 526-527) sang thư mục NGOÀI `/etc/dconf/db/local.d/`; hoặc dùng đuôi mà dconf bỏ qua thì vẫn KHÔNG an toàn (dconf đọc mọi file) → bắt buộc chuyển ra ngoài thư mục. Cập nhật câu lệnh gỡ khoá bảo trì tương ứng. Dọn các `.bak` đang tồn trong db trên máy đã deploy. |
 
-| Finding | Trạng thái | File chính cần sửa |
+> **✅ Đã sửa (2026-07-27, senior-developer):**
+> - **Nguyên nhân gốc:** script backup bằng `cp file file.bak-<ts>` NGAY TẠI CHỖ — nhưng `dconf update` biên dịch **mọi file** trong `local.d/` và `locks/` bất kể đuôi tên, nên bản `.bak` (byte-đúng của lockdown) tái áp toàn bộ lock sau khi quản trị viên xoá file chính. Cùng pattern ở `/etc/dconf/profile/` (mỗi file = 1 profile riêng, `user.bak-*` không được dùng nên vô hại nhưng là rác tích luỹ — QA thấy 9 file sau các lần deploy).
+> - **Cách sửa (`scripts/linux-kiosk/2-configure-system.sh`):**
+>   1. **Backup ra ngoài cây dconf db:** thêm `BACKUP_DIR=/var/backups/kztek-kiosk` + helper `_backup_sys_file` (tên đích kèm tên thư mục cha — tránh trùng basename giữa settings và locks) — áp cho cả 3 file profile/settings/locks ở CẢ 2 nhánh khoá/gỡ. Watchdog unit backup cũng chuyển về `$HOME/.local/state/kztek-kiosk-backups/` (systemd bỏ qua đuôi lạ nhưng không để rác).
+>   2. **Sweep file rác:** helper `_sweep_stray_dconf_backups` chuyển mọi `00-kiosk-lockdown.*` / `user.*` còn sót (từ bản script cũ) trong `local.d`/`locks`/`profile` sang `BACKUP_DIR` — chạy ở cả 2 nhánh; chỉ đụng file prefix của mình, KHÔNG đụng config khác (VD `01-*`). Sau cài có kiểm tra `find ... -name '00-kiosk-lockdown.*'` phải = 0.
+>   3. **Helper gỡ khoá 1 lệnh `sudo ipgs-kiosk-unlock`** (cài vào `/usr/local/sbin/`, sinh từ heredoc trong script): xoá file lockdown + mọi file rác cùng prefix → `dconf update` → **TỰ XÁC MINH** `gsettings writable org.gnome.mutter overlay-key` = `true` chạy dưới user kiosk qua session bus (process mới đọc profile mới ngay — G020), in `UNLOCK-VERIFIED`/`UNLOCK-FAILED`. Lệnh in ra cuối mục [9/9] + nhánh gỡ (tham số 11=0) cũng verify `writable=true` thay vì chỉ tin "đã xoá file".
+>   4. **Rà cả script:** GDM `custom.conf.bak-*` trong `/etc/gdm3/` GIỮ NGUYÊN — GDM chỉ đọc đúng file `custom.conf`, không quét thư mục (khác dconf), không phải lỗi. File tạm dùng `mktemp -d` ngoài db — sạch.
+> - **Kiểm chứng thật trên ZCU `192.168.0.101` (chu trình đầy đủ):** (1) dọn **11 file rác** (2 `.bak` local.d/locks + 9 `user.bak-*` profile) → `/var/backups/kztek-kiosk/`, db chỉ còn 2 file canonical, vẫn khoá (`writable=false`); (2) `sudo ipgs-kiosk-unlock` → in `UNLOCK-VERIFIED: overlay-key writable=true`, kiểm chứng độc lập từ SSH cũng `true` — **đường gỡ khoá bảo trì hoạt động thật** (trước fix: gỡ xong vẫn `false` vì `.bak` tái áp); (3) khoá lại (restore từ backup + `dconf update`) → `writable=false`, db sạch. **Trạng thái cuối: ĐANG KHOÁ** (cấu hình đích), helper 755 tại `/usr/local/sbin/ipgs-kiosk-unlock`, ZcuAgent RUNNING, SSH sống.
+> - **Build/syntax:** `bash -n 2-configure-system.sh` OK; helper sinh ra `bash -n` OK; không chạm C#.
+
+| Finding | Trạng thái | File chính đã sửa |
 |---|---|---|
-| F11 Backup dconf trong thư mục db → gỡ khoá bảo trì không hiệu lực | 🆕 Mới phát hiện (QA verify F09/F10) — chờ Senior Developer | `scripts/linux-kiosk/2-configure-system.sh` mục [9/9] |
+| F11 Backup dconf trong thư mục db → gỡ khoá bảo trì không hiệu lực | ✅ Đã sửa + kiểm chứng chu trình gỡ khoá → khoá lại trên ZCU thật; đã dọn 11 file rác trên máy | `scripts/linux-kiosk/2-configure-system.sh` mục [9/9] (+ helper `ipgs-kiosk-unlock`) |
 
 ---

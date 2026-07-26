@@ -352,14 +352,48 @@ fi
 #   Chặn triệt để cần session gnome-kiosk / WM khác (chưa có gói cho Ubuntu 22.04).
 #
 # GỠ KHOÁ ĐỂ BẢO TRÌ (quản trị viên, qua SSH):
-#   sudo rm /etc/dconf/db/local.d/00-kiosk-lockdown \
-#           /etc/dconf/db/local.d/locks/00-kiosk-lockdown && sudo dconf update
+#   sudo ipgs-kiosk-unlock        ← helper cài sẵn (F11): xoá file lockdown + mọi file
+#                                   rác 00-kiosk-lockdown* còn sót, dconf update, TỰ
+#                                   XÁC MINH gsettings writable=true.
 #   (hoặc chạy lại script này với tham số 11 = 0). Khoá lại: chạy script, tham số 11 = 1.
+#
+# F11 (QA phát hiện 2026-07-27): dconf update biên dịch MỌI FILE trong local.d/ và
+# locks/ BẤT KỂ đuôi tên — backup .bak-* đặt trong đó sẽ TÁI ÁP toàn bộ lock sau khi
+# gỡ file chính → đường gỡ khoá bảo trì bị hỏng. Vì vậy: backup PHẢI ghi ra ngoài cây
+# /etc/dconf/db/ (dùng $BACKUP_DIR dưới đây), và mọi thao tác gỡ khoá phải dọn cả
+# file 00-kiosk-lockdown* còn sót rồi XÁC MINH bằng gsettings writable.
 DCONF_PROFILE="/etc/dconf/profile/user"
 DCONF_LOCAL_D="/etc/dconf/db/local.d"
 DCONF_SETTINGS="$DCONF_LOCAL_D/00-kiosk-lockdown"
 DCONF_LOCKS="$DCONF_LOCAL_D/locks/00-kiosk-lockdown"
 BAK_SUFFIX="bak-$(date +%Y%m%d%H%M%S)"
+BACKUP_DIR="/var/backups/kztek-kiosk"          # backup file hệ thống (cần sudo)
+USER_BACKUP_DIR="$HOME/.local/state/kztek-kiosk-backups"  # backup file user-level
+UNLOCK_HELPER="/usr/local/sbin/ipgs-kiosk-unlock"
+
+# F11: backup 1 file hệ thống ra $BACKUP_DIR (KHÔNG bao giờ để cạnh file gốc trong
+# thư mục mà dconf/GDM quét). Tên đích có thêm tên thư mục cha để tránh trùng
+# basename (settings và locks cùng tên 00-kiosk-lockdown).
+_backup_sys_file() {
+    [ -f "$1" ] || return 0
+    _sudo mkdir -p "$BACKUP_DIR"
+    _sudo cp "$1" "$BACKUP_DIR/$(basename "$(dirname "$1")")-$(basename "$1").$BAK_SUFFIX" || true
+}
+
+# F11: dọn mọi file rác 00-kiosk-lockdown.* / user.* (backup của bản script cũ) đang
+# nằm SAI CHỖ trong local.d/ + locks/ + profile/ — chuyển sang $BACKUP_DIR. Chỉ đụng
+# file có prefix của mình, KHÔNG đụng config khác (VD 01-* của quản trị viên).
+_sweep_stray_dconf_backups() {
+    local moved=0 f
+    for f in "$DCONF_SETTINGS".* "$DCONF_LOCKS".* "$DCONF_PROFILE".*; do
+        [ -f "$f" ] || continue
+        _sudo mkdir -p "$BACKUP_DIR"
+        _sudo mv "$f" "$BACKUP_DIR/$(basename "$(dirname "$f")")-$(basename "$f")" || true
+        moved=$((moved+1))
+    done
+    [ "$moved" -gt 0 ] && echo "  → F11: đã chuyển $moved file backup nằm sai chỗ trong dconf db → $BACKUP_DIR"
+    return 0
+}
 
 if [ "$LOCKDOWN_SHELL" = "1" ]; then
     echo "=== [9/9] Khoá lối thoát kiosk (dconf system-wide + lock) ==="
@@ -496,16 +530,63 @@ EOF
 /org/gnome/desktop/screensaver/lock-enabled
 EOF
 
-    # Backup file cũ (nếu có) rồi cài đặt.
-    [ -f "$DCONF_PROFILE" ] && _sudo cp "$DCONF_PROFILE" "$DCONF_PROFILE.$BAK_SUFFIX" || true
-    [ -f "$DCONF_SETTINGS" ] && _sudo cp "$DCONF_SETTINGS" "$DCONF_SETTINGS.$BAK_SUFFIX" || true
-    [ -f "$DCONF_LOCKS" ] && _sudo cp "$DCONF_LOCKS" "$DCONF_LOCKS.$BAK_SUFFIX" || true
+    # Backup file cũ (nếu có) rồi cài đặt — F11: backup ra $BACKUP_DIR, TUYỆT ĐỐI
+    # không đặt trong local.d/locks/profile (dconf update nạp mọi file trong đó).
+    _backup_sys_file "$DCONF_PROFILE"
+    _backup_sys_file "$DCONF_SETTINGS"
+    _backup_sys_file "$DCONF_LOCKS"
+    _sweep_stray_dconf_backups
 
     _sudo mkdir -p "$DCONF_LOCAL_D/locks"
     _sudo cp "$TMP_D/profile-user" "$DCONF_PROFILE"
     _sudo cp "$TMP_D/settings" "$DCONF_SETTINGS"
     _sudo cp "$TMP_D/locks" "$DCONF_LOCKS"
     _sudo dconf update
+    # F11: cài helper gỡ khoá bảo trì /usr/local/sbin/ipgs-kiosk-unlock — 1 lệnh duy
+    # nhất cho quản trị viên: xoá file lockdown + dọn mọi file rác 00-kiosk-lockdown*
+    # còn sót trong db, dconf update, và TỰ XÁC MINH bằng gsettings writable (chạy
+    # dưới user kiosk qua session bus — process mới đọc profile mới ngay, G020).
+    cat > "$TMP_D/unlock-helper" <<HELPER_EOF
+#!/bin/bash
+# ipgs-kiosk-unlock — Gỡ khoá lối thoát kiosk để BẢO TRÌ.
+# Sinh bởi 2-configure-system.sh (F11) — chạy: sudo ipgs-kiosk-unlock
+# Khoá lại: chạy Kiosk Deploy (tick "Khoá lối thoát kiosk") hoặc 2-configure-system.sh tham số 11=1.
+set -e
+if [ "\$EUID" -ne 0 ]; then echo "Chạy bằng sudo: sudo ipgs-kiosk-unlock" >&2; exit 1; fi
+BK="$BACKUP_DIR"
+mkdir -p "\$BK"
+TS="\$(date +%Y%m%d%H%M%S)"
+# Xoá file lockdown chính + MỌI file rác cùng prefix (F11: dconf update nạp mọi file
+# trong local.d/locks bất kể đuôi — .bak còn sót sẽ tái áp lock).
+for f in "$DCONF_SETTINGS" "$DCONF_SETTINGS".* "$DCONF_LOCKS" "$DCONF_LOCKS".*; do
+    [ -f "\$f" ] || continue
+    mv "\$f" "\$BK/unlock-\$TS-\$(basename "\$(dirname "\$f")")-\$(basename "\$f")"
+done
+dconf update
+LEFT="\$(find "$DCONF_LOCAL_D" -maxdepth 2 -type f -name '00-kiosk-lockdown*' 2>/dev/null | wc -l)"
+if [ "\$LEFT" != "0" ]; then
+    echo "UNLOCK-FAILED: vẫn còn \$LEFT file 00-kiosk-lockdown* trong $DCONF_LOCAL_D" >&2
+    exit 1
+fi
+# Xác minh thật bằng process MỚI dưới user kiosk (cần session bus đang chạy).
+KUSER="$KIOSK_USER"
+KUID="\$(id -u "\$KUSER" 2>/dev/null || echo '')"
+if [ -n "\$KUID" ] && [ -S "/run/user/\$KUID/bus" ]; then
+    W="\$(runuser -u "\$KUSER" -- env DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$KUID/bus gsettings writable org.gnome.mutter overlay-key 2>/dev/null || echo '?')"
+    if [ "\$W" = "true" ]; then
+        echo "UNLOCK-VERIFIED: overlay-key writable=true — khoá đã gỡ thật (file cũ lưu: \$BK)."
+    else
+        echo "CẢNH BÁO: gsettings writable trả về '\$W' (mong đợi true) — kiểm tra thủ công trong phiên user: gsettings writable org.gnome.mutter overlay-key" >&2
+        exit 1
+    fi
+else
+    echo "Đã gỡ file lockdown + dconf update (không xác minh tự động được — session bus user chưa chạy)."
+    echo "Xác minh thủ công trong phiên user: gsettings writable org.gnome.mutter overlay-key → phải là true."
+fi
+echo "Lưu ý: phiên GNOME đang chạy vẫn giữ khoá cũ tới khi đăng xuất/khởi động lại."
+HELPER_EOF
+    _sudo cp "$TMP_D/unlock-helper" "$UNLOCK_HELPER"
+    _sudo chmod 755 "$UNLOCK_HELPER"
     rm -rf "$TMP_D"
 
     # KIỂM CHỨNG THẬT — không tin _sudo (sudo sai mật khẩu → lệnh âm thầm không chạy).
@@ -513,26 +594,41 @@ EOF
         echo "LOCKDOWN-FAILED: không ghi được dconf DB hệ thống (kiểm tra sudo password)." >&2
         exit 1
     fi
+    # F11: xác nhận không còn file rác trong db sau khi cài (sweep phải sạch).
+    STRAY_LEFT="$(find "$DCONF_LOCAL_D" -maxdepth 2 -type f -name '00-kiosk-lockdown.*' 2>/dev/null | wc -l)"
+    if [ "$STRAY_LEFT" != "0" ]; then
+        echo "CẢNH BÁO: còn $STRAY_LEFT file backup nằm sai chỗ trong $DCONF_LOCAL_D (F11) — kiểm tra sudo password." >&2
+    fi
     EFFECTIVE_OVERLAY="$(gsettings get org.gnome.mutter overlay-key 2>/dev/null || echo '?')"
     if [ "$EFFECTIVE_OVERLAY" = "''" ]; then
         echo "  → LOCKDOWN-VERIFIED: overlay-key='' (đã khoá), files: $DCONF_SETTINGS + $DCONF_LOCKS"
     else
         echo "CẢNH BÁO: overlay-key hiện là $EFFECTIVE_OVERLAY — session có thể cần đăng nhập lại để dconf profile mới có hiệu lực." >&2
     fi
-    echo "  → Gỡ khoá bảo trì: sudo rm $DCONF_SETTINGS $DCONF_LOCKS && sudo dconf update"
+    echo "  → Gỡ khoá bảo trì: sudo ipgs-kiosk-unlock  (tự dọn file rác + dconf update + xác minh writable=true)"
 else
     echo "=== [9/9] GỠ khoá lối thoát kiosk (chế độ bảo trì) ==="
     if [ -f "$DCONF_SETTINGS" ] || [ -f "$DCONF_LOCKS" ]; then
-        [ -f "$DCONF_SETTINGS" ] && _sudo cp "$DCONF_SETTINGS" "$DCONF_SETTINGS.$BAK_SUFFIX" || true
-        [ -f "$DCONF_LOCKS" ] && _sudo cp "$DCONF_LOCKS" "$DCONF_LOCKS.$BAK_SUFFIX" || true
+        # F11: backup ra $BACKUP_DIR (ngoài cây dconf db) + dọn cả file rác cùng prefix.
+        _backup_sys_file "$DCONF_SETTINGS"
+        _backup_sys_file "$DCONF_LOCKS"
         _sudo rm -f "$DCONF_SETTINGS" "$DCONF_LOCKS"
+        _sweep_stray_dconf_backups
         _sudo dconf update
         if [ -f "$DCONF_SETTINGS" ] || [ -f "$DCONF_LOCKS" ]; then
             echo "UNLOCK-FAILED: không xóa được dconf lockdown (kiểm tra sudo password)." >&2
             exit 1
         fi
-        echo "  → Đã gỡ khoá (backup: *.$BAK_SUFFIX). Đăng nhập lại/reboot để phím tắt hoạt động lại."
+        # F11: XÁC MINH đã gỡ thật — process mới đọc profile mới ngay (G020), key phải
+        # writable trở lại. Không tin việc "đã xoá file" là đủ.
+        W_CHECK="$(gsettings writable org.gnome.mutter overlay-key 2>/dev/null || echo '?')"
+        if [ "$W_CHECK" = "true" ]; then
+            echo "  → UNLOCK-VERIFIED: overlay-key writable=true (backup tại $BACKUP_DIR). Đăng nhập lại/reboot để phím tắt hoạt động lại."
+        else
+            echo "CẢNH BÁO: gsettings writable trả về '$W_CHECK' (mong đợi true) — có thể còn file rác trong $DCONF_LOCAL_D tái áp lock (F11). Kiểm tra: find $DCONF_LOCAL_D -type f" >&2
+        fi
     else
+        _sweep_stray_dconf_backups
         echo "  → Chưa từng khoá (không có $DCONF_SETTINGS) — bỏ qua."
     fi
 fi
@@ -565,7 +661,12 @@ WATCHDOG_UNIT="$HOME/.config/systemd/user/$WATCHDOG_UNIT_NAME"
 if [ "$ENABLE_WATCHDOG" = "1" ]; then
     echo "=== [10] Watchdog systemd: tự khởi động lại app kiosk khi đóng/crash ==="
     mkdir -p "$HOME/.config/systemd/user"
-    [ -f "$WATCHDOG_UNIT" ] && cp "$WATCHDOG_UNIT" "$WATCHDOG_UNIT.$BAK_SUFFIX" 2>/dev/null || true
+    # F11: backup unit ra thư mục riêng của user — không để file lạ trong
+    # ~/.config/systemd/user/ (systemd bỏ qua đuôi không hợp lệ nhưng vẫn là rác).
+    if [ -f "$WATCHDOG_UNIT" ]; then
+        mkdir -p "$USER_BACKUP_DIR"
+        cp "$WATCHDOG_UNIT" "$USER_BACKUP_DIR/$WATCHDOG_UNIT_NAME.$BAK_SUFFIX" 2>/dev/null || true
+    fi
 
     # Escape dấu ' trong APP_EXEC để nhúng an toàn vào 'exec ...' của bash -lc.
     APP_EXEC_ESC="$(printf '%s' "$APP_EXEC" | sed "s/'/'\\\\''/g")"
@@ -607,10 +708,16 @@ else
     echo "=== [10] GỠ watchdog systemd app kiosk (không chọn) ==="
     if [ -f "$WATCHDOG_UNIT" ]; then
         systemctl --user disable --now "$WATCHDOG_UNIT_NAME" 2>/dev/null || true
-        cp "$WATCHDOG_UNIT" "$WATCHDOG_UNIT.$BAK_SUFFIX" 2>/dev/null || true
+        mkdir -p "$USER_BACKUP_DIR"
+        cp "$WATCHDOG_UNIT" "$USER_BACKUP_DIR/$WATCHDOG_UNIT_NAME.$BAK_SUFFIX" 2>/dev/null || true
         rm -f "$WATCHDOG_UNIT"
+        # F11: dọn cả backup cũ nằm sai chỗ trong ~/.config/systemd/user/ (bản script cũ)
+        for f in "$WATCHDOG_UNIT".*; do
+            [ -f "$f" ] || continue
+            mv "$f" "$USER_BACKUP_DIR/$(basename "$f")" 2>/dev/null || true
+        done
         systemctl --user daemon-reload 2>/dev/null || true
-        echo "  → Đã gỡ watchdog service (backup: $WATCHDOG_UNIT.$BAK_SUFFIX). App quay về autostart .desktop nếu bật Autostart."
+        echo "  → Đã gỡ watchdog service (backup: $USER_BACKUP_DIR/$WATCHDOG_UNIT_NAME.$BAK_SUFFIX). App quay về autostart .desktop nếu bật Autostart."
     else
         echo "  → Chưa từng cài watchdog — bỏ qua."
     fi

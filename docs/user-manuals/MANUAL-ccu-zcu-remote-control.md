@@ -959,12 +959,12 @@ Log hiển thị lần lượt từng nhóm thiết lập được áp dụng th
 **Quản trị viên tạm mở khoá khi cần bảo trì (QUAN TRỌNG — cách vào lại máy):**
 
 1. **Cách 1 (khuyến nghị):** trong cửa sổ Deploy Kiosk Setup, **bỏ tick** "Khoá lối thoát kiosk (dconf lock)" rồi nhấn 🚀 Deploy → khởi động lại máy ZCU. Các phím tắt/menu hoạt động trở lại. Bảo trì xong, tick lại và Deploy để khoá.
-2. **Cách 2 (qua SSH — luôn dùng được vì SSH KHÔNG bị khoá):**
+2. **Cách 2 (qua SSH — luôn dùng được vì SSH KHÔNG bị khoá):** chạy lệnh gỡ khoá cài sẵn:
    ```
-   sudo rm /etc/dconf/db/local.d/00-kiosk-lockdown /etc/dconf/db/local.d/locks/00-kiosk-lockdown
-   sudo dconf update
+   sudo ipgs-kiosk-unlock
    ```
-   rồi khởi động lại (hoặc đăng xuất/đăng nhập lại). Khoá lại bằng cách chạy Kiosk Deploy với ô tick bật.
+   Lệnh này xoá cấu hình khoá (kể cả file backup cũ còn sót có thể tái áp khoá), chạy `dconf update` và **tự xác minh** đã gỡ thật — kết thúc phải thấy dòng `UNLOCK-VERIFIED: overlay-key writable=true`. Sau đó khởi động lại (hoặc đăng xuất/đăng nhập lại). Khoá lại bằng cách chạy Kiosk Deploy với ô tick bật.
+   > ⚠️ Nếu máy cài bằng bản cũ chưa có lệnh `ipgs-kiosk-unlock`: chạy Kiosk Deploy lại một lần (tick khoá) để nhận lệnh này, hoặc gỡ tay rồi **bắt buộc kiểm tra lại**: `sudo rm /etc/dconf/db/local.d/00-kiosk-lockdown* /etc/dconf/db/local.d/locks/00-kiosk-lockdown* && sudo dconf update` (chú ý dấu `*` — xoá cả file `.bak` còn sót, vì dconf nạp mọi file trong thư mục đó bất kể tên), sau đó `gsettings writable org.gnome.mutter overlay-key` trong phiên user phải trả về `true`.
 3. Mọi thao tác quản trị từ xa (Quản lý File, CMD Shell, Remote Desktop, cập nhật agent) **không bị ảnh hưởng** bởi khoá này — SSH và Remote Agent vẫn hoạt động bình thường.
 
 > 💡 **Lưu ý kỹ thuật:** thay đổi khoá/mở khoá chỉ có hiệu lực đầy đủ sau khi **khởi động lại máy** (hoặc đăng xuất/đăng nhập lại) — phiên GNOME đang chạy vẫn dùng cấu hình cũ cho tới lúc đó.
