@@ -445,3 +445,37 @@ Phạm vi: commit `0dc0d42` (F09), `e267826` (audit), `4f19374` (F10). Đã đ�
 Khuyến nghị gộp cùng commit fix (không bắt buộc): thêm `switch-to-application-1..9` (+ `switch-group`, `activate-window-menu`, `minimize`) vào dconf lock F09 (mục #8) và câu dè dặt "cần xác nhận tại máy" vào MANUAL (mục #10). Sau khi fix R1+R2 và Tech Lead re-review nhanh (≤15 phút) → chuyển QA verify; QA lưu ý test case ở mục #1 (extension ACTIVE sau reboot), #7 (app GUI thật chạy từ service) và thử tay gesture theo AUDIT §3.
 
 — Tech Lead, 2026-07-27 00:49
+
+---
+
+## Re-review Tech Lead — F10 vòng 2 — 2026-07-27 01:00
+
+Phạm vi: commit `2dbd68c` — đã đọc toàn bộ diff `2-configure-system.sh` + MANUAL + BUG + CODE-GRAPH, tự đối chiếu logic (không tin báo cáo SD nguyên trạng).
+
+### Verdict: ✅ APPROVE — cho chuyển QA verify
+
+| Điểm | Kết quả kiểm chứng |
+|---|---|
+| **R1 — ma trận `.desktop`** | ✅ ĐÚNG THỰC CHẤT. Đã tự dò 4 tổ hợp trên code mới mục [8/9]: (WD=1,AS=1) → rm app `.desktop`, tạo unclutter, [10] cài service; (WD=1,AS=0) → rm app `.desktop` + rm unclutter, cài service; (WD=0,AS=1) → tạo `.desktop` + unclutter, [10] gỡ service (nhánh else gỡ vô điều kiện nếu file unit tồn tại — đã có sẵn từ vòng 1); (WD=0,AS=0) → rm cả 2 `.desktop`, gỡ service. Không còn tổ hợp nào để lại file/service mồ côi khi deploy đè cấu hình cũ khác — cấu trúc `if WD=1 / elif AS=1 / else rm` đảm bảo trạng thái cuối chỉ phụ thuộc cấu hình VỪA chọn. Bonus đúng: `unclutter.desktop` giờ cũng 2 chiều (trước đây bỏ tick Autostart không xoá — mồ côi tiềm ẩn cũ). |
+| **R2 — watchdog không chết vĩnh viễn** | ✅ ĐÚNG. Unit mới: `StartLimitIntervalSec=0` (tắt hẳn start rate-limit — theo systemd, interval=0 vô hiệu cơ chế StartLimit) + `Restart=always` + `RestartSec=10`, không còn `StartLimitBurst`. Không còn đường nào đưa service vào `failed` vĩnh viễn: crash-loop/binary thiếu → retry vô hạn mỗi 10s. Lập luận log hợp lệ: ~6 chu kỳ/phút « RateLimitBurst mặc định 10000/30s của journald; giữ log chẩn đoán (không null output) — đúng khuyến nghị phương án (a) của review vòng 1. |
+| **R3 — khoá thêm key, đúng schema** | ✅ ĐÚNG SCHEMA. `switch-to-application-1..9` đặt trong `[org/gnome/shell/keybindings]` — đúng (schema `org.gnome.shell.keybindings`, khớp bằng chứng audit `gsettings writable org.gnome.shell.keybindings switch-to-application-4`). `switch-group(-backward)`, `activate-window-menu`, `minimize` đặt trong `[org/gnome/desktop/wm/keybindings]` — đúng. Đối chiếu từng key trong `settings` đều có dòng lock tương ứng trong `locks` (9 + 4 = 13 key, 13 lock, path khớp 1-1). |
+| **Tài liệu khớp code** | ✅ KHỚP. MANUAL 9.3: gesture đổi "đã chặn" → "được cấu hình để chặn + cần nghiệm thu trực tiếp tại máy" (đúng Nit mục #10 vòng 1); watchdog mô tả "thử mãi mỗi 10 giây, không bao giờ tự bỏ cuộc" khớp unit mới; danh sách Super+1..9/Alt+`/Alt+Space/Super+H bổ sung khớp lock list. BUG report có mục Vòng 2 ghi rõ cả lưu ý "kết quả test 'dừng sau 5 lần' vòng 1 là hành vi unit CŨ" — trung thực. CODE-GRAPH cập nhật đúng tham số R1/R2/R3. Không chạm C# → không cần build lại: chấp nhận. |
+
+**Ghi chú tồn dư (không block):** kiểm chứng vòng 2 chỉ bằng `bash -n` + suy luận logic — hành vi ma trận R1 và retry-vô-hạn R2 trên máy thật giao cho QA verify (danh sách dưới). Các nợ kỹ thuật đã chấp nhận ở review vòng 1 (bàn phím USB, USB automount-open, extension chết âm thầm khi nâng GNOME, user `kztek` trong sudo) giữ nguyên hiệu lực — không thay đổi.
+
+### Danh sách case QA cần verify trên ZCU thật
+
+| # | Case | Cách verify | Thử tay tại màn cảm ứng? |
+|---|---|---|---|
+| Q1 | R1 ma trận: deploy (AS=1,WD=0) → deploy lại (AS=0,WD=1) | Sau lần 2: `ls ~/.config/autostart/` KHÔNG còn `ipgs-kiosk.desktop`; `systemctl --user is-enabled ipgs-kiosk-app` = enabled; reboot → chỉ 1 instance app (`pgrep -c`) | Không (SSH đủ) |
+| Q2 | R1 chiều ngược: deploy (WD=1) → deploy lại (WD=0,AS=1) | Service bị gỡ (`systemctl --user cat ipgs-kiosk-app` → lỗi), `.desktop` được tạo lại, unclutter còn | Không (SSH đủ) |
+| Q3 | R2 retry vô hạn: đặt binary giả crash ngay (exit 1) | `systemctl --user status` KHÔNG bao giờ vào `failed`; `NRestarts` tăng đều nhịp ~10s; theo dõi ≥ 3 phút | Không (SSH đủ) |
+| Q4 | R2 hồi phục: giữa lúc retry, cài binary đúng | Lần retry kế tiếp app chạy, không cần thao tác gì | Không (SSH đủ) |
+| Q5 | App GUI THẬT chạy từ service (DISPLAY/XAUTHORITY) | Deploy app thật + reboot → cửa sổ app hiện trên màn hình (vòng 1 chỉ test binary giả không cần DISPLAY) | Không bắt buộc (nhìn qua Remote Desktop được) |
+| Q6 | Extension ACTIVE sau reboot | `gnome-extensions info disable-overview-gestures@kztek` → `State: ACTIVE` | Không (SSH đủ) |
+| Q7 | **Gesture cảm ứng: vuốt 3/4 ngón lên, vuốt từ mép, chạm-giữ (long-press)** — overview KHÔNG mở | Thao tác ngón tay trực tiếp trên màn cảm ứng, sau reboot | **✋ BẮT BUỘC thử tay** — không giả lập được qua SSH/VM |
+| Q8 | **Chạm 1 ngón dùng app bình thường** (extension không phá touch input của app) | Thao tác trực tiếp trên app kiosk thật | **✋ BẮT BUỘC thử tay** |
+| Q9 | R3 (nếu có bàn phím cắm thử): Super+1..9, Alt+`, Alt+Space, Super+H đều câm | Cắm bàn phím USB tạm, bấm thử sau reboot; hoặc `gsettings writable org.gnome.shell.keybindings switch-to-application-4` = false qua SSH | Không bắt buộc (SSH check writable đủ mức tối thiểu) |
+| Q10 | Regression F09: SSH + ZcuAgent + Remote Desktop vẫn hoạt động sau deploy đầy đủ | Kết nối từ CCU như thường lệ | Không |
+
+— Tech Lead, 2026-07-27 01:00
