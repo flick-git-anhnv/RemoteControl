@@ -102,28 +102,57 @@ namespace IPGS.RemoteControl.CcuUI.Views
         private static async Task<(string Output, string Error)> RunSshCommandAsync(SshClient ssh, string command, string sudoPassword)
         {
             int sudoCount = SudoPattern.Matches(command).Count;
-            bool feedPassword = sudoCount > 0 && !string.IsNullOrEmpty(sudoPassword);
+            bool hasSudo = sudoCount > 0;
 
-            string finalCmd = feedPassword ? SudoPattern.Replace(command, "$1$2sudo -S -p ''") : command;
+            // FIX hồi quy S3: trước đây khi có sudo nhưng password rỗng thì chạy `sudo` TRẦN
+            // (không có -S) → sudo cố mở /dev/tty để hỏi password → phiên SSH exec không có tty
+            // → "sudo: no tty present and no askpass program specified". Nay: có sudo là LUÔN
+            // thêm -S, và thiếu password thì báo lỗi rõ ràng ngay tại CCU.
+            if (hasSudo && string.IsNullOrEmpty(sudoPassword))
+                throw new InvalidOperationException(
+                    "Lệnh có 'sudo' nhưng máy này chưa có password sudo/SSH trong cấu hình — " +
+                    "bổ sung password cho máy rồi chạy lại.");
+
+            string finalCmd = hasSudo ? SudoPattern.Replace(command, "$1$2sudo -S -p ''") : command;
             string bashCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus bash -c {ShQuote(finalCmd)}";
 
             using var cmd = ssh.CreateCommand(bashCmd, Encoding.UTF8);
-            if (feedPassword)
-            {
-                var execTask = cmd.ExecuteAsync();
-                using (var input = cmd.CreateInputStream())
-                {
-                    var passBytes = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat(sudoPassword + "\n", sudoCount)));
-                    await input.WriteAsync(passBytes);
-                }
-                await execTask;
-            }
-            else
+            if (!hasSudo)
             {
                 await cmd.ExecuteAsync();
+                return (cmd.Result ?? string.Empty, cmd.Error ?? string.Empty);
             }
 
+            var execTask = cmd.ExecuteAsync();
+            using (var input = await OpenInputStreamAsync(cmd))
+            {
+                var passBytes = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat(sudoPassword + "\n", sudoCount)));
+                await input.WriteAsync(passBytes);
+                await input.FlushAsync();
+            }
+            await execTask;
+
             return (cmd.Result ?? string.Empty, cmd.Error ?? string.Empty);
+        }
+
+        /// <summary>
+        /// SSH.NET chỉ cho tạo input stream KHI channel đã mở ("The input stream can be used only
+        /// during execution"). <c>ExecuteAsync()</c> mở channel bất đồng bộ nên gọi
+        /// <c>CreateInputStream()</c> ngay sau đó có thể sớm hơn vài ms → thử lại ngắn.
+        /// </summary>
+        private static async Task<Stream> OpenInputStreamAsync(SshCommand cmd)
+        {
+            for (int attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    return cmd.CreateInputStream();
+                }
+                catch (InvalidOperationException) when (attempt < 40)
+                {
+                    await Task.Delay(25);
+                }
+            }
         }
 
         private readonly List<ComputerProfile> _targets;

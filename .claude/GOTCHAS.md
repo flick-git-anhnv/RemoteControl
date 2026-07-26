@@ -27,6 +27,7 @@
 | G014 | Whitelist filename quá chặt từ chối oan tên `.deb` Debian hợp lệ — version chuẩn Debian chứa `~` (`1.0~rc1`) và có thể chứa `%` | 2026-07-26 |
 | G015 | `printf` với chuỗi chứa `%`: an toàn khi chuỗi ở vị trí **argument** của `printf '%s\n' '<arg>'`; NGUY HIỂM nếu đặt vào vị trí format string | 2026-07-26 |
 | G016 | DPAPI `ProtectedData` chỉ chạy Windows — app cross-platform PHẢI xử lý tường minh trên Linux (cảnh báo/lỗi rõ), TUYỆT ĐỐI không im lặng fallback plaintext | 2026-07-26 |
+| G017 | SSH exec channel KHÔNG có tty → `sudo` trần báo `no tty present and no askpass program specified`. Có `sudo` là PHẢI luôn thêm `-S`; đừng để nhánh "không có password" chạy sudo trần | 2026-07-26 |
 
 ---
 
@@ -418,3 +419,52 @@ Tuyệt đối không gọi KzCamera.Start() nếu chỉ cần lấy URL/StreamI
 **Cách xử lý (pattern tái dùng):** (1) Prefix version `enc:v1:` cho giá trị đã mã hoá — đọc giá trị không prefix = plaintext cũ, giữ nguyên và tự mã hoá ở lần Persist kế (migrate không mất dữ liệu); (2) Trên Linux: cảnh báo NỔI BẬT đúng 1 lần (Interlocked guard), lưu plaintext CÓ CHỦ ĐÍCH và được log rõ; (3) Gặp `enc:v1:` trên Linux (file copy từ Windows) → trả rỗng + log, không ném (không mất cả danh sách profile); (4) Decrypt fail → trả rỗng, không throw; (5) Không bao giờ log giá trị secret — chỉ log `ex.Message`.
 **Lần đầu gặp:** Fix S7 — Bước 1.1 PLAN-remote-control-audit-fix (2026-07-26, commit `0146cb4`)
 **Không cần làm lại:** Không tìm "DPAPI cho Linux" built-in — không tồn tại; muốn mã hoá thật trên Linux phải tự chọn scheme (AES + key từ keyring/file perm 600) — ngoài scope hiện tại.
+
+---
+
+## G017 — SSH exec channel không có tty: `sudo` trần báo "no tty present", phải luôn dùng `sudo -S`
+
+**Ngày phát hiện:** 2026-07-26
+
+**Môi trường:** .NET 8 + SSH.NET 2025.1.0, CCU (Windows/Avalonia) → ZCU (Ubuntu 22.04)
+
+**Vấn đề:**
+Sau khi siết bảo mật S3 (chuyển password sudo từ `echo 'pass' | sudo -S` sang ghi vào STDIN
+của SSH channel), các lệnh có `sudo` báo lỗi:
+`sudo: no tty present and no askpass program specified`.
+
+**Nguyên nhân:**
+Code chỉ viết lại `sudo` → `sudo -S -p ''` khi `feedPassword == true`
+(tức `sudoCount > 0` **VÀ** password không rỗng). Khi password rỗng, nhánh `else` chạy
+**`sudo` trần** — không có `-S`. `SshClient.CreateCommand()` dùng SSH *exec channel*, vốn
+**KHÔNG cấp pseudo-tty**; `sudo` trần cần hỏi password nên cố mở `/dev/tty` → không có →
+báo đúng thông báo trên. Đây là lỗi *thiết kế nhánh điều kiện*, không phải lỗi quoting hay
+lỗi thứ tự API.
+
+Phân biệt 3 thông báo của sudo để chẩn đoán nhanh:
+| Thông báo | Ý nghĩa |
+|---|---|
+| `no tty present and no askpass program specified` | Chạy `sudo` **không có `-S`** trên kênh không tty |
+| `no password was provided` | Có `-S` nhưng stdin EOF/rỗng |
+| `3 incorrect password attempts` | Có `-S`, có dữ liệu, nhưng password sai |
+
+**Cách xử lý (ĐÃ ÁP DỤNG):**
+1. Hễ `sudoCount > 0` là **LUÔN** rewrite thành `sudo -S -p ''`, không phụ thuộc có password hay không.
+2. Nếu có `sudo` mà password rỗng → ném lỗi rõ ràng **ngay tại CCU** ("chưa có password sudo"),
+   không đẩy sang ZCU để nhận thông báo khó hiểu.
+3. Log lệnh thực sự gửi đi (an toàn — password chỉ đi qua stdin, không nằm trong command line)
+   để lần chạy sau chẩn đoán được ngay.
+
+**Ghi chú về `CreateInputStream()` (đã kiểm chứng, KHÔNG phải nguyên nhân):**
+SSH.NET yêu cầu gọi `CreateInputStream()` **SAU** khi `ExecuteAsync()` đã bắt đầu — chuỗi lỗi
+trong `Renci.SshNet.dll` là *"The input stream can be used only during execution"*, và doc
+chính thức cũng dùng đúng thứ tự này. Tuy vậy `ExecuteAsync()` mở channel bất đồng bộ nên vẫn
+nên retry ngắn khi `CreateInputStream()` ném `InvalidOperationException`.
+
+**Lần đầu gặp:** User báo lỗi sau đợt audit-fix 2026-07-26 (hồi quy do chính bước 3.2 gây ra)
+
+**Không cần làm lại:**
+- Không cần đảo thứ tự `CreateInputStream()` lên trước `ExecuteAsync()` — sai, sẽ ném exception.
+- Không cần cấp pseudo-tty (`ShellStream`) để chạy sudo — `sudo -S` đọc stdin là đủ, thêm tty
+  còn làm password bị echo lại vào output.
+- Không cần quay lại `echo 'pass' | sudo -S` — cách đó làm lộ password qua `ps -ef` trên ZCU.
