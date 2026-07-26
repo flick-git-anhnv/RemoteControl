@@ -479,3 +479,83 @@ Phạm vi: commit `2dbd68c` — đã đọc toàn bộ diff `2-configure-system.
 | Q10 | Regression F09: SSH + ZcuAgent + Remote Desktop vẫn hoạt động sau deploy đầy đủ | Kết nối từ CCU như thường lệ | Không |
 
 — Tech Lead, 2026-07-27 01:00
+
+---
+
+## Kết quả QA verify F09/F10 — 2026-07-27 01:22
+
+**Người thực hiện:** QA Engineer (WF-BUGFIX Bước 4 — verify vòng 2 sau APPROVE của Tech Lead `89bf834`)
+**Môi trường:** ZCU thật `192.168.0.101` (Ubuntu 22.04, GNOME Shell 42.9, X11, GDM3, user `kztek`). Máy là **VM VirtualBox không có touchscreen vật lý** → Q7/Q8 (cử chỉ cảm ứng) KHÔNG giả lập được, chuyển user thử tay. Script test upload vào `/tmp/qa-kiosk/` (bản HEAD `2-configure-system.sh` + `1-install-software.sh`).
+**Backup trước khi test:** `~/kiosk-qa-backup-2026-07-27/` chứa `.bak-2026-07-27-qa` của `ipgs-kiosk.desktop`, `unclutter.desktop`, dconf lockdown + locks. Autologin/gdm có backup `.bak-*` sẵn của script.
+**Cách test:** chạy script với đủ 4 tổ hợp (Autostart, Watchdog), deploy đè lên nhau; watchdog test bằng binary giả an toàn (`exit 1` để crash-loop, `sleep infinity` + `gnome-calculator` cho app sống/GUI); reboot thật cho Q6/Q10; kiểm bằng `systemctl --user`, `ls`, `gsettings writable`, `gnome-extensions info`, `gnome-screenshot`, `xdotool`.
+
+### Bảng kết quả Q1–Q10
+
+| Case | Nội dung | Kết quả | Bằng chứng (lệnh + output rút gọn) |
+|---|---|---|---|
+| **Q1** | R1 ma trận: deploy (AS=1,WD=0) → deploy lại (AS=0,WD=1) | ✅ **PASS** | Sau deploy #2 (AS=0,WD=1): mục [8/9] log "Watchdog BẬT: đã xóa autostart .desktop của app"; `ls ~/.config/autostart/` → **KHÔNG còn `ipgs-kiosk.desktop`** (chỉ `update-notifier.desktop`); `systemctl --user is-enabled ipgs-kiosk-app` = **enabled**. Không còn `.desktop` mồ côi. |
+| **Q2** | R1 chiều ngược: deploy (WD=1) → deploy lại (WD=0,AS=1) | ✅ **PASS** | Sau deploy (WD=0,AS=1): mục [10] "Đã gỡ watchdog service"; `systemctl --user list-unit-files \| grep kiosk` → **NO-KIOSK-UNIT** (`systemctl --user cat ipgs-kiosk-app` → "No files found"); `.desktop` app + unclutter được tạo lại. Không còn service mồ côi. Đã kiểm cả 2 tổ hợp còn lại (AS=1/WD=1 → chỉ unclutter.desktop + unit enabled; AS=0/WD=0 → không .desktop app, không unit) — trạng thái cuối luôn khớp cấu hình vừa chọn. |
+| **Q3** | R2 retry vô hạn: binary giả crash ngay (exit 1) | ✅ **PASS** | Deploy WD=1 trỏ `fakeapp` (exit 1), `systemctl --user start`. Theo dõi >4 phút (mẫu @01:08→01:12): `ActiveState=activating`, `SubState=auto-restart`, `NRestarts` tăng đều **1→7→12→18→27** (~6 lần/phút, nhịp ~10s), **KHÔNG bao giờ vào `failed`**. Unit `StartLimitIntervalSec=0` + `Restart=always RestartSec=10` xác nhận qua `systemctl --user cat`. |
+| **Q4** | R2 hồi phục: giữa lúc retry, đổi binary thành app sống | ✅ **PASS** | Ghi đè `fakeapp` = `exec sleep infinity` (KHÔNG chạy lệnh systemctl nào) → lần retry kế tiếp tự chạy: `ActiveState=active SubState=running MainPID=8061`, `NRestarts=27` (không tăng thêm). Watchdog tự hồi phục không cần thao tác. |
+| **Q5** | App GUI THẬT chạy từ service (truyền DISPLAY/XAUTHORITY) | ✅ **PASS** | `systemctl --user show-environment` có `DISPLAY=:0` + `XAUTHORITY=/run/user/1000/gdm/Xauthority`. Đổi `fakeapp` = `exec gnome-calculator`, restart service → `MainPID=8123`, `pgrep gnome-calculator` = 8123, cửa sổ X thật `0x3200008 "Calculator" 412x541+31+154`. Screenshot `verify-q5-gui-from-service.png`: **cửa sổ Calculator hiện trên desktop** (ban đầu ảnh đen do DPMS ngủ — sau `xset dpms force on` chụp lại thấy rõ). Kill MainPID → watchdog restart, cửa sổ Calculator hiện lại (MainPID mới 8545). |
+| **Q6** | Extension ACTIVE sau reboot | ✅ **PASS** | Cài extension qua đúng đoạn `1-install-software.sh` (HIDE_ACTIVITIES=1). Sau **reboot thật** (01:17): `gnome-extensions info disable-overview-gestures@kztek` → **`State: ENABLED`** (ACTIVE). Just Perfection cũng ENABLED. (Có 1 dòng log "Error while downloading update ... Not Found" — vô hại: shell thử tra store cho extension cục bộ, không ảnh hưởng enable.) |
+| **Q7** | Cử chỉ cảm ứng (vuốt 3/4 ngón, edge-swipe, long-press) KHÔNG mở overview | ⚠️ **CẦN THỬ TAY** | VM không có touchscreen vật lý → không giả lập gesture đa chạm qua SSH. Bằng chứng gián tiếp: extension ENABLED sau reboot (Q6) + override `Main.overview.show/showApps` + tắt SwipeTracker. **Hướng dẫn nghiệm thu thủ công cho user ở mục dưới.** |
+| **Q8** | Chạm 1 ngón dùng app vẫn bình thường | ⚠️ **CẦN THỬ TAY** | Extension chỉ chặn overview, không hook sự kiện chạm của app — nhưng phải xác nhận trên phần cứng cảm ứng thật. **Hướng dẫn nghiệm thu thủ công ở mục dưới.** |
+| **Q9** | dconf lock ≥6 key + Super+1..9 (R3) không mở Terminal | ✅ **PASS** | `gsettings set` báo **"The key is not writable"** cho **8 key** (writable=false): `switch-to-application-4`, `switch-to-application-1`, `overlay-key`, `switch-applications` (Alt+Tab), `close` (Alt+F4), `activate-window-menu` (Alt+Space), `minimize` (Super+H), `media-keys/terminal` (Ctrl+Alt+T). Sau reboot, `xdotool key super+4` rồi `super+1` + `gnome-screenshot` trước/sau → **3 ảnh md5 GIỐNG HỆT** (`654f178…`), `xwininfo` → **NO-TERMINAL-NO-NAUTILUS-WINDOW**. Lỗ P1 của audit (Super+4→Terminal) đã bịt. `verify-q9-super4-before.png` / `verify-q9-super4-after.png` (giống hệt). |
+| **Q10** | Regression F09/F08: SSH + agent + autologin sau reboot | ✅ **PASS** | Sau reboot: `who` → `kztek :0 01:17` (tự vào desktop, không nhập mật khẩu); `systemctl --user is-active ipgs-remote-agent` = **active** (PID 1576); SSH vào bình thường suốt phiên; `/etc/gdm3/custom.conf` giữ `AutomaticLogin=kztek` + `TimedLogin` fallback 5s. |
+
+**Tổng: 8 PASS / 0 FAIL / 2 CẦN THỬ TAY (Q7, Q8 — bắt buộc trên màn cảm ứng thật).**
+
+### Lỗi mới phát hiện — F11 (xem mục F11 bên dưới)
+
+Trong lúc verify Q1/Q9 phát hiện **F11 (P2)**: script ghi file `.bak-*` của dconf lockdown **vào chính thư mục `/etc/dconf/db/local.d/` + `locks/`** — `dconf update` biên dịch MỌI file trong thư mục này bất kể đuôi, nên lệnh gỡ khoá bảo trì mà script tự in ra (`sudo rm <2 file active> && sudo dconf update`) **KHÔNG thực sự gỡ được khoá** khi đã có `.bak` (từ deploy lần 2 trở đi) — các `.bak` vẫn được nạp và tái áp lock. Không đe doạ bảo mật (fail an toàn về phía "vẫn khoá") nhưng làm **hỏng đường bảo trì**. KHÔNG chặn mục tiêu F09/F10.
+
+### Hướng dẫn nghiệm thu thủ công cho user — Q7 & Q8 (BẮT BUỘC làm tại màn hình cảm ứng thật)
+
+> Làm sau khi đã Deploy Kiosk (tick "Ẩn nút Activities" + "Watchdog") lên máy cảm ứng thật và **khởi động lại máy**. Máy phải đang chạy app kiosk fullscreen.
+
+**Q7 — Cử chỉ cảm ứng KHÔNG được mở Activities overview:**
+1. Đặt app kiosk đang hiển thị fullscreen. Dùng **3 ngón tay** vuốt từ giữa màn hình **lên trên** (cử chỉ mở overview mặc định của GNOME). → **Kỳ vọng:** màn hình KHÔNG đổi, app vẫn fullscreen, KHÔNG xuất hiện lưới cửa sổ/ô "Type to search". (Trước khi vá: overview bung ra + có ô tìm kiếm.)
+2. Lặp lại với **4 ngón** vuốt lên; rồi **vuốt từ mép trái/phải/trên vào giữa** (edge-swipe). → **Kỳ vọng:** không có gì mở ra.
+3. **Chạm-giữ ~1 giây** (long-press = chuột phải) lên vùng trống của màn hình và lên 1 nút trong app. → **Kỳ vọng:** không bung overview, không ra menu ngữ cảnh hệ thống nguy hiểm.
+4. Chạm nhanh vào **góc trên-trái** màn hình (hot corner). → **Kỳ vọng:** không mở overview.
+   - **Nếu overview vẫn bung ra ở bất kỳ bước nào:** chụp ảnh màn hình đó, và qua SSH gửi lại output của: `gnome-extensions info disable-overview-gestures@kztek` (phải là `State: ACTIVE`) + `gnome-shell --version`. Báo lại: cử chỉ nào (mấy ngón / hướng nào) làm bung, overview có ô search không.
+
+**Q8 — Chạm 1 ngón dùng app vẫn bình thường:**
+1. Dùng **1 ngón** chạm lần lượt các nút / ô nhập / danh sách trong app kiosk. → **Kỳ vọng:** app phản hồi đúng từng chạm (bấm nút, cuộn, nhập liệu) y như trước khi vá — extension chỉ chặn overview, KHÔNG được nuốt sự kiện chạm của app.
+2. Cuộn danh sách bằng 1 ngón, kéo-thả trong app (nếu app có). → **Kỳ vọng:** mượt, không mất thao tác.
+   - **Nếu app không nhận chạm / chạm bị "kẹt" / phải chạm 2 lần:** báo lại thao tác nào lỗi + chụp màn hình; đây sẽ là lỗi mới cần Senior Developer xem lại extension.
+
+### Trạng thái máy sau khi dọn dẹp
+
+- **Đã gỡ sạch:** binary giả (`~/kiosk-qa-test/`), unit test watchdog + backup của nó, mọi file `/tmp/qa-*`, `/tmp/verify-*`, script test `/tmp/qa-kiosk/`, các `.bak-20260727*` của dconf do QA tạo (đã `dconf update` lại). Không còn process `fakeapp`/`gnome-calculator` chạy lại.
+- **Trạng thái đích còn lại (đúng cấu hình kiosk):** dconf lockdown F09 **còn hiệu lực** (overlay-key + switch-to-application-4 `writable=false` sau cleanup); extension `disable-overview-gestures@kztek` **ENABLED**; autologin `kztek` + TimedLogin 5s (F08) còn; `ipgs-remote-agent` **active**; SSH sống. Cấu hình cuối: **AS=1, WD=0** (autostart `.desktop` app + unclutter, không watchdog — vì máy này chạy agent, chưa deploy app kiosk thật; user chọn WD khi deploy app thật).
+- **Còn lại 1 file cần user biết:** `/etc/dconf/db/local.d/00-kiosk-lockdown.bak-2026-07-26` (+ `locks/`) — do Senior Developer tạo từ phiên F09 trước, KHÔNG phải QA tạo; là biểu hiện của F11 (backup nằm trong thư mục db). Để nguyên vì phản ánh baseline trước test; nên dọn khi fix F11. Backup QA gốc ở `~/kiosk-qa-backup-2026-07-27/` (ngoài thư mục db, an toàn) — user có thể xoá sau khi xác nhận.
+
+### Kết luận
+
+✅ **Đủ điều kiện SIGN-OFF cho F09/F10** — 8/10 case PASS với bằng chứng thật trên ZCU + reboot; 2 case Q7/Q8 (cử chỉ/chạm cảm ứng) **BẮT BUỘC user nghiệm thu tay** theo hướng dẫn trên trước khi coi F10-A là done hoàn toàn (VM không có touchscreen — đúng như Tech Lead đã lưu ý). F11 (P2, đường gỡ khoá bảo trì hỏng do backup trong thư mục db) là lỗi mới, KHÔNG chặn mục tiêu hardening (fail an toàn về phía khoá) → giao Senior Developer xử lý vòng 3 hoặc gộp backlog. **Bàn giao QA Lead quyết định sign-off (Bước 5 WF-BUGFIX).**
+
+— QA Engineer, 2026-07-27 01:22
+
+---
+
+## F11 — Backup dconf lockdown ghi trong chính thư mục db → lệnh gỡ khoá bảo trì không thực sự gỡ được khoá
+
+> **Người phát hiện:** QA Engineer (trong lúc verify F09/F10 vòng 2 trên ZCU thật).
+
+| Trường | Nội dung |
+|---|---|
+| **Màn hình / Thành phần** | `scripts/linux-kiosk/2-configure-system.sh` mục [9/9] (F09) — dòng 500-502 và 526-527 |
+| **Mức độ** | P2 (bảo trì / vận hành — KHÔNG phải bảo mật) |
+| **Các bước tái hiện** | 1. Deploy kiosk (LockdownShell=1) lần 1 → tạo `/etc/dconf/db/local.d/00-kiosk-lockdown` + `locks/00-kiosk-lockdown`. 2. Deploy lần 2 (bất kỳ cấu hình nào có Lockdown) → script `cp` file cũ thành `00-kiosk-lockdown.bak-<timestamp>` **ngay trong `/etc/dconf/db/local.d/` và `locks/`**. 3. Quản trị viên chạy đúng lệnh gỡ khoá mà script in ra: `sudo rm /etc/dconf/db/local.d/00-kiosk-lockdown /etc/dconf/db/local.d/locks/00-kiosk-lockdown && sudo dconf update` rồi reboot. |
+| **Kết quả thực tế** | `dconf update` biên dịch **MỌI file** trong thư mục `local.d/` (và `locks/`) vào binary db **bất kể phần mở rộng tên file** — nên các file `.bak-*` (bản sao byte-đúng của lockdown) vẫn được nạp và **tái áp toàn bộ lock**. Sau khi "gỡ khoá" + reboot, `gsettings writable` các key vẫn = `false` → khoá KHÔNG được gỡ. Trên ZCU test đã thấy **10 file `.bak` tích luỹ** trong `local.d/` và `locks/` sau các lần deploy. |
+| **Kết quả mong đợi** | (1) Backup dconf phải ghi RA NGOÀI thư mục db (VD `/etc/dconf/kiosk-backups/` hoặc `/var/backups/`), KHÔNG để trong `local.d/`/`locks/`. (2) Lệnh gỡ khoá bảo trì mà script in ra phải xoá cả các `.bak` còn sót (hoặc backup không nằm trong db thì không cần). (3) Không tích luỹ file rác trong thư mục dconf db. |
+| **Ảnh hưởng phụ** | Vì backup byte-đúng nên hiện tại lockdown vẫn hoạt động ĐÚNG (fail an toàn về phía "vẫn khoá") — KHÔNG hạ bảo mật. Rủi ro thực: (a) đường bảo trì gỡ khoá bị hỏng khiến kỹ thuật viên tưởng máy lỗi; (b) nếu tương lai một lần deploy GỠ BỚT 1 key khỏi lockdown, các `.bak` cũ vẫn chứa key đó → key bị "gỡ" vẫn bị khoá âm thầm qua backup cũ (khó chẩn đoán). |
+| **Đề xuất cho Senior Developer** | Đổi `BAK_SUFFIX`/đường dẫn backup của mục [9/9] (dòng 362, 500-502, 526-527) sang thư mục NGOÀI `/etc/dconf/db/local.d/`; hoặc dùng đuôi mà dconf bỏ qua thì vẫn KHÔNG an toàn (dconf đọc mọi file) → bắt buộc chuyển ra ngoài thư mục. Cập nhật câu lệnh gỡ khoá bảo trì tương ứng. Dọn các `.bak` đang tồn trong db trên máy đã deploy. |
+
+| Finding | Trạng thái | File chính cần sửa |
+|---|---|---|
+| F11 Backup dconf trong thư mục db → gỡ khoá bảo trì không hiệu lực | 🆕 Mới phát hiện (QA verify F09/F10) — chờ Senior Developer | `scripts/linux-kiosk/2-configure-system.sh` mục [9/9] |
+
+---
