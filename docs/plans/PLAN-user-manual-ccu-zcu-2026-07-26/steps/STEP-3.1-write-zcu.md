@@ -46,7 +46,7 @@ completed_at: 2026-07-26 18:13
 - Bước sau cần biết: Bước 4.1 xuất DOCX/PDF cho MANUAL — lưu ý bug đánh số ordered list đã fix trong `md_to_docx_kztek.py` (không dùng style "List Number"); marker ⏳ là blockquote thuần nên xuất DOCX an toàn; KHÔNG cần verify lại link ảnh (đã pass 19/19).
 
 ## Commit
-- Hash: dce72bf
+- Hash: a01ff68
 - Đã push: không (theo giới hạn scope của bước)
 
 ---
