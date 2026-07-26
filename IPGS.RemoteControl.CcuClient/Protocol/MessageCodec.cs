@@ -79,10 +79,35 @@ public static class MessageCodec
 
     // ── Payload encoders ──────────────────────────────────────────────────
 
+    /// <summary>
+    /// Validate that a UTF-8 encoded string field fits in the u16 length prefix.
+    /// Throws <see cref="ArgumentException"/> with a clear message instead of silently
+    /// wrapping the (ushort) cast and producing a corrupt frame.
+    /// </summary>
+    private static void RequireU16Length(byte[] bytes, string fieldName)
+    {
+        if (bytes.Length > ushort.MaxValue)
+            throw new ArgumentException(
+                $"{fieldName} is {bytes.Length} B UTF-8 — exceeds u16 length-prefix limit ({ushort.MaxValue} B)");
+    }
+
+    /// <summary>
+    /// Validate minimum payload length for fixed-offset decoders.
+    /// Throws <see cref="ProtocolException"/> (not IndexOutOfRange) so callers can
+    /// classify the failure as a protocol error.
+    /// </summary>
+    private static void RequireMinLength(byte[] payload, int min, string messageName)
+    {
+        if (payload.Length < min)
+            throw new ProtocolException(
+                $"{messageName} payload too short: {payload.Length} B, expected >= {min} B");
+    }
+
     /// <summary>Encode HELLO payload (TDD §5.2).</summary>
     public static byte[] EncodeHello(string clientName)
     {
         var nameBytes = Encoding.UTF8.GetBytes(clientName);
+        RequireU16Length(nameBytes, nameof(clientName));
         var buf = new byte[1 + 2 + nameBytes.Length];
         buf[0] = RemoteControlConstants.ProtocolVersion;
         BinaryPrimitives.WriteUInt16BigEndian(buf.AsSpan(1), (ushort)nameBytes.Length);
@@ -94,6 +119,7 @@ public static class MessageCodec
     public static byte[] EncodeHelloAck(uint screenW, uint screenH, string serverName)
     {
         var nameBytes = Encoding.UTF8.GetBytes(serverName);
+        RequireU16Length(nameBytes, nameof(serverName));
         var buf = new byte[1 + 4 + 4 + 2 + nameBytes.Length];
         buf[0] = RemoteControlConstants.ProtocolVersion;
         BinaryPrimitives.WriteUInt32BigEndian(buf.AsSpan(1), screenW);
@@ -107,6 +133,7 @@ public static class MessageCodec
     public static byte[] EncodeAuth(string token)
     {
         var tokenBytes = Encoding.UTF8.GetBytes(token);
+        RequireU16Length(tokenBytes, nameof(token));
         var buf = new byte[2 + tokenBytes.Length];
         BinaryPrimitives.WriteUInt16BigEndian(buf.AsSpan(0), (ushort)tokenBytes.Length);
         tokenBytes.CopyTo(buf, 2);
@@ -117,6 +144,7 @@ public static class MessageCodec
     public static byte[] EncodeAuthFail(string reason)
     {
         var reasonBytes = Encoding.UTF8.GetBytes(reason);
+        RequireU16Length(reasonBytes, nameof(reason));
         var buf = new byte[2 + reasonBytes.Length];
         BinaryPrimitives.WriteUInt16BigEndian(buf.AsSpan(0), (ushort)reasonBytes.Length);
         reasonBytes.CopyTo(buf, 2);
@@ -183,18 +211,26 @@ public static class MessageCodec
 
     public static (byte Version, uint ScreenW, uint ScreenH, string ServerName) DecodeHelloAck(byte[] payload)
     {
+        RequireMinLength(payload, 11, "HELLO_ACK");
         var version = payload[0];
         var w       = BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(1));
         var h       = BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(5));
         var nameLen = BinaryPrimitives.ReadUInt16BigEndian(payload.AsSpan(9));
-        var name    = Encoding.UTF8.GetString(payload, 11, Math.Min(nameLen, payload.Length - 11));
+        if (nameLen > payload.Length - 11)
+            throw new ProtocolException(
+                $"HELLO_ACK serverName length {nameLen} B exceeds remaining payload {payload.Length - 11} B");
+        var name    = Encoding.UTF8.GetString(payload, 11, nameLen);
         return (version, w, h, name);
     }
 
     public static string DecodeAuth(byte[] payload)
     {
-        var len   = BinaryPrimitives.ReadUInt16BigEndian(payload.AsSpan(0));
-        return Encoding.UTF8.GetString(payload, 2, Math.Min(len, payload.Length - 2));
+        RequireMinLength(payload, 2, "AUTH");
+        var len = BinaryPrimitives.ReadUInt16BigEndian(payload.AsSpan(0));
+        if (len > payload.Length - 2)
+            throw new ProtocolException(
+                $"AUTH token length {len} B exceeds remaining payload {payload.Length - 2} B");
+        return Encoding.UTF8.GetString(payload, 2, len);
     }
 
     public static string DecodeAuthFail(byte[] payload)
@@ -206,17 +242,22 @@ public static class MessageCodec
 
     public static FrameJpegMessage DecodeFrameJpeg(byte[] payload)
     {
+        RequireMinLength(payload, 24, "FRAME_JPEG");
         var frameId   = (long)BinaryPrimitives.ReadUInt64BigEndian(payload.AsSpan(0));
         var tsMs      = BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(8));
         var width     = (int)BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(12));
         var height    = (int)BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(16));
         var jpegLen   = (int)BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(20));
+        if (jpegLen != payload.Length - 24)
+            throw new ProtocolException(
+                $"FRAME_JPEG declared jpegLen {jpegLen} B does not match actual payload {payload.Length - 24} B");
         var jpeg      = payload.AsMemory(24, jpegLen);
         return new FrameJpegMessage(frameId, tsMs, width, height, jpeg);
     }
 
     public static (int X, int Y) DecodeMouseMove(byte[] payload)
     {
+        RequireMinLength(payload, 8, "MOUSE_MOVE");
         var x = BinaryPrimitives.ReadInt32BigEndian(payload.AsSpan(0));
         var y = BinaryPrimitives.ReadInt32BigEndian(payload.AsSpan(4));
         return (x, y);
@@ -224,6 +265,7 @@ public static class MessageCodec
 
     public static (MouseButton Button, bool IsDown, int X, int Y) DecodeMouseButton(byte[] payload)
     {
+        RequireMinLength(payload, 10, "MOUSE_BUTTON");
         var button = (MouseButton)payload[0];
         var down   = payload[1] != 0;
         var x      = BinaryPrimitives.ReadInt32BigEndian(payload.AsSpan(2));
@@ -232,7 +274,10 @@ public static class MessageCodec
     }
 
     public static ulong DecodePingPong(byte[] payload)
-        => BinaryPrimitives.ReadUInt64BigEndian(payload.AsSpan(0));
+    {
+        RequireMinLength(payload, 8, "PING/PONG");
+        return BinaryPrimitives.ReadUInt64BigEndian(payload.AsSpan(0));
+    }
 
     /// <summary>
     /// Encode KEY_EVENT payload (TDD §17.2): u32 keysym (big-endian) + u8 isDown.
@@ -252,6 +297,7 @@ public static class MessageCodec
     /// </summary>
     public static (uint Keysym, bool IsDown) DecodeKeyEvent(byte[] payload)
     {
+        RequireMinLength(payload, 5, "KEY_EVENT");
         var keysym = BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(0));
         var isDown = payload[4] != 0;
         return (keysym, isDown);

@@ -11,6 +11,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.3" />
     <PackageReference Include="SSH.NET" Version="2025.1.0" />
+    <!-- S7: mã hoá DPAPI cho SSH password/token trong profiles.json (Windows-only lúc runtime,
+         SecretProtector đã guard OperatingSystem.IsWindows() cho build linux-x64). -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

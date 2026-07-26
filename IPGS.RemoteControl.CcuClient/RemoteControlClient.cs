@@ -225,77 +225,94 @@ public sealed class RemoteControlClient : IRemoteControlClient
         // Enable TCP keepalive to catch half-open connections (TDD §14).
         _tcp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
 
-        await _tcp.ConnectAsync(_host, _port, sessionCt).ConfigureAwait(false);
-        _stream = _tcp.GetStream();
-
-        SetState(ConnectionState.Authenticating);
-
-        // ── HELLO ──────────────────────────────────────────────────────────
-        using var helloTo  = new CancellationTokenSource(RemoteControlConstants.HandshakeTimeoutMs);
-        using var helloCt  = CancellationTokenSource.CreateLinkedTokenSource(sessionCt, helloTo.Token);
-
-        await MessageCodec.WriteMessageAsync(
-            _stream, MessageType.Hello, MessageCodec.EncodeHello("IPGS-CCU-v1"), helloCt.Token)
-            .ConfigureAwait(false);
-
-        var (helloAckType, helloAckPayload) = await MessageCodec
-            .ReadMessageAsync(_stream, helloCt.Token).ConfigureAwait(false);
-
-        if (helloAckType != MessageType.HelloAck)
-            throw new ProtocolException($"Expected HELLO_ACK, got {helloAckType}");
-
-        var (_, screenW, screenH, serverName) = MessageCodec.DecodeHelloAck(helloAckPayload);
-        _screenWidth  = (int)screenW;
-        _screenHeight = (int)screenH;
-        _logger.LogInformation("Connected to {ServerName}, screen {W}×{H}", serverName, screenW, screenH);
-
-        // ── AUTH ───────────────────────────────────────────────────────────
-        using var authTo = new CancellationTokenSource(RemoteControlConstants.HandshakeTimeoutMs);
-        using var authCt = CancellationTokenSource.CreateLinkedTokenSource(sessionCt, authTo.Token);
-
-        await MessageCodec.WriteMessageAsync(
-            _stream, MessageType.Auth, MessageCodec.EncodeAuth(_token), authCt.Token)
-            .ConfigureAwait(false);
-
-        var (authResultType, authResultPayload) = await MessageCodec
-            .ReadMessageAsync(_stream, authCt.Token).ConfigureAwait(false);
-
-        if (authResultType == MessageType.AuthFail)
-        {
-            var reason = MessageCodec.DecodeAuthFail(authResultPayload);
-            _logger.LogWarning("AUTH_FAIL from {Host}: {Reason}", _host, reason);
-            _authFailed = true;
-            // Server closes the connection; clean up our side too.
-            await CloseConnectionAsync($"AUTH_FAIL: {reason}").ConfigureAwait(false);
-            // Transition to Faulted — caller (ConnectionLoopAsync) will not retry.
-            SetState(ConnectionState.Faulted, $"AUTH_FAIL: {reason}");
-            return;
-        }
-
-        if (authResultType != MessageType.AuthOk)
-            throw new ProtocolException($"Expected AUTH_OK or AUTH_FAIL, got {authResultType}");
-
-        // Auth succeeded — reset reconnect counter.
-        _reconnectAttempts = 0;
-        SetState(ConnectionState.Streaming);
-
-        // ── Streaming phase: receive loop + ping sender run concurrently ───
-        // Initialise PONG timestamp BEFORE starting PingSender so the first timeout
-        // window starts from "now", not from an earlier timestamp.
-        Interlocked.Exchange(ref _lastPongTicks, DateTime.UtcNow.Ticks);
-
-        var pingSenderTask = Task.Run(() => PingSenderLoopAsync(sessionCt), sessionCt);
-
+        // Everything from ConnectAsync through the handshake can throw BEFORE the
+        // streaming try/finally below is reached. Without this guard the freshly
+        // assigned _tcp/_stream would never be disposed — the next retry overwrites
+        // the references and leaks one socket + NetworkStream per failed attempt
+        // (unbounded on a flaky network).
         try
         {
-            await ReceiveLoopAsync(sessionCt).ConfigureAwait(false);
+            await _tcp.ConnectAsync(_host, _port, sessionCt).ConfigureAwait(false);
+            _stream = _tcp.GetStream();
+
+            SetState(ConnectionState.Authenticating);
+
+            // ── HELLO ──────────────────────────────────────────────────────
+            using var helloTo  = new CancellationTokenSource(RemoteControlConstants.HandshakeTimeoutMs);
+            using var helloCt  = CancellationTokenSource.CreateLinkedTokenSource(sessionCt, helloTo.Token);
+
+            await MessageCodec.WriteMessageAsync(
+                _stream, MessageType.Hello, MessageCodec.EncodeHello("IPGS-CCU-v1"), helloCt.Token)
+                .ConfigureAwait(false);
+
+            var (helloAckType, helloAckPayload) = await MessageCodec
+                .ReadMessageAsync(_stream, helloCt.Token).ConfigureAwait(false);
+
+            if (helloAckType != MessageType.HelloAck)
+                throw new ProtocolException($"Expected HELLO_ACK, got {helloAckType}");
+
+            var (_, screenW, screenH, serverName) = MessageCodec.DecodeHelloAck(helloAckPayload);
+            _screenWidth  = (int)screenW;
+            _screenHeight = (int)screenH;
+            _logger.LogInformation("Connected to {ServerName}, screen {W}×{H}", serverName, screenW, screenH);
+
+            // ── AUTH ───────────────────────────────────────────────────────
+            using var authTo = new CancellationTokenSource(RemoteControlConstants.HandshakeTimeoutMs);
+            using var authCt = CancellationTokenSource.CreateLinkedTokenSource(sessionCt, authTo.Token);
+
+            await MessageCodec.WriteMessageAsync(
+                _stream, MessageType.Auth, MessageCodec.EncodeAuth(_token), authCt.Token)
+                .ConfigureAwait(false);
+
+            var (authResultType, authResultPayload) = await MessageCodec
+                .ReadMessageAsync(_stream, authCt.Token).ConfigureAwait(false);
+
+            if (authResultType == MessageType.AuthFail)
+            {
+                var reason = MessageCodec.DecodeAuthFail(authResultPayload);
+                _logger.LogWarning("AUTH_FAIL from {Host}: {Reason}", _host, reason);
+                _authFailed = true;
+                // Server closes the connection; clean up our side too.
+                await CloseConnectionAsync($"AUTH_FAIL: {reason}").ConfigureAwait(false);
+                // Transition to Faulted — caller (ConnectionLoopAsync) will not retry.
+                SetState(ConnectionState.Faulted, $"AUTH_FAIL: {reason}");
+                return;
+            }
+
+            if (authResultType != MessageType.AuthOk)
+                throw new ProtocolException($"Expected AUTH_OK or AUTH_FAIL, got {authResultType}");
+
+            // Auth succeeded — reset reconnect counter.
+            _reconnectAttempts = 0;
+            SetState(ConnectionState.Streaming);
+
+            // ── Streaming phase: receive loop + ping sender run concurrently ───
+            // Initialise PONG timestamp BEFORE starting PingSender so the first timeout
+            // window starts from "now", not from an earlier timestamp.
+            Interlocked.Exchange(ref _lastPongTicks, DateTime.UtcNow.Ticks);
+
+            var pingSenderTask = Task.Run(() => PingSenderLoopAsync(sessionCt), sessionCt);
+
+            try
+            {
+                await ReceiveLoopAsync(sessionCt).ConfigureAwait(false);
+            }
+            finally
+            {
+                // Cancel session to stop PingSenderLoop, wait for it to finish.
+                _sessionCts?.Cancel();
+                try { await pingSenderTask.ConfigureAwait(false); } catch { /* ignore */ }
+                await CloseConnectionAsync("Session ended").ConfigureAwait(false);
+            }
         }
-        finally
+        catch
         {
-            // Cancel session to stop PingSenderLoop, wait for it to finish.
-            _sessionCts?.Cancel();
-            try { await pingSenderTask.ConfigureAwait(false); } catch { /* ignore */ }
-            await CloseConnectionAsync("Session ended").ConfigureAwait(false);
+            // Dispose _tcp/_stream on ANY failure path (TCP connect, HELLO/AUTH
+            // handshake, streaming). CloseConnectionAsync is idempotent
+            // (Interlocked.Exchange to null) so the double call after the inner
+            // finally above is harmless.
+            await CloseConnectionAsync("Connection attempt failed").ConfigureAwait(false);
+            throw;
         }
     }
 
@@ -389,7 +406,9 @@ public sealed class RemoteControlClient : IRemoteControlClient
 
             // Check PING timeout: if no PONG received in PingTimeoutMs, abort session.
             var lastPong    = new DateTime(Interlocked.Read(ref _lastPongTicks), DateTimeKind.Utc);
-            var elapsedMs   = (int)(DateTime.UtcNow - lastPong).TotalMilliseconds;
+            // Keep as double + clamp ≥ 0 — a straight (int) cast can overflow/underflow
+            // at the boundaries (e.g. clock adjustment) and corrupt the timeout check.
+            var elapsedMs   = Math.Max(0d, (DateTime.UtcNow - lastPong).TotalMilliseconds);
             if (elapsedMs > RemoteControlConstants.PingTimeoutMs)
             {
                 _logger.LogWarning("PING timeout: no PONG in {Elapsed} ms — aborting session", elapsedMs);

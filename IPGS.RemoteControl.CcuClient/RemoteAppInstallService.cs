@@ -58,23 +58,25 @@ namespace IPGS.RemoteControl.CcuClient
                 // ── Bước 2: Cài đặt App ────────────────────────────────────────
                 Log("--- [2/2] Chạy cài đặt trên máy đích ---");
 
-                string escapedSudoPass = options.SudoPassword
-                    .Replace("'", "'\\''")
-                    .Replace("\n", "")
-                    .Replace("\r", "");
-                string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS='{escapedSudoPass}'";
+                // S1/Q12: dùng ShellQuote.Quote cho password (thay escape lặp tay).
+                string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS={ShellQuote.Quote(options.SudoPassword)}";
 
-                string fileName = Path.GetFileName(options.AppInstallerFile);
+                // S1: fileName nội suy vào TRONG chuỗi bash -c '...' đã single-quote nên
+                // không thể Quote lồng — validate whitelist, từ chối tên chứa ' ; $() space...
+                string fileName = ShellQuote.ValidateFileName(
+                    Path.GetFileName(options.AppInstallerFile), nameof(options.AppInstallerFile));
                 string ext = Path.GetExtension(fileName).ToLower();
                 Log($"🔄 Đang chạy lệnh cài đặt cho: {fileName}...");
 
                 if (ext == ".deb")
                 {
-                    RunCommand(ssh, $"{envCmd} bash -c 'echo \"$KIOSK_SUDO_PASS\" | sudo -S dpkg -i ~/{fileName}'", Log);
+                    RunCommand(ssh, $"{envCmd} bash -c 'echo \"$KIOSK_SUDO_PASS\" | sudo -S dpkg -i \"$HOME/{fileName}\"'", Log);
                 }
                 else if (ext == ".sh" || ext == ".run")
                 {
-                    RunCommand(ssh, $"{envCmd} bash -c 'chmod +x ~/{fileName} && echo \"$KIOSK_SUDO_PASS\" | sudo -S ./~/{fileName}'", Log);
+                    // A5: trước đây là `sudo -S ./~/{fileName}` — `~` sau `./` là literal,
+                    // đường dẫn ./~/file không tồn tại → nhánh .sh/.run LUÔN thất bại.
+                    RunCommand(ssh, $"{envCmd} bash -c 'chmod +x \"$HOME/{fileName}\" && echo \"$KIOSK_SUDO_PASS\" | sudo -S \"$HOME/{fileName}\"'", Log);
                 }
                 else
                 {
@@ -97,35 +99,36 @@ namespace IPGS.RemoteControl.CcuClient
                     throw new ArgumentException("Thiếu tên package để gỡ cài đặt.");
                 }
 
-                Log($"=== Bắt đầu gỡ cài đặt '{options.PackageName}' trên {options.Username}@{options.Host} ===");
+                // S1: PackageName nội suy vào dpkg -P / find -iname / rm -rf bên trong
+                // bash -c '...' → validate whitelist, chặn 'foo';rm -rf ~;' và tương tự.
+                string packageName = ShellQuote.ValidatePackageName(options.PackageName, nameof(options.PackageName));
+
+                Log($"=== Bắt đầu gỡ cài đặt '{packageName}' trên {options.Username}@{options.Host} ===");
 
                 using var ssh = new SshClient(options.Host, options.SshPort, options.Username, options.Password);
                 ssh.Connect();
                 if (!ssh.IsConnected)
                     throw new Exception("Không thể mở kết nối SSH tới máy đích.");
 
-                string escapedSudoPass = options.SudoPassword
-                    .Replace("'", "'\\''")
-                    .Replace("\n", "")
-                    .Replace("\r", "");
-                string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS='{escapedSudoPass}'";
+                string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS={ShellQuote.Quote(options.SudoPassword)}";
 
-                Log($"🔄 Đang chạy lệnh gỡ cài đặt (Purge) dpkg -P {options.PackageName}...");
-                RunCommand(ssh, $"{envCmd} bash -c 'echo \"$KIOSK_SUDO_PASS\" | sudo -S dpkg -P {options.PackageName}'", Log);
+                Log($"🔄 Đang chạy lệnh gỡ cài đặt (Purge) dpkg -P {packageName}...");
+                RunCommand(ssh, $"{envCmd} bash -c 'echo \"$KIOSK_SUDO_PASS\" | sudo -S dpkg -P {packageName}'", Log);
 
                 Log($"🧹 Đang dọn dẹp các shortcut (.desktop) còn sót lại...");
-                string cleanupCmd = $"echo \"$KIOSK_SUDO_PASS\" | sudo -S find /usr/share/applications /etc/xdg/autostart ~/.local/share/applications ~/Desktop -iname \"*{options.PackageName}*.desktop\" -delete 2>/dev/null || true";
+                string cleanupCmd = $"echo \"$KIOSK_SUDO_PASS\" | sudo -S find /usr/share/applications /etc/xdg/autostart ~/.local/share/applications ~/Desktop -iname \"*{packageName}*.desktop\" -delete 2>/dev/null || true";
                 RunCommand(ssh, $"{envCmd} bash -c '{cleanupCmd}'", null, silent: true);
 
-                string baseName = options.PackageName.Replace("kztek-", "").Trim('-');
-                if (!string.IsNullOrEmpty(baseName) && baseName != options.PackageName)
+                // baseName là chuỗi con của packageName đã validate → cũng an toàn.
+                string baseName = packageName.Replace("kztek-", "").Trim('-');
+                if (!string.IsNullOrEmpty(baseName) && baseName != packageName)
                 {
                     string cleanupCmd2 = $"echo \"$KIOSK_SUDO_PASS\" | sudo -S find /usr/share/applications /etc/xdg/autostart ~/.local/share/applications ~/Desktop -iname \"*{baseName}*.desktop\" -delete 2>/dev/null || true";
                     RunCommand(ssh, $"{envCmd} bash -c '{cleanupCmd2}'", null, silent: true);
                 }
 
                 Log($"🧹 Đang dọn dẹp thư mục rác /opt/kztek/{baseName} (nếu có)...");
-                string rmFolderCmd = $"echo \"$KIOSK_SUDO_PASS\" | sudo -S rm -rf /opt/kztek/{baseName} /opt/kztek/{options.PackageName} 2>/dev/null || true";
+                string rmFolderCmd = $"echo \"$KIOSK_SUDO_PASS\" | sudo -S rm -rf /opt/kztek/{baseName} /opt/kztek/{packageName} 2>/dev/null || true";
                 RunCommand(ssh, $"{envCmd} bash -c '{rmFolderCmd}'", null, silent: true);
 
                 RunCommand(ssh, $"{envCmd} bash -c 'update-desktop-database ~/.local/share/applications 2>/dev/null || true'", null, silent: true);
@@ -148,12 +151,12 @@ namespace IPGS.RemoteControl.CcuClient
             log($"✅ Đã tải xong {fileName}.");
         }
 
-        private static void RunCommand(SshClient ssh, string commandText, Action<string> log, bool silent = false)
+        private static void RunCommand(SshClient ssh, string commandText, Action<string>? log, bool silent = false)
         {
             using var cmd = ssh.CreateCommand(commandText, Encoding.UTF8);
             cmd.Execute();
 
-            if (silent) return;
+            if (silent || log is null) return;
 
             string result = (cmd.Result ?? string.Empty).TrimEnd();
             if (!string.IsNullOrEmpty(result)) log(result);

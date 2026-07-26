@@ -151,17 +151,12 @@ namespace IPGS.RemoteControl.CcuClient
                 //   - Hàm _sudo() trong script dùng: echo "$KIOSK_SUDO_PASS" | sudo -S cmd
                 //     → sudo đọc password từ stdin, không cần TTY.
                 //
-                // Escape password để an toàn trong env VAR='...' syntax:
-                //   - Single-quote bao quanh giá trị
-                //   - ' bên trong → '\'' (đóng quote, escaped quote, mở quote lại)
-                string escapedSudoPass = options.SudoPassword
-                    .Replace("'", "'\\''")
-                    .Replace("\n", "")
-                    .Replace("\r", "");
-
+                // Escape password để an toàn trong env VAR='...' syntax — dùng helper
+                // ShellQuote chung (Q12): single-quote bao quanh, ' bên trong → '\''.
+                //
                 // env command syntax: env VAR1=val1 VAR2=val2 command [args...]
                 // Không cần shell để parse — env exec trực tiếp.
-                string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS='{escapedSudoPass}'";
+                string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS={ShellQuote.Quote(options.SudoPassword)}";
 
                 if (options.RunInstallSoftware)
                 {
@@ -175,7 +170,9 @@ namespace IPGS.RemoteControl.CcuClient
                     Log("🔄 Đang chạy 2-configure-system.sh (Config máy tính — phần hệ thống + Config phần mềm — update/autostart)...");
                     string kioskUser = string.IsNullOrEmpty(options.KioskUser) ? options.Username : options.KioskUser;
                     string args2 = $"{B(options.DisableHotCorner)} {B(options.DisableDockIcons)} {B(options.BlockSleep)} {B(options.SkipInitialSetup)} {B(options.EnableAutologin)} {B(options.DisableSoftwareUpdate)} {B(options.EnableAutostart)} {B(options.LockSingleWorkspace)}";
-                    RunCommand(ssh, $"{envCmd} bash ~/2-configure-system.sh '{kioskUser}' '{options.AppExec}' {args2}", Log);
+                    // S1: quote đúng chuẩn POSIX — bản cũ '{kioskUser}' không escape '
+                    // bên trong nên giá trị chứa ' có thể break-out khỏi quote.
+                    RunCommand(ssh, $"{envCmd} bash ~/2-configure-system.sh {ShellQuote.Quote(kioskUser)} {ShellQuote.Quote(options.AppExec)} {args2}", Log);
                 }
 
                 ssh.Disconnect();

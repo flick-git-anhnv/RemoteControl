@@ -26,7 +26,10 @@ public static class WakeOnLanService
         // Xóa các ký tự phân cách (: hoặc - hoặc khoảng trắng)
         string cleanedMac = Regex.Replace(macAddress, "[: -]", "");
 
-        if (cleanedMac.Length != 12)
+        // Q10: kiểm tra hex tường minh — nếu chỉ check Length==12, chuỗi 12 ký tự
+        // không-hex sẽ khiến Convert.ToByte ném FormatException (sai với cam kết
+        // ArgumentException của hàm này).
+        if (!Regex.IsMatch(cleanedMac, "^[0-9A-Fa-f]{12}$"))
             throw new ArgumentException("Địa chỉ MAC không hợp lệ. Phải gồm 12 ký tự hex.", nameof(macAddress));
 
         byte[] macBytes = new byte[6];

@@ -166,13 +166,35 @@ public sealed class ComputerProfileStore : IComputerProfileStore
                     var items = JsonSerializer.Deserialize<List<ComputerProfile>>(json, JsonOptions);
                     if (items != null)
                     {
+                        // S7: giải mã secret DPAPI. Giá trị plaintext cũ (không prefix enc:v1:)
+                        // đọc được bình thường — sẽ tự migrate sang mã hoá ở lần Persist kế tiếp.
+                        foreach (var item in items)
+                        {
+                            item.Token = SecretProtector.Unprotect(item.Token) ?? string.Empty;
+                            item.SshPassword = SecretProtector.Unprotect(item.SshPassword);
+                        }
                         _profiles.AddRange(items);
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Fallback nếu file hỏng hoặc lỗi IO
+                // Q8: KHÔNG nuốt im lặng — log rõ + backup file hỏng để user không mất
+                // dữ liệu vĩnh viễn (có thể khôi phục tay từ file .corrupt-*).
+                string warn = $"[ComputerProfileStore] Không đọc được {_filePath}: {ex.Message} — danh sách profile tạm thời rỗng.";
+                System.Diagnostics.Trace.TraceWarning(warn);
+                try { Console.Error.WriteLine(warn); } catch { /* ignore */ }
+                try
+                {
+                    if (File.Exists(_filePath))
+                    {
+                        string backupPath = $"{_filePath}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}";
+                        File.Copy(_filePath, backupPath, overwrite: true);
+                        System.Diagnostics.Trace.TraceWarning(
+                            $"[ComputerProfileStore] Đã backup file hỏng sang: {backupPath}");
+                    }
+                }
+                catch { /* backup best-effort */ }
             }
         }
     }
@@ -186,12 +208,40 @@ public sealed class ComputerProfileStore : IComputerProfileStore
             {
                 Directory.CreateDirectory(dir);
             }
-            string json = JsonSerializer.Serialize(_profiles, JsonOptions);
-            File.WriteAllText(_filePath, json);
+
+            // S7: serialize bản sao với secret đã mã hoá DPAPI — KHÔNG mutate object
+            // trong bộ nhớ (UI/binding vẫn dùng plaintext runtime).
+            var storageList = _profiles.Select(CloneForStorage).ToList();
+            string json = JsonSerializer.Serialize(storageList, JsonOptions);
+
+            // Q7: ghi atomic — ghi file tạm rồi File.Move(overwrite) để crash giữa chừng
+            // không phá hỏng profiles.json hiện có.
+            string tmpPath = _filePath + ".tmp";
+            File.WriteAllText(tmpPath, json);
+            File.Move(tmpPath, _filePath, overwrite: true);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[ComputerProfileStore] Error persisting profiles to {_filePath}: {ex.Message}");
         }
     }
+
+    /// <summary>Bản sao chỉ gồm các field được lưu (bỏ state runtime), secret đã mã hoá.</summary>
+    private static ComputerProfile CloneForStorage(ComputerProfile p) => new()
+    {
+        Id = p.Id,
+        Name = p.Name,
+        Host = p.Host,
+        Port = p.Port,
+        Token = SecretProtector.Protect(p.Token) ?? string.Empty,
+        Notes = p.Notes,
+        MacAddress = p.MacAddress,
+        SshPort = p.SshPort,
+        SshUsername = p.SshUsername,
+        SshPassword = SecretProtector.Protect(p.SshPassword),
+        LastConnectedAt = p.LastConnectedAt,
+        LastAppInstallerPath = p.LastAppInstallerPath,
+        LastUninstallPackage = p.LastUninstallPackage,
+        CreatedAt = p.CreatedAt
+    };
 }

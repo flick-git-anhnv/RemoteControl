@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -60,6 +61,10 @@ namespace IPGS.RemoteControl.CcuClient
             {
                 void Report(string msg, double percent) => onProgress?.Invoke(msg, percent);
 
+                // S1: Username nội suy vào path /home/..., unit systemd, loginctl —
+                // validate whitelist trước khi dùng để tránh command injection.
+                string username = ShellQuote.ValidateUsername(options.Username, nameof(options.Username));
+
                 Report("🔄 [1/7] Đang kết nối SSH đến ZCU...", 10);
                 using var ssh = CreateSshClient(options);
                 ssh.Connect();
@@ -69,7 +74,7 @@ namespace IPGS.RemoteControl.CcuClient
 
                 Report("🔍 [2/7] Kiểm tra hệ điều hành & môi trường X11...", 20);
                 var sessionRes = ExecuteCommand(ssh, "echo $XDG_SESSION_TYPE");
-                string sessionType = sessionRes.Result.Trim().ToLower();
+                string sessionType = sessionRes.Trim().ToLower();
                 if (sessionType == "wayland")
                 {
                     Report("⚠️ Cảnh báo: Session hiện tại là Wayland. ZcuAgent yêu cầu session X11 (Ubuntu on Xorg).", 25);
@@ -80,13 +85,13 @@ namespace IPGS.RemoteControl.CcuClient
 
                 Report("💻 [4/7] Kiểm tra & cài đặt .NET 8 Runtime...", 50);
                 var dotnetCheck = ExecuteCommand(ssh, "dotnet --version 2>/dev/null || $HOME/.dotnet/dotnet --version 2>/dev/null || echo 'NOT_FOUND'");
-                if (dotnetCheck.Result.Contains("NOT_FOUND"))
+                if (dotnetCheck.Contains("NOT_FOUND"))
                 {
                     Report("⬇️ Đang tải script và cài .NET 8 Runtime...", 55);
                     ExecuteCommand(ssh, "wget -q https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh && chmod +x /tmp/dotnet-install.sh && /tmp/dotnet-install.sh --channel 8.0 --runtime dotnet --install-dir $HOME/.dotnet && rm -f /tmp/dotnet-install.sh");
                 }
 
-                string remoteInstallDir = $"/home/{options.Username}/ipgs/remote-agent";
+                string remoteInstallDir = $"/home/{username}/ipgs/remote-agent";
                 ExecuteCommand(ssh, $"mkdir -p {remoteInstallDir}");
 
                 // Ensure PublishSourceDir is resolved
@@ -110,29 +115,35 @@ namespace IPGS.RemoteControl.CcuClient
                 {
                     // Check if file already exists on remote ZCU
                     var fileCheck = ExecuteCommand(ssh, $"[ -f {remoteInstallDir}/IPGS.RemoteControl.ZcuAgent ] && echo 'EXISTS' || echo 'MISSING'");
-                    if (!fileCheck.Result.Contains("EXISTS"))
+                    if (!fileCheck.Contains("EXISTS"))
                     {
                         throw new FileNotFoundException($"Không tìm thấy tệp thực thi IPGS.RemoteControl.ZcuAgent để tải lên ZCU. Vui lòng đảm bảo dự án ZcuAgent đã được biên dịch linux-x64.");
                     }
                 }
 
                 Report("⚙️ [5.1] Tạo và cập nhật cấu hình appsettings.json...", 78);
-                string jsonConfig = $@"{{
-  ""RemoteControl"": {{
-    ""Port"": {options.AgentPort},
-    ""Token"": ""{options.AgentToken}"",
-    ""AllowedClientIPs"": [ ""{options.AllowedClientIPs}"" ],
-    ""TargetFps"": {options.TargetFps},
-    ""JpegQuality"": {options.JpegQuality},
-    ""MaxFrameBytes"": 8388608
-  }},
-  ""Logging"": {{
-    ""LogLevel"": {{
-      ""Default"": ""Information"",
-      ""Microsoft.Hosting.Lifetime"": ""Information""
-    }}
-  }}
-}}";
+                // Q4: dựng JSON bằng JsonSerializer thay vì nội suy chuỗi — token chứa
+                // dấu " hoặc newline sẽ được escape đúng, không phá cấu trúc JSON/heredoc.
+                string jsonConfig = JsonSerializer.Serialize(new
+                {
+                    RemoteControl = new
+                    {
+                        Port = options.AgentPort,
+                        Token = options.AgentToken,
+                        AllowedClientIPs = new[] { options.AllowedClientIPs },
+                        TargetFps = options.TargetFps,
+                        JpegQuality = options.JpegQuality,
+                        MaxFrameBytes = 8388608
+                    },
+                    Logging = new
+                    {
+                        LogLevel = new Dictionary<string, string>
+                        {
+                            ["Default"] = "Information",
+                            ["Microsoft.Hosting.Lifetime"] = "Information"
+                        }
+                    }
+                }, new JsonSerializerOptions { WriteIndented = true });
 
                 ExecuteCommand(ssh, $"cat << 'EOF' > {remoteInstallDir}/appsettings.json\n{jsonConfig}\nEOF");
 
@@ -146,8 +157,8 @@ Wants=graphical-session.target
 Type=simple
 ExecStart={remoteInstallDir}/IPGS.RemoteControl.ZcuAgent
 WorkingDirectory={remoteInstallDir}
-Environment=DOTNET_ROOT=/home/{options.Username}/.dotnet
-Environment=PATH=/home/{options.Username}/.dotnet:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=DOTNET_ROOT=/home/{username}/.dotnet
+Environment=PATH=/home/{username}/.dotnet:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=DISPLAY=:0
 Environment=XDG_SESSION_TYPE=x11
 Restart=on-failure
@@ -158,10 +169,10 @@ StandardError=journal
 [Install]
 WantedBy=default.target";
 
-                ExecuteCommand(ssh, $"mkdir -p /home/{options.Username}/.config/systemd/user");
-                ExecuteCommand(ssh, $"cat << 'EOF' > /home/{options.Username}/.config/systemd/user/ipgs-remote-agent.service\n{unitFileContent}\nEOF");
+                ExecuteCommand(ssh, $"mkdir -p /home/{username}/.config/systemd/user");
+                ExecuteCommand(ssh, $"cat << 'EOF' > /home/{username}/.config/systemd/user/ipgs-remote-agent.service\n{unitFileContent}\nEOF");
                 ExecuteCommand(ssh, "systemctl --user daemon-reload && systemctl --user enable ipgs-remote-agent.service || true");
-                ExecuteSudoCommand(ssh, $"loginctl enable-linger {options.Username}", options.Password);
+                ExecuteSudoCommand(ssh, $"loginctl enable-linger {username}", options.Password);
 
                 Report("🛡️ [7/7] Mở cổng Firewall & Tắt khoá màn hình tự động...", 95);
                 ExecuteSudoCommand(ssh, $"ufw allow {options.AgentPort}/tcp comment 'IPGS Remote Agent'", options.Password);
@@ -171,7 +182,7 @@ WantedBy=default.target";
                 // Start service and check active status
                 ExecuteCommand(ssh, "systemctl --user restart ipgs-remote-agent.service || true");
                 var activeCheck = ExecuteCommand(ssh, "systemctl --user is-active ipgs-remote-agent.service || echo 'inactive'");
-                string activeStatus = activeCheck.Result.Trim();
+                string activeStatus = activeCheck.Trim();
 
                 if (activeStatus == "active")
                 {
@@ -213,11 +224,15 @@ WantedBy=default.target";
             return new SftpClient(opts.Host, opts.SshPort, opts.Username, opts.Password);
         }
 
-        private SshCommand ExecuteCommand(SshClient ssh, string commandText)
+        /// <summary>
+        /// Q6: trả về string Result thay vì object SshCommand — bản cũ `using var cmd`
+        /// rồi `return cmd` khiến caller đọc `.Result` trên object đã Dispose.
+        /// </summary>
+        private string ExecuteCommand(SshClient ssh, string commandText)
         {
             using var cmd = ssh.CreateCommand(commandText);
             cmd.Execute();
-            return cmd;
+            return cmd.Result ?? string.Empty;
         }
 
         private void ExecuteSudoCommand(SshClient ssh, string commandText, string password)
@@ -228,8 +243,8 @@ WantedBy=default.target";
             }
             else
             {
-                string escapedPass = password.Replace("'", "'\\''");
-                ssh.RunCommand($"echo '{escapedPass}' | sudo -S {commandText} 2>/dev/null || true");
+                // Q12: dùng helper ShellQuote chung thay escape tay.
+                ssh.RunCommand($"echo {ShellQuote.Quote(password)} | sudo -S {commandText} 2>/dev/null || true");
             }
         }
 
@@ -306,8 +321,24 @@ WantedBy=default.target";
                                 CreateNoWindow = true,
                                 UseShellExecute = false
                             };
-                            var proc = System.Diagnostics.Process.Start(psi);
-                            proc?.WaitForExit(45000);
+                            // Q5: using + kiểm tra kết quả WaitForExit; quá 45s → kill
+                            // process tree để tránh dotnet publish orphan rò handle.
+                            using (var proc = System.Diagnostics.Process.Start(psi))
+                            {
+                                if (proc is null)
+                                {
+                                    _logger?.LogWarning("Không khởi động được tiến trình 'dotnet publish' cho ZcuAgent.");
+                                }
+                                else if (!proc.WaitForExit(45000))
+                                {
+                                    _logger?.LogWarning("'dotnet publish' ZcuAgent quá 45s — kill tiến trình để tránh orphan.");
+                                    try { proc.Kill(entireProcessTree: true); } catch { /* ignore */ }
+                                }
+                                else if (proc.ExitCode != 0)
+                                {
+                                    _logger?.LogWarning("'dotnet publish' ZcuAgent thoát với mã lỗi {ExitCode}.", proc.ExitCode);
+                                }
+                            }
 
                             if (Directory.Exists(outDir) && File.Exists(Path.Combine(outDir, "IPGS.RemoteControl.ZcuAgent")))
                                 return outDir;
