@@ -1,7 +1,7 @@
 ---
 task: user-manual-ccu-zcu
 created: 2026-07-26
-updated: 2026-07-26 16:44
+updated: 2026-07-26 17:28
 status: planning
 workflow: WF-DOCS
 priority: P2
@@ -42,7 +42,7 @@ Screenshot BẮT BUỘC chụp từ app chạy thật (build Release trên máy 
 ### Phase 2: Chụp screenshot theo nhóm màn hình (app thật)
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
 |---|------|-------|--------|-----------|-----------------|
-| 2.1 | Nhóm Kết nối & Quản lý thiết bị: MainWindow, ConnectionEntryWindow, ComputerEditWindow, NetworkScanWindow, SessionPickerWindow, ConfirmDeleteDialog | documentation-writer | ⬜ | `steps/STEP-2.1-shots-connection.md` | - |
+| 2.1 | Nhóm Kết nối & Quản lý thiết bị: MainWindow, ConnectionEntryWindow, ComputerEditWindow, NetworkScanWindow, SessionPickerWindow, ConfirmDeleteDialog | documentation-writer | ✅ | `steps/STEP-2.1-shots-connection.md` | 2026-07-26 17:28 |
 | 2.2 | Nhóm Remote & Điều khiển: RemoteScreenWindow, RemoteScreenControl, MultiRemoteWindow, RemoteCommandWindow, FileManagerWindow | documentation-writer | ⬜ | `steps/STEP-2.2-shots-remote.md` | - |
 | 2.3 | Nhóm Triển khai & Quản trị: ZcuSetupWizardWindow, KioskDeployWindow, RemoteAppInstallWindow, BulkActionWindow, CronJobWindow | documentation-writer | ⬜ | `steps/STEP-2.3-shots-deploy.md` | - |
 | 2.4 | Nhóm Giám sát & Hệ thống: HealthMonitorWindow, SystemInventoryWindow, LicenseWindow (+ ảnh terminal ZCU nếu có thiết bị) | documentation-writer | ⬜ | `steps/STEP-2.4-shots-monitor.md` | - |
@@ -78,6 +78,11 @@ Không có (tại thời điểm tạo plan).
 - **[USER CHỐT 2026-07-26]** Scope BAO GỒM cả `KeyGen` (quy trình sinh khóa) và `LicenseWindow` — không loại trừ. Bước 0.1 không cần đề xuất lại vấn đề này.
 - **[USER CHỐT 2026-07-26]** 1 file duy nhất `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md` — Phần 1 = triển khai ZCU, Phần 2 = thao tác CCU. KHÔNG tách 2 file.
 - **[USER CUNG CẤP 2026-07-26]** Thiết bị ZCU thật cho Phase 2: host `192.168.1.4`, user `kztek`. **Credential đầy đủ (kèm mật khẩu) lưu tại `temp/user-manual-ccu-zcu/zcu-connection.md` — thư mục `temp/` đã gitignore, TUYỆT ĐỐI KHÔNG chép mật khẩu vào bất kỳ file nào dưới `docs/` hoặc `_workspace/`.** Trong MANUAL phải dùng giá trị ví dụ giả (`192.168.1.x`, `<user>`), không ghi credential thật.
+- **[USER CHỐT 2026-07-26 — Phase 2, trả lời 5 mục cần quyết ở `_workspace/00_docwriter_screen-inventory.md` §4]**
+  - ✅ **ĐƯỢC PHÉP** chạy thật ZcuSetupWizard cài/cập nhật ZcuAgent lên `192.168.1.4` (giữ nguyên Token/Port hiện tại, chấp nhận restart agent) → chụp `zcu-setup-wizard-installing/success`, `zcu-terminal-*`.
+  - 🛑 **KHÔNG được phép** bấm Deploy thật ở KioskDeployWindow (đổi GNOME/autologin) → `kiosk-deploy-log.png` = BLOCK, mô tả bằng chữ.
+  - 🛑 **KHÔNG được phép** cài gói .deb thử qua RemoteAppInstall → ảnh trạng thái "cài thành công" = BLOCK, chỉ chụp tới bước chọn gói/xác nhận.
+  - ✅ **LicenseWindow:** mở bằng **harness tạm trong `temp/`** (project console nhỏ, KHÔNG commit, **KHÔNG sửa code sản phẩm**) để chụp ảnh thật. `license-success` vẫn BLOCK nếu không sinh được key hợp lệ.
 - Phạm vi + screenshot từ app thật đã được user chốt trước khi tạo plan — không hỏi lại.
 - Phase 2 chia 4 bước theo cụm chức năng để mỗi session subagent không quá lớn (§16.5).
 - Documentation Writer PHẢI đọc `.claude/commands/kztek-brand-info.md` trước khi tạo bất kỳ file tài liệu nào (điều kiện WF-DOCS).
@@ -90,6 +95,7 @@ Không có (tại thời điểm tạo plan).
 | 2026-07-26 | Bước 0.1 ✅ — scope + mục lục 16 chương tại `_workspace/00_pm_docs-scope.md`; ghi nhận MainWindow ≡ ConnectionEntryWindow (18 view duy nhất) | product-manager |
 | 2026-07-26 | Bước 0.2 ✅ — Screen Inventory 18/18 view + checklist 79 ảnh (2.1=16, 2.2=28, 2.3=20, 2.4=15) tại `_workspace/00_docwriter_screen-inventory.md`; điều chỉnh: ConfirmDeleteDialog + SystemInventoryWindow chụp trong bước 2.2; LicenseWindow không có entry point UI → cần harness dev tạm; 5 mục cần quyết định trước Phase 2 (mục 4 inventory) | documentation-writer |
 | 2026-07-26 | Bước 1.1 ✅ — Build Release CcuUI 0 error; app chạy thật từ exe Release (PID 17180, để nguyên cho Phase 2); script chụp `temp/user-manual-ccu-zcu/capture-window.ps1` (PrintWindow + PW_RENDERFULLCONTENT — không bị cửa sổ khác che); kiểm chứng bằng ảnh thật `screenshots/connection-entry-default.png` (1216×799) | documentation-writer |
+| 2026-07-26 | Bước 2.1 ✅ — 15/16 ảnh nhóm Kết nối & Quản lý thiết bị (verify từng ảnh bằng Read); 🛑 thiếu `network-scan-results` + ⚠️ `connection-entry-default` chụp bản P01-offline (ZCU 192.168.1.4 không mở cổng 22/17600 — cần user kiểm tra thiết bị trước bước 2.2); dữ liệu mẫu P01/P02/P03 giữ trong store, backup store thật tại `temp/user-manual-ccu-zcu/profiles.backup.json` (khôi phục ở 4.1) | documentation-writer |
 
 ---
 **Status icons:** ⬜ Todo | 🔄 In Progress | ✅ Done | 🛑 Blocked | ⏭️ Skipped
