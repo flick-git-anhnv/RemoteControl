@@ -171,3 +171,61 @@ Build verify: `dotnet build IPGS.RemoteControl.CcuUI -c Release` → **0 Error**
 **APPROVE-WITH-COMMENT — CHO PHÉP chuyển sang QA verify (Bước 4 WF-BUGFIX).** Không phát hiện lỗi chặn merge: root cause cả 6 finding được xử lý đúng (không vá triệu chứng), backward compat protocol 2 chiều và config `AllowedClientIPs` cũ đều an toàn, threading UI đúng chuẩn Dispatcher/async-context, build 2 project sạch (tự kiểm chứng). QA lưu ý test thêm: (1) record → đổi resolution ZCU giữa lúc ghi (guard dừng ghi phải kích hoạt đúng, KHÔNG kích hoạt lúc mới bấm Record); (2) kết nối agent cũ 1.0 nếu còn máy chưa nâng cấp (dialog cảnh báo hiện đúng 1 lần); (3) cài mới qua wizard rồi xác nhận `appsettings.json` trên ZCU có mảng 3 entry CIDR riêng biệt và CCU trong LAN vẫn kết nối được.
 
 — Tech Lead, 2026-07-26 22:17
+
+---
+
+## Kết quả QA verify — 2026-07-26 23:05
+
+**Người thực hiện:** QA Engineer (WF-BUGFIX Bước 4)
+**Môi trường:** CcuUI Release build có fix (commit `9caed3d`, CCU `192.168.0.100`) + ZCU thật `192.168.0.101` (Ubuntu 22, kztek). Agent bản mới **ZcuAgent/1.1** deploy qua ZcuSetupWizard (build `dotnet publish linux-x64` từ HEAD). Build CcuUI Release: **0 Error / 19 warning**; ZcuAgent Release: **0 Error**.
+**Cách test:** thao tác UI thật qua UIA + chuột/bàn phím thật (bộ script `temp/user-manual-ccu-zcu/`), đối chiếu file/log thật trên ZCU qua SSH.
+
+### Bảng kết quả V1–V7
+
+| Case | Finding | Kết quả | Bằng chứng |
+|---|---|---|---|
+| **V1** | F01 Record | ✅ **PASS** | Sau khi stream ~15s rồi Record ~20s → file `RemoteSession_20260726_223656.avi` **37.6 MB**, header AVI hợp lệ (`RIFF/AVI `, MJPG, 15fps, 586 frames, 1279×799), frame đầu decode được đúng độ phân giải đang stream (không phải 232 bytes). Đổi độ phân giải ZCU **giữa lúc ghi** (`xrandr` 1279→3020/4096) → guard dừng ghi đúng, file partial 278 frames vẫn hợp lệ, tiêu đề "⏹ Đã dừng ghi hình: độ phân giải ZCU thay đổi". `verify-v1-record-frame1.png`, `verify-v1-record-resolution-guard.png` |
+| **V2** | F02-a agent cũ | ✅ **PASS** | Dựng agent **thật** bản pre-Enterprise (commit `b7bbfef`, publish linux-x64) deploy lên ZCU → kết nối: dialog "Agent phiên bản cũ" (báo `ZcuAgent/1.0` < 1.1) hiện đúng **1 lần**; bấm "Đã hiểu" xong không hiện lại; reconnect (cửa sổ mới) hiện lại 1 lần — đúng "1 lần/cửa sổ". `verify-v2-agent-old-dialog.png` |
+| **V3** | F02-b SysInfo | ✅ **PASS** | Agent CŨ: bấm SysInfo → sau ~10s hiện dialog "Không nhận được phản hồi SysInfo" nêu nguyên nhân + cách xử lý (không fail âm thầm). Agent MỚI 1.1: `SystemInventoryWindow` mở ngay với dữ liệu thật (CPU i7-12700H, RAM 5.74 GB, Unix 6.8.0-134, X64), **KHÔNG** có dialog cảnh báo. `verify-v3-sysinfo-timeout.png`, `verify-v3-sysinfo-new-agent.png` |
+| **V4** | F03 snippet | ✅ **PASS** | CMD Shell (Console): click ô snippet → dropdown 12 lệnh mẫu mở (Reboot, Kiểm tra RAM & Ổ cứng, apt update…); set "RAM" qua UIA + click → lọc đúng còn "Kiểm tra RAM & Ổ cứng". BulkAction: tương tự, dropdown mở + lọc "RAM" đúng. `verify-v4-snippet-dropdown-cmd.png`, `verify-v4-snippet-filter-ram.png`, `verify-v4-snippet-bulk-ram.png` |
+| **V5** | F04 reset status | ✅ **PASS** | Wizard: xóa Token → Bắt đầu → status đỏ "Thiếu IP/SSH user… hoặc Token Agent."; nhập lại Token + Bắt đầu → status đổi ngay thành "Đang cài đặt ZcuAgent..." (xám), lỗi đỏ cũ biến mất tức thì (log/progress chạy song song không còn lỗi treo). RemoteAppInstall: chọn xong file → status đỏ validation biến mất. `verify-v5-wizard-error.png`, `verify-v5-wizard-status-reset.png` |
+| **V6** | F05 SSH message | ✅ **PASS** | BulkAction chạy `uname -a` trên VietAnh (đủ SSH) + Kien (thiếu SSH user): VietAnh "Thành công"; Kien "Lỗi" với thông báo tiếng Việt thân thiện "Máy chưa cấu hình SSH user — bấm '✏️ Sửa' máy tính này để bổ sung SSH username/password rồi chạy lại." — KHÔNG còn raw .NET exception. `verify-v6-bulk-ssh-message.png` |
+| **V7** | F06 agent security | ✅ **PASS** | Wizard default `AllowedClientIPs` = `192.168.0.0/16,10.0.0.0/8,172.16.0.0/12` (không còn `0.0.0.0/0`). Cài mới qua wizard → `appsettings.json` trên ZCU ghi **mảng 3 CIDR riêng biệt** đúng dạng; CCU `192.168.0.100` (thuộc `192.168.0.0/16`) kết nối + stream ZCU bình thường (agent log "accepted connection from 192.168.0.100"). Nhập token ngắn (`short123` < 16) + `0.0.0.0/0` → wizard ghi **2 dòng CẢNH BÁO BẢO MẬT** vào Nhật ký Cài đặt; agent ZCU cũng log `SECURITY: Token is only … chars`. `verify-v7-connect-lan-cidr.png`, `verify-v7-wizard-security-warning.png` (bằng chứng text log trong mục dưới) |
+
+**Tổng: 7 PASS / 0 FAIL / 0 SKIP.**
+
+### Regression test nhanh (luồng chính) — tất cả OK
+
+- **Kết nối + xem màn hình:** connect VietAnh (agent 1.1) → stream ZCU realtime OK, không dialog cảnh báo.
+- **CMD Shell chạy lệnh:** `uname -a && df -h /` trả kết quả đúng (Linux ubuntu-22 … / 67G 38%).
+- **FileManager (SFTP) duyệt:** browse `/home/kztek/ipgs/remote-agent` → tải đúng 36 mục, hiển thị danh sách file/kích thước/thời gian (appsettings.json, ZcuAgent.dll…). `verify-regression-filemanager.png`
+- **BulkAction song song:** 2 máy chạy đồng thời, máy lỗi không chặn máy thành công.
+- **Wizard 7/7 bước:** cài đặt hoàn tất ~15s, agent tự restart về `active`.
+
+### Bằng chứng text — cảnh báo bảo mật wizard (V7, token yếu + 0.0.0.0/0)
+
+```
+[23:01:23] ⚠ CẢNH BÁO BẢO MẬT: Token ngắn hơn 16 ký tự - dễ bị đoán. Dùng nút 🎲 Sinh Token để tạo token ngẫu nhiên mạnh.
+[23:01:23] ⚠ CẢNH BÁO BẢO MẬT: AllowedClientIPs đang mở cho MỌI IP (0.0.0.0/0) - nên giới hạn về dải LAN quản trị (VD 192.168.0.0/16).
+```
+
+Agent ZCU (journalctl) khi Token = 5 ký tự:
+```
+warn: SECURITY: RemoteControl:Token is only 5 chars — short tokens are guessable. Generate a strong random token (>= 32 chars) via the CCU Setup Wizard.
+```
+
+### Ảnh tài liệu chụp lại (do fix đổi giao diện)
+
+- `docs/user-manuals/screenshots/zcu-setup-wizard-default.png` — ô AllowedClientIPs nay hiển thị 3 dải LAN riêng (token đã che). Khớp caption Hình 53 (đã đúng sẵn — không cần sửa MANUAL).
+- `docs/user-manuals/screenshots/zcu-terminal-appsettings.png` — `appsettings.json` nay có mảng 3 CIDR thay `0.0.0.0/0` (token đã che). Khớp caption Hình 70.
+- MANUAL text đã khớp default mới (Tech Lead cập nhật ở commit review) → không sửa `.md`, không cần chạy lại md_to_docx.
+
+### Lỗi mới phát hiện
+
+Không phát hiện lỗi mới trong phạm vi verify (không append F07). Ghi chú không chặn: cửa sổ ZcuSetupWizard tự đóng ~1.5s sau khi cài xong nên khó chụp trạng thái "hoàn tất" — không phải lỗi, chỉ là điểm bất tiện cho việc chụp tài liệu.
+
+### Kết luận
+
+✅ **Đủ điều kiện SIGN-OFF** — cả 6 finding F01–F06 (F06 phần agent) đã verify PASS trên app + ZCU thật với agent 1.1; regression luồng chính không bị phá. **Bàn giao QA Lead sign-off (Bước 5 WF-BUGFIX).** F06(a) backdoor license `ANHNV` vẫn ⏭️ giữ nguyên theo quyết định user (ngoài scope vòng fix này).
+
+— QA Engineer, 2026-07-26 23:05
