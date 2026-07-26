@@ -61,6 +61,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             bool initialSetup = PART_ChkInitialSetup.IsChecked == true;
             bool autologin = PART_ChkAutologin.IsChecked == true;
             bool lockWorkspace = PART_ChkLockWorkspace.IsChecked == true;
+            bool lockdownShell = PART_ChkLockdownShell.IsChecked == true;
 
             // Tab 2 — Config phần mềm
             bool swUpdate = PART_ChkSwUpdate.IsChecked == true;
@@ -99,6 +100,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 SkipInitialSetup = initialSetup,
                 EnableAutologin = autologin,
                 LockSingleWorkspace = lockWorkspace,
+                LockdownShell = lockdownShell,
                 DisableSoftwareUpdate = swUpdate,
                 EnableAutostart = autostart
             };

@@ -317,3 +317,38 @@ Phạm vi: commit `fc7fd09` (F07) + `2727b87` (F08). Đã đọc toàn bộ diff
 **Lưu ý cho QA:** ngoài 5 case smoke test F07 SD đã liệt kê, bổ sung cho F08: (a) Deploy với sudo password SAI → app phải hiện "❌ Deploy thất bại ... AUTOLOGIN-FAILED", KHÔNG còn "🎉 Deploy hoàn tất"; (b) Deploy autologin 2 lần liên tiếp → `custom.conf` không bị nhân bản dòng; (c) tắt autologin (bỏ tick) → `AutomaticLoginEnable = false` + `TimedLoginEnable = false`.
 
 — Tech Lead, 2026-07-26 23:38
+
+---
+
+## F09 — Kiosk: bấm/giữ màn hình hoặc nhấn phím Super vẫn bung GNOME Activities Overview ("Type to search") → thoát được chế độ kiosk
+
+> **Người phát hiện:** USER (thao tác thật trên máy ZCU `192.168.0.101` đã cài kiosk).
+
+| Trường | Nội dung |
+|---|---|
+| **Màn hình / Thành phần** | Máy kiosk ZCU (GNOME Shell 42.9, X11) — cấu hình bởi `scripts/linux-kiosk/1-install-software.sh` + `2-configure-system.sh` qua KioskDeployWindow |
+| **Mức độ** | P2 (bảo mật / kiosk hardening) |
+| **Các bước tái hiện** | 1. Máy ZCU đã chạy Kiosk Deploy (ẩn Top Bar/Dock/Activities). 2. Nhấn phím Super (hoặc thao tác chạm trên màn hình cảm ứng). 3. Activities Overview bung ra toàn màn hình kèm ô "Type to search". |
+| **Kết quả thực tế** | Từ ô search có thể gõ tên ứng dụng để mở Terminal, Settings… hoặc thoát app kiosk. Ngoài ra Alt+F2 mở "Run a Command", Ctrl+Alt+T mở Terminal, Alt+Tab/Alt+F4 chuyển/đóng cửa sổ, menu hệ thống cho Log Out — user thường đổi lại được mọi `gsettings` vì trước đây chỉ set theo user, không lock. GNOME 42 còn tự KHỞI ĐỘNG VÀO overview khi login chưa có cửa sổ nào. |
+| **Kết quả mong đợi** | Người dùng kiosk KHÔNG gọi được overview/search/terminal/settings, KHÔNG thoát/đóng app kiosk, KHÔNG đăng xuất/đổi user, và KHÔNG tự chỉnh lại được các thiết lập đó. |
+
+> **✅ Đã sửa (2026-07-27, senior-developer):**
+> - **Nguyên nhân gốc:** kiosk setup cũ chỉ ẨN giao diện (Top Bar/Dock/Activities button qua Just Perfection) và set `gsettings` THEO USER — không vô hiệu phím tắt hệ thống (Super/Alt+F2/Ctrl+Alt+T/Alt+Tab/Alt+F4), không khoá lockdown schema, và mọi key user đều tự set ngược lại được (không có dconf lock).
+> - **Cách sửa:**
+>   1. `scripts/linux-kiosk/2-configure-system.sh` — thêm mục **[9/9] "Khoá lối thoát kiosk"** (tham số 11, 2 chiều): ghi dconf DB HỆ THỐNG `/etc/dconf/db/local.d/00-kiosk-lockdown` + **LOCK** `/etc/dconf/db/local.d/locks/00-kiosk-lockdown` + profile `/etc/dconf/profile/user` (GOTCHA: Ubuntu không có sẵn file profile này — thiếu nó thì toàn bộ system-db bị bỏ qua), rồi `dconf update`. Khoá: `overlay-key=''`, toggle-overview/application-view/message-tray, panel-run-dialog (Alt+F2), panel-main-menu, switch/cycle-windows + switch-applications (Alt+Tab), close (Alt+F4), switch-to-workspace-*, media-keys terminal (Ctrl+Alt+T)/logout/control-center/home/email/www/search, lockdown `disable-command-line/log-out/user-switching/lock-screen/printing/print-setup=true`, `screensaver lock-enabled=false`, dynamic-workspaces=false + num-workspaces=1. Chiều 0 = gỡ khoá bảo trì (xóa 2 file + `dconf update`).
+>   2. `scripts/linux-kiosk/1-install-software.sh` — khi ẩn Activities: set Just Perfection `startup-status=0` (login vào thẳng desktop thay vì overview — GNOME 40+ mặc định boot vào overview), `search=false` + `type-to-search=false` (ẩn ô "Type to search" trong overview).
+>   3. `CcuClient/KioskDeployService.cs` — option `LockdownShell` (mặc định true, truyền tham số 11); `CcuUI/Views/KioskDeployWindow.axaml(.cs)` — checkbox "Khoá lối thoát kiosk (dconf lock)" (bỏ tick = gỡ khoá bảo trì).
+> - **Kiểm chứng trên máy thật (ZCU 192.168.0.101, 2 lần reboot):**
+>   - `gsettings get` mọi key trả về giá trị khoá; `gsettings set org.gnome.mutter overlay-key 'Super_L'` bị từ chối: **"The key is not writable"**.
+>   - GOTCHA kiểm chứng được: NGAY SAU `dconf update`, GNOME Shell ĐANG CHẠY vẫn dùng profile cũ (Alt+F2 vẫn mở "Run a Command" — có screenshot) vì dconf profile chỉ được đọc lúc process khởi động → **BẮT BUỘC reboot/re-login**.
+>   - Sau reboot: gửi phím thật qua SSH (`xdotool key super / super+s / super+a / alt+F2 / ctrl+alt+t`) + chụp `gnome-screenshot` — ảnh trước/sau **giống hệt từng byte**: không overview, không Run-a-Command, không Terminal. Login vào thẳng desktop (không còn màn "Type to search"). SSH + ZcuAgent (PID 1750) vẫn hoạt động bình thường.
+> - **Giới hạn còn lại (KHÔNG chặn được bằng dconf):** cử chỉ cảm ứng vuốt 3 ngón lên (GNOME 40+) mở overview là hành vi hard-code trong GNOME Shell, không có key cấu hình; không giả lập được touch qua SSH nên chưa kiểm chứng từ xa — cần thử tay trên màn cảm ứng thật. Giảm nhẹ đã áp: overview (nếu mở được bằng gesture) giờ KHÔNG còn ô search, không dash, không Activities, chỉ 1 workspace — không có gì để thao tác, chạm vào thumbnail là quay lại app.
+> - **Đề xuất hướng 2 (chỉ khảo sát, chưa làm):** gói `gnome-kiosk` (session kiosk chính thức không có overview/gesture) **KHÔNG có trong repo Ubuntu 22.04** (`apt-cache policy/search` rỗng) — chỉ khả thi nếu nâng Ubuntu 24.04 hoặc tự build; phương án thay thế là session WM tối giản (openbox/cage) nhưng đổi session mặc định cần user xác nhận riêng. Đưa vào backlog.
+> - **Gỡ khoá để bảo trì (quản trị viên, qua SSH — QUAN TRỌNG):**
+>   `sudo rm /etc/dconf/db/local.d/00-kiosk-lockdown /etc/dconf/db/local.d/locks/00-kiosk-lockdown && sudo dconf update` rồi đăng xuất/reboot — hoặc bỏ tick "Khoá lối thoát kiosk" trong KioskDeployWindow và Deploy lại. Khoá lại: tick + Deploy.
+> - **Backup / hoàn tác trên ZCU:** `/etc/dconf/profile/user` là file TẠO MỚI (trước đó không tồn tại — hoàn tác = xóa file); 2 file lockdown là tạo mới (hoàn tác = xóa + `dconf update`); các lần ghi đè sau có backup đuôi `.bak-2026-07-26`. Đã cài thêm `xdotool` + `gnome-screenshot` (chỉ phục vụ kiểm chứng, không ảnh hưởng kiosk).
+> - **Build verify:** `dotnet build IPGS.RemoteControl.CcuUI -c Release` → 0 Error. `bash -n` cả 2 script → syntax OK. (Xem mục build cuối phiên.)
+
+| Finding | Trạng thái | File chính đã sửa |
+|---|---|---|
+| F09 Kiosk thoát được qua Activities overview / phím tắt | ✅ Đã sửa + kiểm chứng phím thật trên ZCU (gesture cảm ứng cần thử tay tại máy) | `scripts/linux-kiosk/2-configure-system.sh`, `1-install-software.sh`, `CcuClient/KioskDeployService.cs`, `CcuUI/Views/KioskDeployWindow.axaml(.cs)` |

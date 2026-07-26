@@ -908,7 +908,7 @@ Cửa sổ "Deploy Kiosk Setup" gồm: khung máy đích, ô **Sudo password** (
 
 - **Kiosk user (autologin):** tài khoản trên máy ZCU sẽ được tự đăng nhập.
 - **Cột ① Ẩn giao diện GNOME:** Ẩn Top Bar, Ẩn nút Activities, Ẩn Workspace Switcher, Ẩn Dash, Tắt Ubuntu Dock + Desktop Icons.
-- **Cột ② Hành vi máy / màn hình:** Cài unclutter (tự ẩn con trỏ chuột), Tắt bàn phím ảo, Tắt hot corner / thông báo / khóa màn hình, Chặn ngủ khi cắm điện, Bỏ qua màn hình thiết lập ban đầu, Autologin, Khóa còn 1 workspace tĩnh.
+- **Cột ② Hành vi máy / màn hình:** Cài unclutter (tự ẩn con trỏ chuột), Tắt bàn phím ảo, Tắt hot corner / thông báo / khóa màn hình, Chặn ngủ khi cắm điện, Bỏ qua màn hình thiết lập ban đầu, Autologin, Khóa còn 1 workspace tĩnh, **Khoá lối thoát kiosk (dconf lock)**.
 
 > **Lưu ý:** Mỗi ô tick là công tắc **2 chiều**: tick = ẩn/tắt, bỏ tick = hiện lại/bật lại như mặc định (không phải "bỏ qua"). Riêng "Cài unclutter" chỉ 1 chiều — bỏ tick không tự gỡ phần đã cài. Di chuột lên dấu **❓** cạnh từng dòng để xem giải thích chi tiết.
 
@@ -940,6 +940,30 @@ Log hiển thị lần lượt từng nhóm thiết lập được áp dụng th
 1. Xem lại Nhật ký Deploy lần cài gần nhất: phải có dòng `AUTOLOGIN-VERIFIED`. Nếu thấy `AUTOLOGIN-FAILED` hoặc trạng thái đỏ → thường do sai mật khẩu sudo; nhập lại và Deploy lại.
 2. Trên máy ZCU chạy `grep -E '^(Automatic|Timed)' /etc/gdm3/custom.conf` — kết quả đúng phải có `AutomaticLoginEnable = true`, `AutomaticLogin = <tên user>`, `TimedLoginEnable = true`.
 3. Nếu cấu hình đúng mà một lần khởi động cá biệt vẫn đứng ở màn hình đăng nhập quá 10 giây: đây là lỗi hiếm của GDM khi khởi động bất thường — với bản cài mới (có TimedLogin dự phòng) máy sẽ tự vào sau 5 giây; bản cài cũ cần chạy lại Kiosk Deploy để nhận cơ chế dự phòng này.
+
+#### Khoá lối thoát kiosk (dconf lock) — chặn người dùng thoát khỏi phần mềm
+
+Ô tick **"Khoá lối thoát kiosk (dconf lock)"** (tick sẵn mặc định) khoá các "lối thoát" mà người đứng máy có thể dùng để rời khỏi phần mềm kiosk. Khoá được áp ở **mức hệ thống kèm khoá (lock)** nên người dùng KHÔNG tự bật lại được, kể cả khi biết lệnh cấu hình. Cụ thể, sau khi Deploy và **khởi động lại máy**:
+
+- Phím **Super** (phím Windows) không mở được Activities Overview / ô "Type to search" nữa; máy đăng nhập vào thẳng phần mềm, không vào màn hình overview.
+- **Alt+F2** (Run a Command), **Ctrl+Alt+T** (Terminal), **Alt+Tab / Super+Tab** (chuyển cửa sổ), **Alt+F4** (đóng cửa sổ), các phím chuyển workspace: đều bị vô hiệu.
+- Menu hệ thống không còn cho **Đăng xuất / Đổi người dùng**; chặn chạy lệnh, khoá màn hình, in ấn.
+- Ô tìm kiếm trong overview bị ẩn hoàn toàn — kể cả khi overview vẫn mở được bằng cử chỉ cảm ứng (xem giới hạn bên dưới), không còn ô gõ tên ứng dụng để mở Terminal/Settings.
+
+> ⚠️ **Giới hạn còn lại:** trên màn hình cảm ứng, cử chỉ **vuốt 3 ngón từ dưới lên** của GNOME vẫn có thể mở overview (hệ điều hành không cho phép tắt cử chỉ này bằng cấu hình). Tuy nhiên overview lúc này trống — không ô tìm kiếm, không thanh ứng dụng, chỉ 1 workspace — chạm vào hình thu nhỏ là quay lại phần mềm, nên người dùng không mở thêm được gì.
+
+**Quản trị viên tạm mở khoá khi cần bảo trì (QUAN TRỌNG — cách vào lại máy):**
+
+1. **Cách 1 (khuyến nghị):** trong cửa sổ Deploy Kiosk Setup, **bỏ tick** "Khoá lối thoát kiosk (dconf lock)" rồi nhấn 🚀 Deploy → khởi động lại máy ZCU. Các phím tắt/menu hoạt động trở lại. Bảo trì xong, tick lại và Deploy để khoá.
+2. **Cách 2 (qua SSH — luôn dùng được vì SSH KHÔNG bị khoá):**
+   ```
+   sudo rm /etc/dconf/db/local.d/00-kiosk-lockdown /etc/dconf/db/local.d/locks/00-kiosk-lockdown
+   sudo dconf update
+   ```
+   rồi khởi động lại (hoặc đăng xuất/đăng nhập lại). Khoá lại bằng cách chạy Kiosk Deploy với ô tick bật.
+3. Mọi thao tác quản trị từ xa (Quản lý File, CMD Shell, Remote Desktop, cập nhật agent) **không bị ảnh hưởng** bởi khoá này — SSH và Remote Agent vẫn hoạt động bình thường.
+
+> 💡 **Lưu ý kỹ thuật:** thay đổi khoá/mở khoá chỉ có hiệu lực đầy đủ sau khi **khởi động lại máy** (hoặc đăng xuất/đăng nhập lại) — phiên GNOME đang chạy vẫn dùng cấu hình cũ cho tới lúc đó.
 
 > ⚠️ **Cảnh báo:** Deploy thay đổi cấu hình hệ điều hành của máy ZCU (giao diện, tự đăng nhập, tự mở phần mềm). Chỉ thực hiện khi được phân công và đã thống nhất cấu hình với đơn vị quản lý. Muốn hoàn tác, bỏ tick các mục tương ứng rồi Deploy lại.
 

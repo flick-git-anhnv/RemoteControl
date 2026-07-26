@@ -126,7 +126,24 @@ gsettings --schemadir "$EXT_DIR/schemas/" set org.gnome.shell.extensions.just-pe
 gsettings --schemadir "$EXT_DIR/schemas/" set org.gnome.shell.extensions.just-perfection activities-button "$(to_visible_value "$HIDE_ACTIVITIES")" || true
 gsettings --schemadir "$EXT_DIR/schemas/" set org.gnome.shell.extensions.just-perfection workspace-switcher-should-show "$(to_visible_value "$HIDE_WORKSPACE")" || true
 gsettings --schemadir "$EXT_DIR/schemas/" set org.gnome.shell.extensions.just-perfection dash "$(to_visible_value "$HIDE_DASH")" || true
-echo "  → panel=$(to_visible_value "$HIDE_TOPBAR") activities-button=$(to_visible_value "$HIDE_ACTIVITIES") workspace-switcher=$(to_visible_value "$HIDE_WORKSPACE") dash=$(to_visible_value "$HIDE_DASH")"
+
+# F09 — chống lối thoát qua Activities overview:
+# - startup-status=0: GNOME 40+ mặc định KHỞI ĐỘNG VÀO overview (hiện "Type to
+#   search") khi login chưa có cửa sổ nào → vào thẳng desktop thay vì overview.
+# - search=false + type-to-search=false: ẩn ô "Type to search" trong overview —
+#   kể cả khi overview vẫn mở được bằng cử chỉ cảm ứng vuốt 3 ngón (GNOME 40+,
+#   KHÔNG chặn được bằng dconf), user cũng không còn ô search để gõ tên app
+#   (terminal/settings...) nữa. Verify thật trên ZCU 192.168.0.101 (Shell 42.9).
+if [ "$HIDE_ACTIVITIES" = "1" ]; then
+    gsettings --schemadir "$EXT_DIR/schemas/" set org.gnome.shell.extensions.just-perfection startup-status 0 || true
+    gsettings --schemadir "$EXT_DIR/schemas/" set org.gnome.shell.extensions.just-perfection search false || true
+    gsettings --schemadir "$EXT_DIR/schemas/" set org.gnome.shell.extensions.just-perfection type-to-search false || true
+else
+    gsettings --schemadir "$EXT_DIR/schemas/" set org.gnome.shell.extensions.just-perfection startup-status 1 || true
+    gsettings --schemadir "$EXT_DIR/schemas/" set org.gnome.shell.extensions.just-perfection search true || true
+    gsettings --schemadir "$EXT_DIR/schemas/" set org.gnome.shell.extensions.just-perfection type-to-search true || true
+fi
+echo "  → panel=$(to_visible_value "$HIDE_TOPBAR") activities-button=$(to_visible_value "$HIDE_ACTIVITIES") workspace-switcher=$(to_visible_value "$HIDE_WORKSPACE") dash=$(to_visible_value "$HIDE_DASH") startup-status/search theo Activities=$HIDE_ACTIVITIES"
 # Bản v26 không còn key "overview" riêng — đã bỏ (xem GHI CHÚ ở đầu file gốc
 # setup-kiosk.sh / docs/devops/KIOSK-SETUP-hide-topbar-ubuntu2204.md).
 

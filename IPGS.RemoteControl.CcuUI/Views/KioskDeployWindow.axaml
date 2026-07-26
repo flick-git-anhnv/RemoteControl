@@ -141,6 +141,16 @@
                                    FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap"/>
                       </StackPanel>
                     </CheckBox>
+                    <CheckBox x:Name="PART_ChkLockdownShell" IsChecked="True">
+                      <StackPanel Spacing="1">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock Text="Khoá lối thoát kiosk (dconf lock)" FontWeight="Normal" VerticalAlignment="Center"/>
+                          <TextBlock Text="❓" ToolTip.Tip="Vô hiệu phím Super (mở Activities/tìm kiếm), Alt+F2, Ctrl+Alt+T (Terminal), Alt+Tab, Alt+F4 và chặn đăng xuất/đổi user bằng dconf system-wide + lock — người dùng KHÔNG tự bật lại được. Bỏ tick = gỡ khoá để bảo trì." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="Chặn người dùng mở Activities/tìm kiếm/Terminal, thoát app kiosk hoặc đăng xuất (F09). Bỏ tick khi cần bảo trì máy."
+                                   FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap"/>
+                      </StackPanel>
+                    </CheckBox>
                   </StackPanel>
                 </Grid>
               </StackPanel>

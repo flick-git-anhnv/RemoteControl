@@ -37,6 +37,14 @@ namespace IPGS.RemoteControl.CcuClient
         /// chuyển workspace, làm app fullscreen "biến mất" sang workspace khác.
         /// </summary>
         public bool LockSingleWorkspace { get; set; } = true;
+
+        /// <summary>
+        /// F09: Khoá lối thoát kiosk bằng dconf system-wide + lock (/etc/dconf/db/local.d/).
+        /// Vô hiệu phím Super (Activities overview), Alt+F2, Ctrl+Alt+T, Alt+Tab, Alt+F4,
+        /// log out/user switching — user KHÔNG tự đổi lại được (key bị dconf lock).
+        /// false = gỡ khoá (chế độ bảo trì cho quản trị viên).
+        /// </summary>
+        public bool LockdownShell { get; set; } = true;
         public bool DisableDockIcons { get; set; } = true;
         public bool BlockSleep { get; set; } = true;
         public bool SkipInitialSetup { get; set; } = true;
@@ -170,7 +178,7 @@ namespace IPGS.RemoteControl.CcuClient
                 {
                     Log("🔄 Đang chạy 2-configure-system.sh (Config máy tính — phần hệ thống + Config phần mềm — update/autostart)...");
                     string kioskUser = string.IsNullOrEmpty(options.KioskUser) ? options.Username : options.KioskUser;
-                    string args2 = $"{B(options.DisableHotCorner)} {B(options.DisableDockIcons)} {B(options.BlockSleep)} {B(options.SkipInitialSetup)} {B(options.EnableAutologin)} {B(options.DisableSoftwareUpdate)} {B(options.EnableAutostart)} {B(options.LockSingleWorkspace)}";
+                    string args2 = $"{B(options.DisableHotCorner)} {B(options.DisableDockIcons)} {B(options.BlockSleep)} {B(options.SkipInitialSetup)} {B(options.EnableAutologin)} {B(options.DisableSoftwareUpdate)} {B(options.EnableAutostart)} {B(options.LockSingleWorkspace)} {B(options.LockdownShell)}";
                     // S1: quote đúng chuẩn POSIX — bản cũ '{kioskUser}' không escape '
                     // bên trong nên giá trị chứa ' có thể break-out khỏi quote.
                     // F08: throwOnError — trước đây exit code của script bị bỏ qua hoàn toàn,
