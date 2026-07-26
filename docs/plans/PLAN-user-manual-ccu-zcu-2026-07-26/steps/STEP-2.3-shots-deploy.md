@@ -47,7 +47,7 @@ Chạy app thật, chụp screenshot các màn hình: **ZcuSetupWizardWindow (t�
 - Bước sau cần biết: (1) app CCU đang chạy PID 2352, CWD=repo root, P01 online IP mới; (2) dropdown AutoCompleteBox CHỤP ĐƯỢC bằng cách bấm nút ▼ rồi `capture-region.ps1` (CopyFromScreen — popup là hwnd riêng, PrintWindow không thấy; F03 chỉ còn đúng với gõ-từ-khóa); (3) cửa sổ wizard auto-close 1,5s sau thành công → muốn chụp trạng thái cuối phải dùng `capture-burst.ps1`; (4) đừng quên `--user` khi xem service agent trên ZCU; demo data `/home/kztek/kztek-demo/` còn nguyên.
 
 ## Commit
-- Hash: 971b2dd
+- Hash: 3ac979f
 - Đã push: không (theo chỉ thị bước này)
 
 ---
