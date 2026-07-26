@@ -92,6 +92,9 @@ Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Li
 | `AgentOptions.EnableDesktopIntegration` | `ZcuAgent/AgentOptions.cs` | **[MỚI]** default true; false = tắt hẳn notify-send/xclip |
 | `X11ErrorTracker.ShmMajorOpcode` | `ZcuAgent/Interop/X11ErrorTracker.cs` | **[MỚI]** scope lỗi SHM theo opcode `XQueryExtension("MIT-SHM")` (P/Invoke mới); opcode chưa biết → flag mọi lỗi (conservative) |
 | `SessionRecorder.Width/Height` | `CcuUI/Services/SessionRecorder.cs` | **[MỚI]** expose độ phân giải đang ghi — dừng ghi khi ZCU đổi resolution (AVI header cố định) |
+| `RemoteControlClient.ScreenWidth/Height` | `CcuClient/RemoteControlClient.cs` | **[ĐỔI ngữ nghĩa — F01]** cập nhật theo TỪNG frame (không chỉ HELLO_ACK) — luôn là độ phân giải đang stream |
+| `RemoteControlClient.ServerName` | `CcuClient/RemoteControlClient.cs` | **[MỚI — F02]** tên/version agent từ HELLO_ACK (VD `ZcuAgent/1.1`); UI cảnh báo khi < 1.1 (agent cũ bỏ qua âm thầm SysInfo/Privacy/Chat/Clipboard) |
+| `SshInstallerOptions.DefaultLanAllowedClientIPs` | `CcuClient/ZcuRemoteInstallerService.cs` | **[MỚI — F06]** const `"192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"` — mặc định AllowedClientIPs mới; installer tách chuỗi nhiều CIDR (`,`/`;`) thành mảng JSON |
 | `SessionPickerWindow` | `CcuUI/Views/SessionPickerWindow.axaml(.cs)` | **[FILE MỚI]** dialog chọn máy trả `ComputerProfile?` cho MultiRemote (fix A6) |
 | `ConfirmDeleteDialog` | `CcuUI/Views/ConfirmDeleteDialog.axaml(.cs)` | **[FILE MỚI]** xác nhận xóa file/`rm -rf` (fix Q14) |
 
@@ -115,7 +118,7 @@ Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Li
 |-----|--------|---------|-------|
 | `Agent:Port` | ZcuAgent appsettings.json | 5900 | TCP listener |
 | `Agent:Token` | ZcuAgent appsettings.json | placeholder | **Fail-fast**: còn placeholder/rỗng → service từ chối start |
-| `Agent:AllowedClientIPs` | ZcuAgent appsettings.json | `["0.0.0.0/0"]` ⚠️ | List rỗng = **deny-all**; `0.0.0.0/0` tường minh → warning nổi bật. File mẫu — installer ghi đè; user chưa quyết đổi default (hook chặn sửa) |
+| `Agent:AllowedClientIPs` | ZcuAgent appsettings.json | File mẫu còn `["0.0.0.0/0"]` (hook chặn sửa) nhưng **mặc định hiệu lực khi deploy = 3 dải LAN RFC 1918** (F06: installer/wizard/script `setup-zcu-agent.sh` đều dùng `DefaultLanAllowedClientIPs`) | List rỗng = **deny-all**; `0.0.0.0/0` tường minh → warning; token < 16 ký tự → warning (không fail-fast) |
 | `Agent:EnableDesktopIntegration` | ZcuAgent appsettings.json | true | Tắt notify-send/xclip |
 | `KIOSK_SUDO_PASS` | env khi chạy script kiosk | — | Chỉ còn `KioskDeployService` set; CcuUI RemoteCommand/BulkAction ĐÃ BỎ (S3) — chạy tay script kiosk qua RemoteCommandWindow sẽ không có env này, `_sudo()` fallback sudo thường |
 
@@ -129,6 +132,7 @@ Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Li
 | 2026-07-26 | `CcuClient/ShellQuote.cs`, `SecretProtector.cs` | Add | Helper shell-quoting + DPAPI secret (chi tiết bảng Interface) | senior-developer |
 | 2026-07-26 | `CcuUI/Views/SessionPickerWindow`, `ConfirmDeleteDialog` | Add | Dialog mới (A6, Q14) | senior-developer |
 | 2026-07-26 | `code-graph/CODE-GRAPH.md` | Rewrite | Viết lại v2.0 đúng repo RemoteControlTool (bản cũ mô tả workspace khác) | senior-developer |
+| 2026-07-26 | CcuClient + CcuUI Views + ZcuAgent | Fix | F01-F05 + F06 phần agent (BUG-ccu-ui-findings): resolution theo frame, ServerName + timeout SysInfo, snippet PopulateComplete, reset status, ValidateSshProfile, default AllowedClientIPs → LAN + cảnh báo token yếu; agent HELLO_ACK → `ZcuAgent/1.1` | senior-developer |
 
 ---
 

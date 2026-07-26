@@ -20,9 +20,12 @@ public sealed class RemoteControlClient : IRemoteControlClient
     // ── State ─────────────────────────────────────────────────────────────
     private volatile ConnectionState _state = ConnectionState.Disconnected;
 
-    // Server-reported screen resolution (set during HELLO_ACK)
+    // Server-reported screen resolution (set during HELLO_ACK, refreshed per frame — F01)
     private int _screenWidth;
     private int _screenHeight;
+
+    // Server-reported agent name/version from HELLO_ACK (F02)
+    private volatile string _serverName = "";
 
     // ── Connection parameters (set once per ConnectAsync call) ────────────
     private string _host = "";
@@ -254,6 +257,7 @@ public sealed class RemoteControlClient : IRemoteControlClient
             var (_, screenW, screenH, serverName) = MessageCodec.DecodeHelloAck(helloAckPayload);
             _screenWidth  = (int)screenW;
             _screenHeight = (int)screenH;
+            _serverName   = serverName;   // F02: expose cho UI so sánh version agent
             _logger.LogInformation("Connected to {ServerName}, screen {W}×{H}", serverName, screenW, screenH);
 
             // ── AUTH ───────────────────────────────────────────────────────
@@ -372,6 +376,16 @@ public sealed class RemoteControlClient : IRemoteControlClient
     {
         var frame = MessageCodec.DecodeFrameJpeg(payload);
         var tsUtc = DateTimeOffset.FromUnixTimeMilliseconds(frame.TimestampMs).UtcDateTime;
+
+        // F01: cập nhật ScreenWidth/Height theo TỪNG frame — không chỉ theo HELLO_ACK.
+        // Nếu ZCU đổi độ phân giải giữa phiên, HELLO_ACK snapshot trở nên lạc hậu;
+        // consumer (VD: SessionRecorder khởi tạo AVI header, mapping tọa độ chuột)
+        // đọc property này phải nhận đúng kích thước frame ĐANG stream.
+        if (frame.Width > 0 && frame.Height > 0)
+        {
+            _screenWidth  = frame.Width;
+            _screenHeight = frame.Height;
+        }
 
         // Fire event. Handler is responsible for copying JpegData if it needs to retain it
         // beyond the call. JpegData is a slice of the payload byte[] allocated by ReadMessageAsync
@@ -512,6 +526,13 @@ public sealed class RemoteControlClient : IRemoteControlClient
 
     /// <summary>ZCU primary display height (pixels). Valid after <see cref="ConnectionState.Streaming"/>.</summary>
     public int ScreenHeight => _screenHeight;
+
+    /// <summary>
+    /// F02: Tên/phiên bản agent phía ZCU báo trong HELLO_ACK (VD "ZcuAgent/1.1").
+    /// Valid sau khi handshake xong — UI dùng để cảnh báo agent phiên bản cũ
+    /// (agent cũ bỏ qua âm thầm SysInfo/Privacy/Chat/Clipboard, không có ACK trong protocol v1).
+    /// </summary>
+    public string ServerName => _serverName;
 
     // ── IDisposable ───────────────────────────────────────────────────────
 

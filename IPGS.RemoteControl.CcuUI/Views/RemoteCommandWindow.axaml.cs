@@ -231,10 +231,15 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             if (sender is AutoCompleteBox combo)
             {
-                if (!combo.IsDropDownOpen)
-                {
-                    combo.IsDropDownOpen = true;
-                }
+                // F03: chỉ set IsDropDownOpen=true khi view lọc nội bộ của AutoCompleteBox
+                // còn RỖNG (chưa có TextChanged nào chạy population) → popup mở với 0 item
+                // (vô hình) và property kẹt ở true nên gõ phím sau đó cũng không mở lại được.
+                // Fix: đóng popup (reset trạng thái) → PopulateComplete() ép refresh view từ
+                // ItemsSource theo SearchText hiện tại (rỗng = toàn bộ snippet, vì
+                // MinimumPrefixLength=0 + FilterMode=Contains) → mở popup khi đã có item.
+                combo.IsDropDownOpen = false;
+                combo.PopulateComplete();
+                combo.IsDropDownOpen = true;
             }
         }
 

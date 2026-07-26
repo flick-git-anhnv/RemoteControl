@@ -71,7 +71,10 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             if (!int.TryParse(PART_AgentPort.Text?.Trim(), out int agentPort)) agentPort = 17600;
             string token = PART_AgentToken.Text?.Trim() ?? "";
-            string allowedIps = PART_AllowedIPs.Text?.Trim() ?? "0.0.0.0/0";
+            // F06: fallback về dải LAN riêng, không còn mở toàn mạng 0.0.0.0/0
+            string allowedIps = PART_AllowedIPs.Text?.Trim() is { Length: > 0 } ips
+                ? ips
+                : SshInstallerOptions.DefaultLanAllowedClientIPs;
             if (!int.TryParse(PART_TargetFps.Text?.Trim(), out int targetFps)) targetFps = 15;
             if (!int.TryParse(PART_JpegQuality.Text?.Trim(), out int jpegQuality)) jpegQuality = 70;
 
@@ -85,6 +88,16 @@ namespace IPGS.RemoteControl.CcuUI.Views
             PART_BtnStartInstall.IsEnabled = false;
             PART_LogConsole.Text = "";
             PART_ProgressBar.Value = 0;
+            // F04: reset status cũ (VD lỗi validation đỏ của lần bấm trước) ngay khi bắt đầu
+            // lượt cài mới — nếu không, thông báo lỗi cũ treo suốt quá trình cài gây nhầm lẫn.
+            PART_StatusMsg.Foreground = Avalonia.Media.Brushes.SlateGray;
+            PART_StatusMsg.Text = "Đang cài đặt ZcuAgent...";
+
+            // F06: cảnh báo (không chặn) khi cấu hình yếu — token ngắn dễ đoán hoặc whitelist mở toàn mạng.
+            if (token.Length < 16)
+                Log("⚠️ CẢNH BÁO BẢO MẬT: Token ngắn hơn 16 ký tự — dễ bị đoán. Dùng nút 🎲 Sinh Token để tạo token ngẫu nhiên mạnh.");
+            if (allowedIps.Contains("0.0.0.0/0") || allowedIps.Contains("::/0"))
+                Log("⚠️ CẢNH BÁO BẢO MẬT: AllowedClientIPs đang mở cho MỌI IP (0.0.0.0/0) — nên giới hạn về dải LAN quản trị (VD 192.168.0.0/16).");
 
             // Search for local ZcuAgent publish directory to upload if available.
             // A4: PHẢI await bản async — bản cũ chạy đồng bộ Process.WaitForExit(30000)

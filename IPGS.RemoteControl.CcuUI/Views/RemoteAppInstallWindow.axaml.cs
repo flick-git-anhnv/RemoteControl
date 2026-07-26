@@ -117,6 +117,10 @@ namespace IPGS.RemoteControl.CcuUI.Views
             if (files.Count >= 1)
             {
                 PART_AppInstallerPath.Text = files[0].Path.LocalPath;
+                // F04: người dùng vừa khắc phục nguyên nhân lỗi validation ("Vui lòng chọn
+                // file cài đặt...") — xóa status đỏ cũ ngay, không chờ tới lần bấm Deploy sau.
+                PART_StatusMsg.Foreground = Avalonia.Media.Brushes.SlateGray;
+                PART_StatusMsg.Text = "";
             }
         }
 

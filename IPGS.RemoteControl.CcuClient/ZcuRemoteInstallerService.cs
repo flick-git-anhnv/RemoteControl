@@ -20,7 +20,16 @@ namespace IPGS.RemoteControl.CcuClient
 
         public int AgentPort { get; set; } = 17600;
         public string AgentToken { get; set; } = string.Empty;
-        public string AllowedClientIPs { get; set; } = "0.0.0.0/0";
+
+        /// <summary>
+        /// F06: mặc định giới hạn 3 dải LAN riêng (RFC 1918) thay vì mở toàn mạng
+        /// <c>0.0.0.0/0</c> — mọi ZCU/CCU nội bộ (VD 192.168.0.101) vẫn kết nối bình thường,
+        /// nhưng IP public/ngoài LAN bị chặn ngay tầng whitelist của agent.
+        /// Hỗ trợ nhiều CIDR phân tách bằng dấu phẩy/chấm phẩy.
+        /// </summary>
+        public const string DefaultLanAllowedClientIPs = "192.168.0.0/16,10.0.0.0/8,172.16.0.0/12";
+
+        public string AllowedClientIPs { get; set; } = DefaultLanAllowedClientIPs;
         public int TargetFps { get; set; } = 15;
         public int JpegQuality { get; set; } = 70;
         public string? PublishSourceDir { get; set; }
@@ -130,7 +139,10 @@ namespace IPGS.RemoteControl.CcuClient
                     {
                         Port = options.AgentPort,
                         Token = options.AgentToken,
-                        AllowedClientIPs = new[] { options.AllowedClientIPs },
+                        // F06: tách chuỗi "cidr1,cidr2" thành từng phần tử — AuthManager.IsInRange
+                        // parse TỪNG entry riêng; 1 entry gộp "a/16,b/8" sẽ không parse được → deny-all.
+                        AllowedClientIPs = options.AllowedClientIPs
+                            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
                         TargetFps = options.TargetFps,
                         JpegQuality = options.JpegQuality,
                         MaxFrameBytes = 8388608

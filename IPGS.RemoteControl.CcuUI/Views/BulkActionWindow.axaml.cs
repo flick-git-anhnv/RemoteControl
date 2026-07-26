@@ -155,6 +155,19 @@ namespace IPGS.RemoteControl.CcuUI.Views
             }
         }
 
+        /// <summary>
+        /// F05: validate cấu hình SSH của máy TRƯỚC khi tạo SshClient — SshClient ném raw
+        /// ArgumentException tiếng Anh ("The value cannot be an empty string... Parameter
+        /// 'username'") mà người dùng cuối không hiểu. Thay bằng thông báo tiếng Việt chỉ rõ
+        /// cách khắc phục.
+        /// </summary>
+        private static void ValidateSshProfile(ComputerProfile profile)
+        {
+            if (string.IsNullOrWhiteSpace(profile.SshUsername))
+                throw new InvalidOperationException(
+                    "Máy chưa cấu hình SSH user — bấm '✏️ Sửa' máy tính này để bổ sung SSH username/password rồi chạy lại.");
+        }
+
         private readonly List<ComputerProfile> _targets;
         private readonly ObservableCollection<BulkTaskResult> _results;
 
@@ -216,10 +229,11 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             if (sender is AutoCompleteBox combo)
             {
-                if (!combo.IsDropDownOpen)
-                {
-                    combo.IsDropDownOpen = true;
-                }
+                // F03: xem giải thích tại RemoteCommandWindow.OnSnippetComboTapped —
+                // popup mở khi view nội bộ còn rỗng sẽ vô hình + kẹt IsDropDownOpen=true.
+                combo.IsDropDownOpen = false;
+                combo.PopulateComplete();
+                combo.IsDropDownOpen = true;
             }
         }
 
@@ -244,8 +258,9 @@ namespace IPGS.RemoteControl.CcuUI.Views
             await ExecuteBulkActionAsync(async (taskInfo) => 
             {
                 var profile = taskInfo.Profile;
+                ValidateSshProfile(profile); // F05
                 int sshPort = profile.SshPort > 0 ? profile.SshPort : 22;
-                
+
                 using var ssh = new SshClient(profile.Host, sshPort, profile.SshUsername ?? "", profile.SshPassword ?? "");
                 ssh.Connect();
 
@@ -276,6 +291,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             await ExecuteBulkActionAsync(async (taskInfo) => 
             {
                 var profile = taskInfo.Profile;
+                ValidateSshProfile(profile); // F05
                 int sshPort = profile.SshPort > 0 ? profile.SshPort : 22;
                 string remotePath = $"{remoteDir}/{fileName}";
 

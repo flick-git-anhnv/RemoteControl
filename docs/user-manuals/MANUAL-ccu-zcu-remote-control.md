@@ -809,7 +809,7 @@ Phần mềm **tự động** kiểm tra định kỳ mọi máy trong danh sác
 **Cách mở:** Màn hình chính → nhấn **⚡ Cài remote** trên thẻ máy (cần chấm **SSH** xanh — thông tin SSH lấy từ hồ sơ máy, vào **Sửa** để thay đổi).
 
 ![Cửa sổ Cài đặt Remote Agent vừa mở](screenshots/zcu-setup-wizard-default.png)
-*Hình 53: Cửa sổ Cài đặt Remote Agent — khung 🎯 máy đích, cổng TCP 17600, FPS 15, JPEG 70, AllowedClientIPs `0.0.0.0/0`, khung Nhật ký Cài đặt "Sẵn sàng"*
+*Hình 53: Cửa sổ Cài đặt Remote Agent — khung 🎯 máy đích, cổng TCP 17600, FPS 15, JPEG 70, AllowedClientIPs mặc định các dải LAN riêng, khung Nhật ký Cài đặt "Sẵn sàng"*
 
 **Các bước thực hiện:**
 
@@ -821,11 +821,11 @@ Phần mềm **tự động** kiểm tra định kỳ mọi máy trong danh sác
 |---|---|---|
 | **Cổng TCP Agent** | `17600` | Cổng ZcuAgent lắng nghe |
 | **Token Bảo mật (Shared Secret)** | (trống) | Mã bảo mật — nhập tay hoặc nhấn **🎲 Sinh Token** để tạo ngẫu nhiên |
-| **Mạng/IP Cho Phép Kết Nối (AllowedClientIPs)** | `0.0.0.0/0` | Dải IP được phép kết nối tới agent |
+| **Mạng/IP Cho Phép Kết Nối (AllowedClientIPs)** | `192.168.0.0/16,10.0.0.0/8,172.16.0.0/12` | Dải IP được phép kết nối tới agent — hỗ trợ nhiều dải cách nhau dấu phẩy |
 | **FPS (5-30)** | `15` | Số khung hình/giây khi truyền màn hình |
 | **Chất lượng JPEG (%)** | `70` | Chất lượng nén hình ảnh |
 
-> ⚠️ **Cảnh báo:** Giá trị `0.0.0.0/0` cho phép **mọi máy** trong mạng kết nối nếu biết Token. Nên thu hẹp thành dải mạng của bạn, ví dụ `192.168.1.0/24`.
+> ⚠️ **Cảnh báo:** Mặc định là 3 dải mạng LAN riêng (RFC 1918) — mọi máy trong mạng nội bộ vẫn kết nối bình thường, IP ngoài LAN bị chặn. Nếu nhập `0.0.0.0/0` (mở cho **mọi IP**), wizard sẽ ghi cảnh báo bảo mật vào Nhật ký Cài đặt; nên thu hẹp thành đúng dải mạng của bạn, ví dụ `192.168.1.0/24`. Token ngắn hơn 16 ký tự cũng bị cảnh báo — dùng nút **🎲 Sinh Token**.
 
 **Bước 3:** Nhấn **🎲 Sinh Token** nếu chưa có Token — ô Token được điền mã ngẫu nhiên. **Ghi lại Token này** để nhập vào thông tin máy (mục 4.1).
 
@@ -1107,7 +1107,7 @@ chmod +x ~/setup-zcu-agent.sh          # cấp quyền thực thi cho script
 |---|---|---|
 | CỔNG | `17600` | Cổng TCP agent lắng nghe |
 | TOKEN | Sinh ngẫu nhiên bằng `openssl rand -hex 16` | Mã bảo mật — **ghi lại giá trị hiển thị cuối script** để nhập vào CCU |
-| ALLOWED_IPS | `0.0.0.0/0` (mọi IP) | Dải IP được phép kết nối — nên thu hẹp, ví dụ `192.168.1.0/24` |
+| ALLOWED_IPS | `192.168.0.0/16,10.0.0.0/8,172.16.0.0/12` (các dải LAN riêng) | Dải IP được phép kết nối — nhiều dải cách nhau dấu phẩy; nên thu hẹp thành đúng dải mạng, ví dụ `192.168.1.0/24` |
 | FPS | `15` | Số khung hình/giây |
 | JPEG | `70` | Chất lượng nén ảnh (%) |
 

@@ -100,6 +100,17 @@ internal sealed class RemoteControlHostedService : BackgroundService
                 "RemoteControl:Token is not configured — agent refuses to start (fail-fast, security audit S4).");
         }
 
+        // F06: token quá ngắn (< 16 ký tự) là token từ điển/dễ đoán — cảnh báo nổi bật
+        // nhưng KHÔNG fail-fast để không phá deployment hiện có; khuyến nghị sinh lại
+        // bằng nút 🎲 Sinh Token của ZcuSetupWizard (32 hex chars).
+        if (_options.Token.Trim().Length < 16)
+        {
+            _logger.LogWarning(
+                "SECURITY: RemoteControl:Token is only {Len} chars — short tokens are guessable. " +
+                "Generate a strong random token (>= 32 chars) via the CCU Setup Wizard.",
+                _options.Token.Trim().Length);
+        }
+
         if (_options.AllowedClientIPs.Count == 0)
         {
             _logger.LogWarning(

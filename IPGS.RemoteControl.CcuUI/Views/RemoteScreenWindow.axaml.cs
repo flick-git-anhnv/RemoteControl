@@ -30,6 +30,13 @@ public partial class RemoteScreenWindow : Window
     private readonly string _token;
     private SessionRecorder? _recorder;
 
+    // ── F02: phát hiện agent phiên bản cũ + timeout chờ SysInfoResp ──────────
+    /// <summary>Phiên bản agent tối thiểu hỗ trợ nhóm Enterprise (SysInfo/Privacy/Chat/Clipboard).</summary>
+    private static readonly Version MinAgentVersion = new(1, 1);
+    private const int SysInfoTimeoutMs = 10_000;
+    private bool _agentVersionWarned;
+    private CancellationTokenSource? _sysInfoTimeoutCts;
+
     // ── Constructor ──────────────────────────────────────────────────────────
 
     /// <summary>
@@ -57,6 +64,7 @@ public partial class RemoteScreenWindow : Window
 
         _vm.Client.SysInfoReceived += OnSysInfoReceived;
         _vm.Client.FrameReceived += OnFrameReceived;
+        _vm.Client.StateChanged += OnClientStateChanged;
     }
 
     // ── Window lifecycle ─────────────────────────────────────────────────────
@@ -78,6 +86,8 @@ public partial class RemoteScreenWindow : Window
         // trong khoảng đó và đập vào recorder đã dispose.
         _vm.Client.FrameReceived   -= OnFrameReceived;
         _vm.Client.SysInfoReceived -= OnSysInfoReceived;
+        _vm.Client.StateChanged    -= OnClientStateChanged;
+        _sysInfoTimeoutCts?.Cancel();
 
         // Gracefully disconnect before the window is destroyed.
         await _vm.DisconnectAsync();
@@ -120,12 +130,76 @@ public partial class RemoteScreenWindow : Window
 
     private void OnSysInfoReceived(object? sender, string json)
     {
+        // F02: response đã tới → hủy timeout đang chờ (nếu có)
+        _sysInfoTimeoutCts?.Cancel();
         Dispatcher.UIThread.Post(() =>
         {
             var win = new SystemInventoryWindow();
             win.LoadFromJson(json);
             win.Show();
         });
+    }
+
+    // ── F02: cảnh báo agent phiên bản cũ (fail âm thầm SysInfo/Privacy/Chat/Clipboard) ──
+
+    private void OnClientStateChanged(object? sender, ConnectionStateChangedEventArgs e)
+    {
+        if (e.Current != ConnectionState.Streaming || _agentVersionWarned) return;
+
+        var serverName = _vm.Client.ServerName;
+        if (!IsAgentOutdated(serverName)) return;
+
+        _agentVersionWarned = true;
+        Dispatcher.UIThread.Post(() => ShowInfoDialog(
+            "Agent phiên bản cũ",
+            $"Agent trên máy đích báo phiên bản \"{serverName}\" — cũ hơn phiên bản tối thiểu " +
+            $"ZcuAgent/{MinAgentVersion} mà client này cần.\n\n" +
+            "Các tính năng SysInfo / Privacy / Chat / Sync Clipboard sẽ KHÔNG hoạt động " +
+            "(agent cũ bỏ qua yêu cầu mà không báo lỗi).\n\n" +
+            "Khuyến nghị: cập nhật Remote Agent qua nút \"⚡ Cài remote\" của máy này."));
+    }
+
+    /// <summary>"ZcuAgent/1.1" → 1.1; không parse được (agent lạ/quá cũ) → coi là outdated.</summary>
+    private static bool IsAgentOutdated(string serverName)
+    {
+        var idx = serverName.LastIndexOf('/');
+        if (idx < 0 || idx == serverName.Length - 1) return true;
+        return !Version.TryParse(serverName[(idx + 1)..], out var v) || v < MinAgentVersion;
+    }
+
+    private void ShowInfoDialog(string title, string message)
+    {
+        var dlg = new Window
+        {
+            Title = title,
+            Width = 480,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Content = new StackPanel
+            {
+                Margin = new Avalonia.Thickness(20),
+                Spacing = 16,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = message,
+                        TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                        FontSize = 13,
+                    },
+                }
+            }
+        };
+        var btnOk = new Button
+        {
+            Content = "Đã hiểu",
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Padding = new Avalonia.Thickness(24, 6),
+        };
+        btnOk.Click += (_, _) => dlg.Close();
+        ((StackPanel)dlg.Content!).Children.Add(btnOk);
+        dlg.ShowDialog(this);
     }
 
     private async void OnPrivacyClick(object? sender, RoutedEventArgs e)
@@ -138,7 +212,30 @@ public partial class RemoteScreenWindow : Window
 
     private async void OnSysInfoClick(object? sender, RoutedEventArgs e)
     {
+        // F02: request-response duy nhất trong nhóm Enterprise — nếu agent không trả
+        // SysInfoResp trong SysInfoTimeoutMs (agent cũ bỏ qua âm thầm, hoặc nghẽn),
+        // báo người dùng thay vì im lặng mãi mãi.
+        _sysInfoTimeoutCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _sysInfoTimeoutCts = cts;
+
         await _vm.Client.RequestSysInfoAsync();
+
+        try
+        {
+            await Task.Delay(SysInfoTimeoutMs, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // SysInfoResp đã tới (hoặc cửa sổ đóng) — không cần cảnh báo
+        }
+
+        ShowInfoDialog(
+            "Không nhận được phản hồi SysInfo",
+            $"Đã gửi yêu cầu SysInfo nhưng không nhận được phản hồi sau {SysInfoTimeoutMs / 1000} giây.\n\n" +
+            "Nguyên nhân thường gặp:\n" +
+            "  • Agent trên máy đích là phiên bản cũ chưa hỗ trợ SysInfo — cập nhật qua \"⚡ Cài remote\".\n" +
+            "  • Agent đang quá tải hoặc kết nối không ổn định — thử lại sau.");
     }
 
     private async void OnRecordClick(object? sender, RoutedEventArgs e)

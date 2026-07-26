@@ -133,8 +133,11 @@ internal sealed class ClientSession
         _logger.LogDebug("Session {IP}: HELLO received", _remoteIp);
 
         var screenSize = _capturer.ScreenSize;
+        // F02: bump 1.0 → 1.1 khi đã hỗ trợ nhóm tính năng Enterprise (SysInfo/Privacy/
+        // Chat/Clipboard). Client so sánh chuỗi này để cảnh báo agent phiên bản cũ
+        // (agent 1.0 bỏ qua các message đó âm thầm — protocol v1 không có ACK).
         var ackPayload = MessageCodec.EncodeHelloAck(
-            (uint)screenSize.Width, (uint)screenSize.Height, "ZcuAgent/1.0");
+            (uint)screenSize.Width, (uint)screenSize.Height, "ZcuAgent/1.1");
         await WriteAsync(MessageType.HelloAck, ackPayload, hsCt);
     }
 

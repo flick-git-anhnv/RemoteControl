@@ -8,7 +8,9 @@ set -e
 
 PORT="${1:-17600}"
 TOKEN="${2:-$(openssl rand -hex 16 2>/dev/null || echo "ZCU_AGENT_DEFAULT_TOKEN_CHANGE_ME")}"
-ALLOWED_IPS="${3:-0.0.0.0/0}"
+# F06: mặc định giới hạn 3 dải LAN riêng (RFC 1918) thay vì mở toàn mạng 0.0.0.0/0.
+# Truyền nhiều dải cách nhau dấu phẩy, VD: "192.168.1.0/24,10.0.0.5"
+ALLOWED_IPS="${3:-192.168.0.0/16,10.0.0.0/8,172.16.0.0/12}"
 TARGET_FPS="${4:-15}"
 JPEG_QUALITY="${5:-70}"
 INSTALL_DIR="$HOME/ipgs/remote-agent"
@@ -67,12 +69,21 @@ echo "✅ .NET Runtime: $DOTNET_VER"
 # 4. Tạo cấu hình appsettings.json
 echo "⚙️ [4/7] Cấu hình file appsettings.json..."
 mkdir -p "$INSTALL_DIR"
+# F06: tách "cidr1,cidr2" thành mảng JSON — agent parse TỪNG entry riêng,
+# 1 entry gộp chứa dấu phẩy sẽ không parse được CIDR → deny-all.
+ALLOWED_IPS_JSON=""
+IFS=',' read -ra _CIDRS <<< "$ALLOWED_IPS"
+for _c in "${_CIDRS[@]}"; do
+  _c="$(echo "$_c" | xargs)"   # trim
+  [ -n "$_c" ] && ALLOWED_IPS_JSON="$ALLOWED_IPS_JSON\"$_c\", "
+done
+ALLOWED_IPS_JSON="${ALLOWED_IPS_JSON%, }"
 cat <<EOF > "$INSTALL_DIR/appsettings.json"
 {
   "RemoteControl": {
     "Port": $PORT,
     "Token": "$TOKEN",
-    "AllowedClientIPs": [ "$ALLOWED_IPS" ],
+    "AllowedClientIPs": [ $ALLOWED_IPS_JSON ],
     "TargetFps": $TARGET_FPS,
     "JpegQuality": $JPEG_QUALITY,
     "MaxFrameBytes": 8388608

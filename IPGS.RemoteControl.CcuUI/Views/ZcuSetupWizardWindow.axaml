@@ -56,7 +56,8 @@
             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
               <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
                 <TextBlock Text="Mạng/IP Cho Phép Kết Nối (AllowedClientIPs):" FontSize="12" Foreground="#64748B"/>
-                <kz:KzTextBox x:Name="PART_AllowedIPs" Text="0.0.0.0/0" Watermark="Ví dụ: 0.0.0.0/0 hoặc 192.168.1.0/24" />
+                <!-- F06: mặc định giới hạn dải LAN riêng (RFC 1918) thay vì mở toàn mạng 0.0.0.0/0 -->
+                <kz:KzTextBox x:Name="PART_AllowedIPs" Text="192.168.0.0/16,10.0.0.0/8,172.16.0.0/12" Watermark="Ví dụ: 192.168.1.0/24 hoặc nhiều dải cách nhau dấu phẩy" />
               </StackPanel>
 
               <Grid Grid.Column="1" ColumnDefinitions="*,*" RowDefinitions="Auto">
