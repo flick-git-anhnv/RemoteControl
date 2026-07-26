@@ -9,7 +9,10 @@ internal readonly record struct ScreenSize(int Width, int Height);
 
 /// <summary>
 /// One captured frame worth of raw pixel data (BGRA8888 from X11).
-/// The byte[] is a managed copy from the XShm/XImage buffer — safe to hold across calls.
+/// The byte[] is a managed copy from the XShm/XImage buffer.
+/// GOTCHA (audit Q3): <see cref="PixelData"/> is a REUSED buffer owned by the capturer —
+/// valid only until the next <see cref="IScreenCapturer.Capture"/> call. Consume it
+/// synchronously (encode) before capturing the next frame; do NOT cache it.
 /// </summary>
 internal sealed class CapturedFrame
 {
@@ -40,11 +43,17 @@ internal interface IScreenCapturer : IDisposable
     void Initialize();
 }
 
-/// <summary>Encodes a <see cref="CapturedFrame"/> to a JPEG byte array.</summary>
+/// <summary>Encodes a <see cref="CapturedFrame"/> to JPEG bytes.</summary>
 internal interface IFrameEncoder
 {
-    /// <summary>Encode <paramref name="frame"/> to JPEG with given <paramref name="quality"/> (1–100).</summary>
-    byte[]? EncodeJpeg(CapturedFrame frame, int quality);
+    /// <summary>
+    /// Encode <paramref name="frame"/> to JPEG with given <paramref name="quality"/> (1–100).
+    /// Returns an EMPTY memory on failure.
+    /// GOTCHA (audit Q3): the returned memory is backed by a REUSED buffer owned by the
+    /// encoder — valid only until the next EncodeJpeg call. Not thread-safe: call from a
+    /// single capture loop only (v1 serves one session at a time).
+    /// </summary>
+    ReadOnlyMemory<byte> EncodeJpeg(CapturedFrame frame, int quality);
 }
 
 /// <summary>Injects synthetic mouse events via XTest (TDD §9.3).</summary>

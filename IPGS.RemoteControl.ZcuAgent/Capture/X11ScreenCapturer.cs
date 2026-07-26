@@ -48,10 +48,29 @@ internal sealed class X11ScreenCapturer : IScreenCapturer
     private const int ResolutionCheckInterval = 15;
     private int _framesSinceResolutionCheck;
 
+    /// <summary>
+    /// Reused pixel buffer for <see cref="CopyPixels"/> (audit Q3 — GC pressure):
+    /// grown on demand, never shrunk. Safe because Capture() is single-threaded and the
+    /// returned <see cref="CapturedFrame"/> is consumed synchronously before the next
+    /// Capture() call (see IScreenCapturer doc).
+    /// </summary>
+    private byte[] _pixelBuffer = [];
+
     public X11ScreenCapturer(ILogger<X11ScreenCapturer> logger)
         => _logger = logger;
 
-    public ScreenSize ScreenSize { get; private set; }
+    // Audit L9: ScreenSize (2×int, 8-byte struct) is written by the capture thread on
+    // resolution change and read by the receive thread for mouse clamping. A raw struct
+    // property can tear (new Width paired with old Height). Publishing an immutable
+    // holder object makes both read and write single atomic reference operations.
+    private sealed record ScreenSizeHolder(ScreenSize Value);
+    private volatile ScreenSizeHolder _screenSize = new(default(ScreenSize));
+
+    public ScreenSize ScreenSize
+    {
+        get => _screenSize.Value;
+        private set => _screenSize = new ScreenSizeHolder(value);
+    }
 
     // ── IScreenCapturer ───────────────────────────────────────────────────
 
@@ -84,6 +103,12 @@ internal sealed class X11ScreenCapturer : IScreenCapturer
         // Try to set up MIT-SHM
         if (XShm.XShmQueryExtension(_display))
         {
+            // Audit L8: register the MIT-SHM major opcode so X11ErrorTracker only flags
+            // ShmErrorOccurred for errors raised by MIT-SHM requests — errors from other
+            // connections/requests (e.g. XTest) no longer poison SHM (re-)init checks.
+            if (X11.XQueryExtension(_display, "MIT-SHM", out var shmOpcode, out _, out _))
+                X11ErrorTracker.ShmMajorOpcode = shmOpcode;
+
             if (TryInitSHM(w, h))
             {
                 _useSHM = true;
@@ -198,16 +223,21 @@ internal sealed class X11ScreenCapturer : IScreenCapturer
 
     // ── Pixel copy ────────────────────────────────────────────────────────
 
-    private static CapturedFrame CopyPixels(in XImageHeader img)
+    private CapturedFrame CopyPixels(in XImageHeader img)
     {
         var stride     = img.BytesPerLine;
         var dataLength = stride * img.Height;
-        var pixels     = new byte[dataLength];
-        Marshal.Copy(img.Data, pixels, 0, dataLength);
+
+        // Audit Q3: reuse one buffer across frames instead of allocating ~8MB/frame
+        // (1080p ×15fps ≈ 120MB/s of Gen0/LOH garbage). Grow-only; content is fully
+        // overwritten each frame up to dataLength.
+        if (_pixelBuffer.Length < dataLength)
+            _pixelBuffer = GC.AllocateUninitializedArray<byte>(dataLength);
+        Marshal.Copy(img.Data, _pixelBuffer, 0, dataLength);
 
         return new CapturedFrame
         {
-            PixelData   = pixels,
+            PixelData   = _pixelBuffer,
             Width       = img.Width,
             Height      = img.Height,
             BytesPerRow = stride,

@@ -12,14 +12,23 @@ internal sealed class JpegEncoder : IFrameEncoder
 {
     private readonly ILogger<JpegEncoder> _logger;
 
+    /// <summary>
+    /// Reused output buffer (audit Q3 — GC pressure): avoids one fresh byte[] per frame
+    /// from <c>SKData.ToArray()</c> (~50–300KB × 15fps). Grow-only. Safe because the
+    /// encoder is called from a single capture loop and the result is consumed
+    /// synchronously before the next EncodeJpeg call.
+    /// </summary>
+    private byte[] _jpegBuffer = [];
+
     public JpegEncoder(ILogger<JpegEncoder> logger) => _logger = logger;
 
     /// <summary>
-    /// Encode <paramref name="frame"/> to a JPEG byte array.
+    /// Encode <paramref name="frame"/> to JPEG bytes.
     /// X11 delivers pixels as BGRA8888 (or BGRX8888 with ignored alpha).
-    /// Returns <c>null</c> if encoding fails.
+    /// Returns an empty memory if encoding fails. The returned memory is backed by a
+    /// reused internal buffer — valid only until the next call (see IFrameEncoder doc).
     /// </summary>
-    public byte[]? EncodeJpeg(CapturedFrame frame, int quality)
+    public ReadOnlyMemory<byte> EncodeJpeg(CapturedFrame frame, int quality)
     {
         try
         {
@@ -59,15 +68,20 @@ internal sealed class JpegEncoder : IFrameEncoder
             if (data is null || data.Size == 0)
             {
                 _logger.LogWarning("SKImage.Encode returned empty data");
-                return null;
+                return ReadOnlyMemory<byte>.Empty;
             }
 
-            return data.ToArray();
+            // Copy into the reused buffer instead of data.ToArray() (audit Q3)
+            var size = (int)data.Size;
+            if (_jpegBuffer.Length < size)
+                _jpegBuffer = GC.AllocateUninitializedArray<byte>(size);
+            data.AsSpan().CopyTo(_jpegBuffer);
+            return _jpegBuffer.AsMemory(0, size);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "JPEG encode failed");
-            return null;
+            return ReadOnlyMemory<byte>.Empty;
         }
     }
 }

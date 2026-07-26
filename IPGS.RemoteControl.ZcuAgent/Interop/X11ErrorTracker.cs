@@ -35,11 +35,28 @@ internal static class X11ErrorTracker
     private static volatile bool _installed;
 
     /// <summary>
-    /// Set to <c>true</c> by the handler whenever any X error arrives.
-    /// Reset to <c>false</c> by the caller immediately before the operation being guarded
-    /// (e.g. <c>XShmAttach</c>), then checked after <c>XSync</c>.
+    /// Set to <c>true</c> by the handler when an X error attributable to a MIT-SHM
+    /// request arrives (see <see cref="ShmMajorOpcode"/>). Reset to <c>false</c> by the
+    /// caller immediately before the operation being guarded (e.g. <c>XShmAttach</c>),
+    /// then checked after <c>XSync</c>.
     /// </summary>
     public static volatile bool ShmErrorOccurred;
+
+    /// <summary>
+    /// Major opcode of the MIT-SHM extension (the <c>request_code</c> its requests carry
+    /// in XErrorEvents). Set once by <c>X11ScreenCapturer.Initialize</c> via
+    /// <c>XQueryExtension("MIT-SHM")</c>.
+    /// <para>
+    /// Audit L8: without this scoping, ANY X error on ANY display connection in the
+    /// process (e.g. an XTest BadAccess on the injector connection, raised concurrently
+    /// on the receive thread) set <see cref="ShmErrorOccurred"/> and caused a
+    /// false-positive fallback from SHM to the much slower XGetImage during a
+    /// mid-session <c>TryInitSHM</c> re-init (resolution change).
+    /// While the opcode is unknown (-1), the handler stays conservative and flags every
+    /// error — preserving the original crash-safe SHM fallback behaviour.
+    /// </para>
+    /// </summary>
+    public static volatile int ShmMajorOpcode = -1;
 
     // ── XErrorEvent memory layout (x86_64 Linux, Xlib ABI) ──────────────────
     //
@@ -89,12 +106,20 @@ internal static class X11ErrorTracker
     // Rules: NEVER throw, NEVER call back into Xlib (re-entrant crash risk).
     private static int OnX11Error(IntPtr display, IntPtr errorEventPtr)
     {
-        // Signal the SHM fallback path regardless of error type.
-        ShmErrorOccurred = true;
-
         try
         {
             var ev  = Marshal.PtrToStructure<XErrorEvent>(errorEventPtr);
+
+            // Audit L8: only flag SHM fallback for errors produced by MIT-SHM requests
+            // (request_code == extension major opcode). Errors from other requests —
+            // e.g. XTest on the injector's display connection, arriving concurrently on
+            // another thread — must NOT poison a TryInitSHM re-init in progress.
+            // If the opcode is not (yet) known, stay conservative: flag every error so
+            // the original crash-safe fallback behaviour is preserved.
+            var shmOpcode = ShmMajorOpcode;
+            if (shmOpcode < 0 || ev.RequestCode == shmOpcode)
+                ShmErrorOccurred = true;
+
             var msg = $"[X11Error] error_code={ev.ErrorCode} request_code={ev.RequestCode} " +
                       $"minor_code={ev.MinorCode} serial={ev.Serial} resourceid=0x{ev.ResourceId:X}";
 
@@ -105,7 +130,10 @@ internal static class X11ErrorTracker
         }
         catch
         {
-            // Silently ignore — we must not throw from an Xlib C callback.
+            // Could not parse the event — be conservative so a real XShmAttach BadAccess
+            // is never missed (would otherwise re-enable the historical crash scenario).
+            ShmErrorOccurred = true;
+            // Silently ignore otherwise — we must not throw from an Xlib C callback.
         }
 
         // Return 0 to suppress Xlib's default handler (which would call exit()).

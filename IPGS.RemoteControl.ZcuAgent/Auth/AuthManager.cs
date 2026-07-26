@@ -37,11 +37,19 @@ internal sealed class AuthManager
 
     /// <summary>
     /// Returns true if <paramref name="remoteIp"/> is allowed per the whitelist.
-    /// An empty whitelist allows all IPs.
+    /// An empty whitelist DENIES all IPs (deny-by-default — security audit S4).
+    /// A catch-all range must be configured explicitly (e.g. <c>0.0.0.0/0</c>).
     /// </summary>
     public bool IsIpAllowed(string remoteIp)
     {
-        if (_options.AllowedClientIPs.Count == 0) return true;
+        if (_options.AllowedClientIPs.Count == 0)
+        {
+            _logger.LogWarning(
+                "Connection from {IP} rejected — AllowedClientIPs is empty (deny-by-default). " +
+                "Add allowed IPs/CIDRs to RemoteControl:AllowedClientIPs to accept connections.",
+                remoteIp);
+            return false;
+        }
         if (!IPAddress.TryParse(remoteIp, out var ip)) return false;
         if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
 

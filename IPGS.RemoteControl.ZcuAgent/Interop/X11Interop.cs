@@ -42,6 +42,18 @@ internal static class X11
     [DllImport(Lib)] public static extern int XFlush(IntPtr display);
 
     /// <summary>
+    /// Queries whether the named extension is present and returns its major opcode —
+    /// the <c>request_code</c> that appears in async XErrorEvents produced by that
+    /// extension's requests. Used to scope SHM error detection to MIT-SHM requests
+    /// only (audit L8) instead of flagging every X error process-wide.
+    /// Returns Bool (non-zero when the extension exists).
+    /// </summary>
+    [DllImport(Lib)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool XQueryExtension(IntPtr display, string name,
+        out int majorOpcode, out int firstEvent, out int firstError);
+
+    /// <summary>
     /// Queries the current geometry of a drawable directly from the X server (real round-trip,
     /// NOT a client-side cache read). Use this — not <see cref="XDisplayWidth"/> /
     /// <see cref="XDisplayHeight"/> — to detect live resolution changes after RandR
