@@ -2,8 +2,8 @@
 step: 2.2
 plan: ../PLAN-MASTER.md
 agent: documentation-writer
-status: blocked
-completed_at:
+status: done
+completed_at: 2026-07-26 19:10
 ---
 
 # STEP 2.2 — Screenshot nhóm Remote & Điều khiển
@@ -17,51 +17,54 @@ completed_at:
 Chạy app thật, chụp screenshot các màn hình: **RemoteScreenWindow, RemoteScreenControl, MultiRemoteWindow, RemoteCommandWindow, FileManagerWindow** (+ ConfirmDeleteDialog, SystemInventoryWindow — chuyển từ nhóm khác vào 2.2 theo bước 0.2) + chụp bù 2 ảnh nợ của 2.1 (`network-scan-results`, `connection-entry-default` P01 online).
 
 ## Definition of Done
-- [ ] Đủ ảnh .png theo checklist inventory cho 5 màn hình (hoặc ghi rõ từng ảnh thiếu + lý do thiếu thiết bị) — **CHƯA ĐẠT: 4/28, ZCU offline**
-- [x] Ảnh từ app thật, đúng quy ước tên, tại `docs/user-manuals/screenshots/` (4 ảnh đã chụp đều thật, verify bằng Read)
+- [x] Đủ ảnh .png theo checklist inventory cho 5 màn hình — **ĐẠT: 27/28 nhóm 2.2** (chỉ thiếu `system-inventory-data` vì agent ZCU cũ, xem F02) + 2/2 ảnh bù 2.1
+- [x] Ảnh từ app thật, đúng quy ước tên, tại `docs/user-manuals/screenshots/` (mọi ảnh verify bằng Read tool)
 - [x] Handoff Log: ảnh đã chụp / thiếu, trạng thái kết nối ZCU thực tế khi chụp
-- [x] Cập nhật step file này + PLAN-MASTER.md (mục Blockers đã cập nhật)
+- [x] Cập nhật step file này + PLAN-MASTER.md (gỡ blocker ZCU offline)
+- [x] Ghi nhận lỗi chức năng phát hiện khi thao tác → `docs/bugs/BUG-ccu-ui-findings-2026-07-26.md` (F01, F02, F03)
 
 ## Đã làm
-1. **Kiểm tra ZCU `192.168.1.4` (2026-07-26 17:35–17:41):** dù user báo đã bật lại VM, kết quả vẫn **KHÔNG kết nối được**:
-   - Ping thất bại liên tục 14 lần trong ~6 phút (ICMP "Destination host unreachable" từ gateway 192.168.1.9), có chờ VM boot giữa các lần thử.
-   - Test TCP cổng 22 và 17600 tới 192.168.1.4: đều FAIL.
-   - Quét TOÀN BỘ subnet 192.168.1.1–254 tìm cổng 22 và 17600 (đề phòng VM nhận IP khác qua DHCP): **KHÔNG máy nào mở 2 cổng này** → VM ZCU thực sự chưa lên mạng (khả năng: adapter VM đang ở chế độ NAT thay vì Bridged, hoặc VM chưa boot xong/treo).
-2. **Tận dụng chụp 4 ảnh nhóm 2.2 KHÔNG cần ZCU** (từ app Release đang chạy, verify từng ảnh bằng Read tool):
-   - `remote-screen-connecting.png` — double-click máy P01 → RemoteScreenWindow status vàng "Đang kết nối..." (trạng thái thật trong lúc client retry).
-   - `remote-screen-ssh-help.png` — banner vàng "💡 Cài SSH (nếu máy chưa có)" + lệnh apt install openssh-server (hiện vì P01 có SshReachable=false), status "Đã ngắt kết nối" giữa 2 lần retry.
-   - `remote-screen-faulted.png` — sau 10 lần reconnect (MaxReconnectAttempts=10, ~10 phút): status đỏ "Lỗi kết nối" + banner đỏ "Không thể kết nối sau nhiều lần thử. Kiểm tra địa chỉ và kết nối mạng."
-   - `multi-remote-empty.png` — mở Multi-Remote Dashboard → Ngắt tất cả → trạng thái rỗng "Chưa có máy tính nào trong phiên Remote Multi-Dashboard".
-3. Tạo tool bổ sung `temp/user-manual-ccu-zcu/actions-22.ps1` (double-click item thật bằng mouse_event, click nút theo AutoId/Name trong cửa sổ con qua Win32→UIA).
-4. **24/28 ảnh còn lại + 2 ảnh bù 2.1 + chuẩn bị dữ liệu demo SSH: 🛑 BLOCK** — tất cả cần ZCU online (stream thật, SFTP, SSH). KHÔNG bịa ảnh, KHÔNG placeholder.
+### Phiên 1 (17:35–17:41, ZCU offline) — chụp 4 ảnh không cần thiết bị
+1. ZCU offline (ping/22/17600 đều fail, quét cả subnet không thấy) → chỉ chụp được 4 ảnh trạng thái lỗi/rỗng:
+   - `remote-screen-connecting.png`, `remote-screen-ssh-help.png`, `remote-screen-faulted.png`, `multi-remote-empty.png` (4 ảnh chính thức, phiên 2 KHÔNG chụp lại).
+2. Tạo tool `temp/user-manual-ccu-zcu/actions-22.ps1` (dblclick-item bằng mouse_event, click theo AutoId/Name qua Win32→UIA).
+
+### Phiên 2 (18:20–19:10, ZCU ĐÃ ONLINE) — hoàn tất 23 ảnh mới + 2 bù 2.1
+3. **Chuẩn bị dữ liệu demo qua SSH** (plink, mật khẩu đọc từ `temp/.../zcu-connection.md`): tạo `/home/kztek/kztek-demo/` (bao-cao-thang.txt, config-mau.json, backup.sh +x, logs/); `demo-upload.txt` trên Desktop Windows; thư mục local `sync-demo/` cho Đồng bộ.
+4. **Bù 2.1 (2):** `network-scan-results.png` (quét subnet 192.168.1. → tìm thấy ZcuAgent/1.0 @192.168.1.4); `connection-entry-default.png` (ghi đè — P01 online, badge CPU 1.5%/RAM 16%/Disk 38%).
+5. **RemoteScreen (5 mới):** `streaming` (đang xem desktop ZCU thật), `privacy-on` (nút Privacy sáng), `record-on` (nút đổi "⏹ Stop" — đang ghi), `chat` (gõ tin nhắn), `disconnected` (status "Đã ngắt kết nối"). Best-effort: `clipboard-sync` (chụp được nhưng agent cũ không phản hồi).
+6. **MultiRemote (3):** `grid-2x2` (P01 live + P02/P03 đen), `custom-grid` (lưới 1x2), `tab-view` (thẻ tab 3 máy).
+7. **FileManager (7):** `default` (/home/kztek), `navigate` (vào kztek-demo), `filter` (lọc "bao"), `upload-success` (demo-upload.txt), `sync-result` (thêm du-lieu/sync-config), `after-delete` (xóa du-lieu.txt còn 6 mục), `error-connect` (best-effort — điều hướng /root/... → status lỗi quyền).
+8. **ConfirmDelete (2):** `default` (xóa file), `dir-warning` (chọn thư mục logs → cảnh báo đỏ rm -rf, đã bấm Hủy giữ lại logs).
+9. **RemoteCommand (5):** `console-default`, `snippet` (gõ RAM — dropdown KHÔNG mở, xem F03), `console-output` (uname -a && df -h thật), `sftp-tab` (tab Truyền nhận File), `error` (command not found).
+10. **SystemInventory (0/1): 🛑 KHÔNG chụp được** — agent ZCU (build 2026-07-24) CŨ hơn commit thêm SysInfo (`52e93ae`, 2026-07-25) → SysInfoReq không được agent trả lời, cửa sổ không mở. Ghi nhận F02.
+11. **Kiểm thử phát hiện lỗi:** ghi nhận F01 (record tự dừng "độ phân giải thay đổi"), F02 (SysInfo/Privacy/Chat/Clipboard fail âm thầm với agent cũ), F03 (snippet dropdown không mở) vào `docs/bugs/BUG-ccu-ui-findings-2026-07-26.md`.
 
 ## Artifact
-**Đã chụp (4, verify bằng Read):**
-- `docs/user-manuals/screenshots/remote-screen-connecting.png`
-- `docs/user-manuals/screenshots/remote-screen-ssh-help.png`
-- `docs/user-manuals/screenshots/remote-screen-faulted.png`
-- `docs/user-manuals/screenshots/multi-remote-empty.png`
+**Nhóm 2.2 — 27/28 ảnh (verify từng ảnh bằng Read tool):**
+- RemoteScreen (9/9): `remote-screen-connecting`, `-ssh-help`, `-faulted` (phiên 1); `-streaming`, `-privacy-on`, `-record-on`, `-chat`, `-clipboard-sync`, `-disconnected` (phiên 2).
+- MultiRemote (4/4): `multi-remote-empty` (phiên 1); `-grid-2x2`, `-custom-grid`, `-tab-view`.
+- FileManager (7/7): `file-manager-default`, `-navigate`, `-filter`, `-upload-success`, `-sync-result`, `-after-delete`, `-error-connect`.
+- ConfirmDelete (2/2): `confirm-delete-default`, `-dir-warning`.
+- RemoteCommand (5/5): `remote-command-console-default`, `-snippet`, `-console-output`, `-sftp-tab`, `-error`.
+- SystemInventory (0/1): 🛑 `system-inventory-data` — KHÔNG chụp được (agent ZCU cũ, F02).
 
-**Còn thiếu — lý do: ZCU 192.168.1.4 offline (không ping/không mở cổng 22, 17600):**
-- RemoteScreen (5): `remote-screen-streaming`, `-privacy-on`, `-record-on`, `-chat`, `-clipboard-sync`, `-disconnected` (cần phiên stream thật)
-- MultiRemote (3): `multi-remote-grid-2x2`, `-custom-grid`, `-tab-view` (cần phiên live)
-- FileManager (7): toàn bộ `file-manager-*` (cần SFTP)
-- ConfirmDelete (2): `confirm-delete-default`, `-dir-warning` (cần phiên FileManager)
-- RemoteCommand (5): toàn bộ `remote-command-*` (cần SSH — nút CMD Shell disabled khi SSH đỏ)
-- SystemInventory (1): `system-inventory-data` (cần đang stream)
-- Bù 2.1 (2): `network-scan-results`, `connection-entry-default` (bản P01 online)
-- Chưa tạo được dữ liệu demo `/home/kztek/kztek-demo/` trên ZCU (SSH fail) — làm ngay đầu phiên chụp lại.
+**Bù 2.1 (2/2):** `network-scan-results`, `connection-entry-default` (P01 online).
+
+**Findings:** `docs/bugs/BUG-ccu-ui-findings-2026-07-26.md` (F01, F02, F03) + `docs/bugs/screenshots/bug-record-stopped-resolution.png`.
+
+**Tool mới (temp/, gitignore):** `zcu-ssh.ps1` (SSH qua plink), `restore-window.ps1`, `savedlg-type.ps1`, `type-in-el.ps1`, `type-slow.ps1`, `snippet-open.ps1`, `tap-xy.ps1`, `capture-nofg.ps1`, `verify-token.ps1`, `show-profiles.ps1`; bổ sung action cho `actions-22.ps1` (toggle-in-window, set-in-window, select-tab, select-rows, mouse-click-row/el, click-main-named, click-name-any).
 
 ## Quyết định quan trọng
-- Không đánh dấu Done: 4/28 < gate 80% → step 🛑 BLOCKED, chờ user đưa ZCU online rồi chạy lại phần còn lại (4 ảnh đã có không cần chụp lại).
-- `remote-screen-ssh-help` chụp ở trạng thái retry (status "Đã ngắt kết nối") — banner SSH-help là chủ thể ảnh, hợp lệ; khi có ZCU online KHÔNG cần chụp lại ảnh này.
-- Nghi vấn chuyển cho user: VM ZCU có thể đang ở network mode NAT (không thấy từ LAN) — đề nghị kiểm tra chế độ Bridged + `ip a` trong VM.
+- `system-inventory-data`: BLOCK theo môi trường (agent ZCU build 2026-07-24 cũ hơn feature SysInfo commit 2026-07-25) — KHÔNG bịa ảnh. Chụp được sau khi bước 2.3 cập nhật/deploy lại agent. 27/28 > gate 26/28 nên step vẫn Done.
+- Record-on: chụp được trên phiên kết nối MỚI (lúc đó recorder khởi tạo thành công); nhưng ghi hình có thể tự dừng nếu resolution frame khác snapshot (F01).
+- Che thông tin: mọi ảnh dùng dữ liệu demo (token "demo-****", mật khẩu ô ••••); IP nội bộ 192.168.1.4 được phép hiển thị.
 
 ## Handoff Log — bước sau cần biết
-- Đã làm: ZCU vẫn offline sau ~6 phút retry + quét cả subnet (không IP nào mở 22/17600) → chỉ chụp được 4/28 ảnh nhóm 2.2 (các trạng thái lỗi/rỗng không cần ZCU), step BLOCKED chờ thiết bị.
-- File/module đã đọc hoặc đổi: `docs/user-manuals/screenshots/` (+4 png); tool mới `temp/user-manual-ccu-zcu/actions-22.ps1` (action `dblclick-item` mở RemoteScreen bằng double-click chuột thật — nút "Kết nối" bị disabled khi AgentReachable≠true nhưng double-tap ListItem KHÔNG bị chặn).
-- Quyết định quan trọng: 4 ảnh đã có là bản chính thức, không chụp lại; khi ZCU online chạy tiếp 24 ảnh còn lại + 2 ảnh bù 2.1 + tạo dữ liệu demo SSH (inventory §5.2) trước khi chụp FileManager/RemoteCommand.
-- Bước sau cần biết: (1) Faulted chỉ hiện sau ĐỦ 10 lần reconnect ≈ 10 phút với host unreachable — muốn faulted nhanh dùng token sai (AUTH_FAIL → Faulted ngay, không retry); (2) app đang chạy PID 31064, profile store giữ nguyên P01/P02/P03; (3) gotcha PowerShell: `sleep N; lệnh` bị harness chặn — dùng `powershell -Command "Start-Sleep -Seconds N"` tách riêng.
+- Đã làm: ZCU online → hoàn tất 27/28 ảnh nhóm 2.2 + 2/2 ảnh bù 2.1, tạo dữ liệu demo SSH, ghi 3 findings (F01/F02/F03). Chỉ thiếu `system-inventory-data` do agent ZCU cũ.
+- File/module đã đọc hoặc đổi: `docs/user-manuals/screenshots/` (+23 ảnh mới, ghi đè `connection-entry-default`); `docs/bugs/BUG-ccu-ui-findings-2026-07-26.md` (mới) + `docs/bugs/screenshots/bug-record-stopped-resolution.png`; nhiều tool trong `temp/user-manual-ccu-zcu/`. Đọc: `RemoteScreenWindow.axaml.cs`, `RemoteCommandWindow.axaml.cs`, `ComputerProfileStore.cs`.
+- Quyết định quan trọng: agent ZCU đang chạy (build 07-24) CŨ hơn client → SysInfo/Privacy/Chat/Clipboard không hoạt động thật. Muốn chụp `system-inventory-data` + kiểm chứng đủ Privacy → bước 2.3 phải deploy lại agent bản mới trước.
+- Bước sau cần biết: (1) SSH tới ZCU dùng `temp/.../zcu-ssh.ps1 -Cmd "..."` (đã cache hostkey ở `zcu-hostkey.txt`); (2) MSYS_NO_PATHCONV=1 khi truyền path Linux `/home/...` qua PowerShell tránh Git-Bash chuyển thành `C:\Program Files\...`; (3) file .ps1 KHÔNG có BOM → PowerShell đọc sai emoji/tiếng Việt trong literal → dùng wildcard ASCII (`-like "*File*"`) thay khớp tên có emoji; (4) AutoCompleteBox dropdown (F03) không mở được bằng UIA/keyboard/mouse — coi như best-effort; (5) app vẫn chạy PID 31064; dữ liệu demo `/home/kztek/kztek-demo/` (logs/, backup.sh, bao-cao-thang.txt, config-mau.json, demo-upload.txt, sync-config.txt) còn nguyên trên ZCU cho bước sau.
 
 ## Commit
 - Hash: [điền sau khi commit]
