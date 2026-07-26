@@ -20,7 +20,13 @@ namespace IPGS.RemoteControl.CcuClient;
 /// </summary>
 internal static class ShellQuote
 {
-    private static readonly Regex FileNameRegex    = new(@"^[A-Za-z0-9][A-Za-z0-9._+-]*$", RegexOptions.Compiled);
+    // Review 4.1: cho phép thêm '~' và '%' TRỪ ký tự đầu — tên file .deb chuẩn Debian
+    // thường chứa '~' trong version (vd: pkg_1.0~rc1_amd64.deb) và '%' khi encode epoch
+    // (vd: pkg_1%3a2.0_amd64.deb). Cả hai đều VÔ HẠI trong ngữ cảnh nội suy: giá trị nằm
+    // trong "$HOME/..." (double-quote) bên trong bash -c '...' — '~' không tilde-expand
+    // (không ở đầu word + trong quote), '%' không có nghĩa shell. Ký tự đầu vẫn giới hạn
+    // alphanumeric nên không thể bắt đầu bằng '~' hay '-' (option injection).
+    private static readonly Regex FileNameRegex    = new(@"^[A-Za-z0-9][A-Za-z0-9._+~%-]*$", RegexOptions.Compiled);
     private static readonly Regex PackageNameRegex = new(@"^[A-Za-z0-9][A-Za-z0-9._+-]*$", RegexOptions.Compiled);
     private static readonly Regex UsernameRegex    = new(@"^[a-zA-Z_][a-zA-Z0-9._-]*$",    RegexOptions.Compiled);
 
@@ -37,7 +43,8 @@ internal static class ShellQuote
 
     /// <summary>
     /// Validate tên file installer (nội suy vào trong <c>bash -c '...'</c>).
-    /// Chỉ cho phép chữ, số, <c>. _ + -</c>; không cho dấu cách, quote, <c>; $ ( ) / ~</c>.
+    /// Chỉ cho phép chữ, số, <c>. _ + - ~ %</c> (ký tự đầu phải là chữ/số);
+    /// không cho dấu cách, quote, <c>; $ ( ) /</c>.
     /// </summary>
     public static string ValidateFileName(string fileName, string paramName)
     {
