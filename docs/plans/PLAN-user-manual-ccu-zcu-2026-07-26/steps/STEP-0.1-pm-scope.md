@@ -41,7 +41,7 @@ Xác nhận scope tài liệu, định nghĩa đối tượng người đọc (k
 - Bước sau cần biết: Bước 0.2 dùng bảng đối chiếu 18 view + 3 mức chi tiết trong scope doc làm khung Screen Inventory — KHÔNG cần khảo sát lại danh sách view; danh sách trạng thái cần ZCU thật vs không cần đã liệt kê sẵn ở mục 6.1/6.2 của scope doc.
 
 ## Commit
-- Hash: b5ff598
+- Hash: c1a0e0e
 - Đã push: không (theo chỉ thị bước này)
 
 ---
