@@ -148,6 +148,125 @@ echo "  → panel=$(to_visible_value "$HIDE_TOPBAR") activities-button=$(to_visi
 # setup-kiosk.sh / docs/devops/KIOSK-SETUP-hide-topbar-ubuntu2204.md).
 
 # ─────────────────────────────────────────────────────────────
+# F10 — Chặn CỬ CHỈ CẢM ỨNG mở Activities overview.
+#
+# BỐI CẢNH: F09 (dconf lock) chỉ vô hiệu được PHÍM TẮT (Super/Alt+F2/...). Cử chỉ
+# cảm ứng (vuốt nhiều ngón lên, edge-swipe) và hot corner mở overview là hard-code
+# trong GNOME Shell 42, KHÔNG có dconf key nào tắt được (Just Perfection v26 — bản
+# duy nhất tương thích Shell 42 — cũng KHÔNG có key `gesture`, đã kiểm chứng schema
+# trên ZCU 192.168.0.101). Máy kiosk cảm ứng KHÔNG có bàn phím nên cử chỉ chạm là
+# lối thoát khả dĩ duy nhất → phải chặn.
+#
+# GIẢI PHÁP: cài 1 extension GNOME Shell CỤC BỘ (self-contained, không tải từ store
+# nên KHÔNG cần bấm popup xác nhận trên màn hình như `gext install`) vô hiệu HOÀN
+# TOÀN overview — bất kể trigger nào (cử chỉ đa chạm, edge-swipe, hot corner, double-
+# super, gọi lập trình). Kiosk = 1 app fullscreen duy nhất nên KHÔNG cần overview.
+# Chạm 1 ngón để dùng app vẫn hoạt động bình thường (chỉ overview bị chặn, không
+# đụng tới sự kiện chạm của app).
+#
+# Chỉ áp dụng khi HIDE_ACTIVITIES=1 (cùng ý nghĩa "chặn truy cập overview"); bỏ tick
+# Ẩn Activities = gỡ/tắt extension để trả lại hành vi mặc định.
+EXT_UUID_GESTURE="disable-overview-gestures@kztek"
+EXT_DIR_GESTURE="$HOME/.local/share/gnome-shell/extensions/$EXT_UUID_GESTURE"
+
+if [ "$HIDE_ACTIVITIES" = "1" ]; then
+    echo "=== [3b/5] Cài extension cục bộ chặn cử chỉ mở overview ($EXT_UUID_GESTURE) ==="
+    mkdir -p "$EXT_DIR_GESTURE/schemas"
+
+    cat > "$EXT_DIR_GESTURE/metadata.json" <<'EOF'
+{
+  "uuid": "disable-overview-gestures@kztek",
+  "name": "Disable Overview Gestures (KZTEK Kiosk)",
+  "description": "Vo hieu hoan toan Activities overview cho kiosk iPGS: chan cu chi cam ung (vuot nhieu ngon), edge-swipe, hot corner va moi loi mo overview. Cham 1 ngon de dung app van hoat dong binh thuong.",
+  "shell-version": ["42"],
+  "version": 1
+}
+EOF
+
+    # extension.js — 3 lớp phòng thủ:
+    #  (1) override Main.overview.show / showApps thành no-op (chặn mọi lời gọi mở).
+    #  (2) bắt tín hiệu 'showing' → hide() ngay (belt-and-suspenders nếu path nào lọt).
+    #  (3) tắt các SwipeTracker cử chỉ (overview + chuyển workspace) nếu tồn tại.
+    # disable() khôi phục nguyên trạng để bỏ tick Ẩn Activities là trả lại mặc định.
+    cat > "$EXT_DIR_GESTURE/extension.js" <<'EOF'
+const Main = imports.ui.main;
+
+let _showingId = 0;
+let _origShow = null;
+let _origShowApps = null;
+
+function init() {}
+
+function _setTracker(enabled) {
+    try { Main.overview._swipeTracker.enabled = enabled; } catch (e) {}
+    try { Main.wm._workspaceAnimation._swipeTracker.enabled = enabled; } catch (e) {}
+    try {
+        Main.overview._overview._controls._workspacesDisplay._swipeTracker.enabled = enabled;
+    } catch (e) {}
+    try {
+        Main.overview._overview._controls._appDisplay._swipeTracker.enabled = enabled;
+    } catch (e) {}
+}
+
+function enable() {
+    _origShow = Main.overview.show;
+    _origShowApps = Main.overview.showApps;
+    Main.overview.show = function () {};
+    Main.overview.showApps = function () {};
+
+    _showingId = Main.overview.connect('showing', () => {
+        Main.overview.hide();
+    });
+
+    _setTracker(false);
+}
+
+function disable() {
+    if (_showingId) {
+        Main.overview.disconnect(_showingId);
+        _showingId = 0;
+    }
+    if (_origShow) {
+        Main.overview.show = _origShow;
+        _origShow = null;
+    }
+    if (_origShowApps) {
+        Main.overview.showApps = _origShowApps;
+        _origShowApps = null;
+    }
+    _setTracker(true);
+}
+EOF
+
+    # Đăng ký extension vào danh sách enabled-extensions (có hiệu lực ở lần login kế
+    # tiếp — deploy vốn đã yêu cầu restart máy). `gnome-extensions enable` có thể báo
+    # "not installed" với extension vừa copy khi shell chưa quét lại → thêm trực tiếp
+    # vào dconf để chắc chắn, rồi enable best-effort.
+    CUR_EXT="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || echo '@as []')"
+    if ! echo "$CUR_EXT" | grep -q "$EXT_UUID_GESTURE"; then
+        if echo "$CUR_EXT" | grep -q "^@as \[\]$" || [ "$CUR_EXT" = "[]" ]; then
+            NEW_EXT="['$EXT_UUID_GESTURE']"
+        else
+            NEW_EXT="$(echo "$CUR_EXT" | sed "s/]$/, '$EXT_UUID_GESTURE']/")"
+        fi
+        gsettings set org.gnome.shell enabled-extensions "$NEW_EXT" 2>/dev/null || true
+    fi
+    gnome-extensions enable "$EXT_UUID_GESTURE" 2>/dev/null || true
+    echo "  → Đã cài + đăng ký enable '$EXT_UUID_GESTURE' (hiệu lực sau khi RESTART/đăng nhập lại)."
+    echo "    Overview bị vô hiệu hoàn toàn — cử chỉ cảm ứng/hot corner không mở được overview nữa."
+else
+    echo "=== [3b/5] Bỏ tick Ẩn Activities → gỡ extension chặn cử chỉ overview ==="
+    gnome-extensions disable "$EXT_UUID_GESTURE" 2>/dev/null || true
+    CUR_EXT="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || echo '@as []')"
+    if echo "$CUR_EXT" | grep -q "$EXT_UUID_GESTURE"; then
+        NEW_EXT="$(echo "$CUR_EXT" | sed "s/'$EXT_UUID_GESTURE', //g; s/, '$EXT_UUID_GESTURE'//g; s/'$EXT_UUID_GESTURE'//g")"
+        gsettings set org.gnome.shell enabled-extensions "$NEW_EXT" 2>/dev/null || true
+    fi
+    rm -rf "$EXT_DIR_GESTURE" 2>/dev/null || true
+    echo "  → Đã tắt/gỡ extension chặn cử chỉ overview (trả lại hành vi mặc định GNOME)."
+fi
+
+# ─────────────────────────────────────────────────────────────
 echo "=== [4/5] Bàn phím ảo GNOME (2 chiều) ==="
 # gsettings screen-keyboard-enabled=false KHÔNG đủ (xem GHI CHÚ đầu file) — cần
 # thêm extension Block Caribou 36 để chặn thật cơ chế tự bật theo cảm ứng.

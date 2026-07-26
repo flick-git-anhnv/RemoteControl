@@ -920,6 +920,9 @@ Cửa sổ "Deploy Kiosk Setup" gồm: khung máy đích, ô **Sudo password** (
 - **App exec:** lệnh mở phần mềm kiosk khi máy khởi động.
 - **Tắt popup + auto-download Software Updater:** chặn trình cập nhật hệ điều hành hiện thông báo che màn hình kiosk.
 - **Autostart app + unclutter khi vào desktop:** tự mở phần mềm ngay khi máy vào màn hình chính.
+- **Watchdog: tự khởi động lại app kiosk khi đóng/crash** *(mới — tick sẵn mặc định):* cài một dịch vụ nền (systemd) giám sát phần mềm kiosk. Nếu phần mềm bị đóng hoặc gặp sự cố (crash), dịch vụ sẽ **tự mở lại phần mềm trong vài giây**, không để lộ màn hình nền trống. Dịch vụ có cơ chế chống lặp: nếu phần mềm chưa được cài (chưa có file chạy), nó thử lại vài lần rồi dừng hẳn thay vì lặp vô hạn. Khi bật Watchdog, phần mềm được dịch vụ này quản lý — không dùng đồng thời autostart `.desktop` cho phần mềm (tránh chạy 2 bản cùng lúc). Bỏ tick để gỡ dịch vụ (phần mềm quay về tự mở bằng autostart `.desktop` nếu còn tick ô ở trên).
+
+> 📱 **Lưu ý cho máy MÀN HÌNH CẢM ỨNG (không có bàn phím):** ô tick **"Ẩn nút Activities"** (Tab "🖥️ Config máy tính") ngoài việc ẩn nút Activities còn cài thêm một tiện ích chặn **cử chỉ cảm ứng** mở màn hình Activities overview (vuốt nhiều ngón, vuốt từ mép, chạm-giữ, di góc màn hình). Trên GNOME, các cử chỉ này không thể tắt bằng cấu hình thông thường — tiện ích sẽ vô hiệu hoàn toàn màn hình overview theo mọi cách gọi, trong khi **thao tác chạm 1 ngón để dùng phần mềm vẫn hoạt động bình thường**. Cần **khởi động lại máy** để tiện ích có hiệu lực. Nếu là máy có bàn phím, kết hợp thêm ô **"Khoá lối thoát kiosk (dconf lock)"** để chặn các phím tắt.
 
 #### Thực hiện Deploy
 
@@ -948,9 +951,9 @@ Log hiển thị lần lượt từng nhóm thiết lập được áp dụng th
 - Phím **Super** (phím Windows) không mở được Activities Overview / ô "Type to search" nữa; máy đăng nhập vào thẳng phần mềm, không vào màn hình overview.
 - **Alt+F2** (Run a Command), **Ctrl+Alt+T** (Terminal), **Alt+Tab / Super+Tab** (chuyển cửa sổ), **Alt+F4** (đóng cửa sổ), các phím chuyển workspace: đều bị vô hiệu.
 - Menu hệ thống không còn cho **Đăng xuất / Đổi người dùng**; chặn chạy lệnh, khoá màn hình, in ấn.
-- Ô tìm kiếm trong overview bị ẩn hoàn toàn — kể cả khi overview vẫn mở được bằng cử chỉ cảm ứng (xem giới hạn bên dưới), không còn ô gõ tên ứng dụng để mở Terminal/Settings.
+- Ô tìm kiếm trong overview bị ẩn hoàn toàn — không còn ô gõ tên ứng dụng để mở Terminal/Settings.
 
-> ⚠️ **Giới hạn còn lại:** trên màn hình cảm ứng, cử chỉ **vuốt 3 ngón từ dưới lên** của GNOME vẫn có thể mở overview (hệ điều hành không cho phép tắt cử chỉ này bằng cấu hình). Tuy nhiên overview lúc này trống — không ô tìm kiếm, không thanh ứng dụng, chỉ 1 workspace — chạm vào hình thu nhỏ là quay lại phần mềm, nên người dùng không mở thêm được gì.
+> ✅ **Cập nhật 2026-07-27 — cử chỉ cảm ứng đã được chặn:** với các bản cài mới, ô tick **"Ẩn nút Activities"** cài thêm tiện ích vô hiệu **hoàn toàn** màn hình Activities overview — kể cả khi mở bằng **cử chỉ cảm ứng** (vuốt nhiều ngón, vuốt mép, chạm-giữ) hay di góc màn hình. Cần **khởi động lại máy** để có hiệu lực. Đây là vá bổ sung cho khoá dconf (chỉ chặn được phím tắt). *Về lâu dài, cách bền vững nhất vẫn là dùng phiên kiosk chuyên dụng của hệ điều hành — sẽ cân nhắc khi nâng cấp Ubuntu.*
 
 **Quản trị viên tạm mở khoá khi cần bảo trì (QUAN TRỌNG — cách vào lại máy):**
 
@@ -964,6 +967,15 @@ Log hiển thị lần lượt từng nhóm thiết lập được áp dụng th
 3. Mọi thao tác quản trị từ xa (Quản lý File, CMD Shell, Remote Desktop, cập nhật agent) **không bị ảnh hưởng** bởi khoá này — SSH và Remote Agent vẫn hoạt động bình thường.
 
 > 💡 **Lưu ý kỹ thuật:** thay đổi khoá/mở khoá chỉ có hiệu lực đầy đủ sau khi **khởi động lại máy** (hoặc đăng xuất/đăng nhập lại) — phiên GNOME đang chạy vẫn dùng cấu hình cũ cho tới lúc đó.
+
+#### Watchdog tự khởi động lại phần mềm kiosk — quản trị & bảo trì
+
+Khi tick **"Watchdog: tự khởi động lại app kiosk khi đóng/crash"** (Tab "⚙️ Config phần mềm"), sau khi Deploy + khởi động lại máy, phần mềm kiosk sẽ được một dịch vụ nền giám sát và tự bật lại nếu bị đóng/crash.
+
+- **Tạm dừng để bảo trì (ví dụ cần đóng phần mềm để thao tác trên máy):** qua SSH, chạy `systemctl --user stop ipgs-kiosk-app.service` để tạm dừng (phần mềm sẽ không tự bật lại cho tới khi start lại hoặc khởi động máy). Bật lại: `systemctl --user start ipgs-kiosk-app.service`.
+- **Gỡ hẳn Watchdog:** trong cửa sổ Deploy Kiosk Setup, **bỏ tick** ô Watchdog rồi 🚀 Deploy; hoặc qua SSH: `systemctl --user disable --now ipgs-kiosk-app.service`.
+- **Nếu phần mềm kiosk chưa được cài (chưa có file chạy):** dịch vụ sẽ thử vài lần rồi **tự dừng** (không lặp vô hạn). Sau khi cài phần mềm và khởi động lại máy, dịch vụ sẽ chạy bình thường. Xem trạng thái: `systemctl --user status ipgs-kiosk-app.service`.
+- Watchdog chạy dưới tài khoản kiosk theo phiên đồ hoạ — **không ảnh hưởng** tới SSH, Remote Agent hay các thao tác quản trị từ xa.
 
 > ⚠️ **Cảnh báo:** Deploy thay đổi cấu hình hệ điều hành của máy ZCU (giao diện, tự đăng nhập, tự mở phần mềm). Chỉ thực hiện khi được phân công và đã thống nhất cấu hình với đơn vị quản lý. Muốn hoàn tác, bỏ tick các mục tương ứng rồi Deploy lại.
 

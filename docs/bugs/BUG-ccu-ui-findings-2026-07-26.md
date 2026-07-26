@@ -352,3 +352,45 @@ Phạm vi: commit `fc7fd09` (F07) + `2727b87` (F08). Đã đọc toàn bộ diff
 | Finding | Trạng thái | File chính đã sửa |
 |---|---|---|
 | F09 Kiosk thoát được qua Activities overview / phím tắt | ✅ Đã sửa + kiểm chứng phím thật trên ZCU (gesture cảm ứng cần thử tay tại máy) | `scripts/linux-kiosk/2-configure-system.sh`, `1-install-software.sh`, `CcuClient/KioskDeployService.cs`, `CcuUI/Views/KioskDeployWindow.axaml(.cs)` |
+
+---
+
+## F10 — Kiosk cảm ứng (không bàn phím): chạm/giữ màn hình vẫn bung Activities overview + app kiosk không tự khởi động lại khi đóng/crash
+
+> **Người phát hiện:** USER (thao tác thật trên màn hình cảm ứng máy ZCU `192.168.0.101` — máy KHÔNG có bàn phím vật lý, chỉ có màn cảm ứng).
+
+> **Phạm vi đã thu hẹp theo quyết định user (2026-07-27):** Máy kiosk ZCU là **màn hình cảm ứng, KHÔNG có bàn phím**. Vì vậy user quyết định **BỎ QUA toàn bộ nhóm lỗ phím tắt** mà audit `AUDIT-kiosk-escape-vectors-2026-07-27.md` nêu (Super+1..9, Ctrl+Alt+Fx VT switch, Alt+SysRq, Alt+Space, Alt+F7/F8, switch-group...) — không khai thác được khi không có bàn phím. **Cũng giữ nguyên** user `kztek` trong group `sudo` (cần cho luồng deploy agent). F10 chỉ xử lý 2 việc: (A) chặn cử chỉ CẢM ỨNG mở overview, (B) watchdog tự khởi động lại app kiosk.
+
+| Trường | Nội dung |
+|---|---|
+| **Màn hình / Thành phần** | Máy kiosk ZCU (GNOME Shell 42.9, **X11**) cấu hình bởi `scripts/linux-kiosk/1-install-software.sh` + `2-configure-system.sh` qua KioskDeployWindow |
+| **Mức độ** | P2 (bảo mật / kiosk hardening — chỉ cảm ứng) |
+| **Các bước tái hiện (A - cử chỉ)** | 1. Máy ZCU đã chạy Kiosk Deploy (F09 đã khoá phím tắt). 2. Trên màn **cảm ứng**, vuốt nhiều ngón lên / chạm-giữ / vuốt mép → Activities overview bung ra (dù F09 đã ẩn ô search). |
+| **Các bước tái hiện (B - watchdog)** | 1. App kiosk đang chạy fullscreen. 2. App bị đóng/crash (hoặc chưa từng khởi động). 3. Màn hình rơi về **desktop GNOME trống** — không có cơ chế tự bật lại app (audit xác nhận: không có systemd service/watchdog, chỉ autostart `.desktop` chạy 1 lần). |
+| **Kết quả thực tế** | (A) Cử chỉ cảm ứng vẫn mở được overview — F09 (dconf lock) chỉ vô hiệu được **phím tắt**, còn cử chỉ đa chạm/edge-swipe/hot-corner mở overview là hard-code trong GNOME Shell 42, KHÔNG có dconf key nào tắt (Just Perfection **v26** — bản duy nhất tương thích Shell 42 — cũng KHÔNG có key `gesture`, đã kiểm chứng schema thật trên ZCU). (B) App đóng/crash → lộ desktop trống, phơi bày mọi vector. |
+| **Kết quả mong đợi** | (A) Cử chỉ cảm ứng KHÔNG mở được overview; chạm 1 ngón để dùng app vẫn hoạt động bình thường. (B) App bị đóng/crash → tự khởi động lại trong vài giây, không để lộ desktop trống; nếu binary chưa tồn tại thì KHÔNG rơi vào vòng restart vô hạn ghi đầy log. |
+
+> **✅ Đã sửa (2026-07-27, senior-developer):**
+> - **Nguyên nhân gốc:**
+>   - (A) F09 khoá phím tắt bằng dconf, nhưng cử chỉ cảm ứng mở overview (vuốt đa chạm, edge-swipe, hot corner, double-super) do GNOME Shell xử lý ở tầng compositor và **không có gsettings/dconf key** để tắt trên GNOME 42. Just Perfection v26 (max cho Shell 42) không có key `gesture`. `startup-status=0`/`search=false` của F09 chỉ ẩn ô search, KHÔNG chặn được việc overview bung ra.
+>   - (B) App kiosk chạy 1 lần qua autostart `.desktop`, không có supervisor → đóng/crash là mất, rơi về desktop trống.
+> - **Cách sửa:**
+>   1. **(A) Extension GNOME Shell CỤC BỘ `disable-overview-gestures@kztek`** (nhúng heredoc trong `1-install-software.sh`, cài bằng cách ghi file — KHÔNG tải từ store nên không cần bấm popup xác nhận trên màn hình như `gext install`). Extension vô hiệu **HOÀN TOÀN** overview bằng 3 lớp: (i) override `Main.overview.show`/`showApps` thành no-op, (ii) bắt tín hiệu `'showing'` → `hide()` ngay, (iii) tắt các `SwipeTracker` cử chỉ (overview + chuyển workspace). Vì kiosk = 1 app fullscreen duy nhất, việc chặn overview theo MỌI trigger (thay vì cố nhận diện từng cử chỉ cụ thể) là cách bền vững nhất. Chạm 1 ngón để dùng app KHÔNG bị ảnh hưởng (chỉ overview bị chặn). Tự động cài/gỡ theo ô tick **"Ẩn nút Activities"** (cùng ý nghĩa "chặn truy cập overview"). Có hiệu lực sau **restart/đăng nhập lại** (deploy vốn đã yêu cầu restart).
+>   2. **(B) Watchdog systemd USER service `ipgs-kiosk-app.service`** (`2-configure-system.sh` mục [10], tham số 12): `Restart=always` + `RestartSec=3` → app đóng/crash tự bật lại sau 3s; `StartLimitIntervalSec=60` + `StartLimitBurst=5` (ở `[Unit]`, systemd 249) → binary CHƯA tồn tại thì fail 5 lần/60s rồi **DỪNG hẳn** kèm log rõ ("start request repeated too quickly"), KHÔNG lặp vô hạn; `ExecStart=/bin/bash -lc 'exec <app>'` để nạp PATH đăng nhập; `WantedBy=graphical-session.target`. Khi bật watchdog, mục [8] **bỏ autostart `.desktop` của app** để tránh chạy 2 instance. Script chỉ **cài + enable** (không `start` ngay) vì app chưa deploy — service tự chạy ở lần đăng nhập kế tiếp.
+>   3. **`CcuClient/KioskDeployService.cs`** — thêm option `EnableWatchdog` (mặc định true, truyền tham số 12); **`CcuUI/Views/KioskDeployWindow.axaml(.cs)`** — checkbox mới **"Watchdog: tự khởi động lại app kiosk khi đóng/crash"** ở Tab "⚙️ Config phần mềm" (mặc định tick), đồng bộ style các checkbox có sẵn.
+> - **Kiểm chứng thật trên ZCU `192.168.0.101` (X11, VirtualBox — chỉ có VirtualBox USB Tablet, KHÔNG có màn cảm ứng vật lý để giả lập gesture):**
+>   - **Watchdog — ĐÃ kiểm chứng bằng binary giả an toàn, đã gỡ sạch:** (i) binary KHÔNG tồn tại → service restart đúng **5 lần** rồi vào trạng thái `failed` (NRestarts=5, ActiveState=failed) — chống-loop hoạt động; (ii) binary sống (fake `sleep`) → `kill -9` MainPID 5770 → service **tự restart**, MainPID mới 5879, NRestarts=1, log ghi 2 lần start. Sau test đã **gỡ sạch** unit `ipgs-kiosk-test.service` + fake app + file /tmp; xác nhận không còn process/unit rớt lại; `ZcuAgent` vẫn RUNNING, SSH sống.
+>   - **Script:** `bash -n` cả 2 script trên ZCU → SYNTAX OK. `metadata.json` (JSON valid), `extension.js` (`node --check` valid).
+> - **⚠️ CẦN USER THỬ TAY trên màn cảm ứng thật (không giả lập được từ xa — VM không có touchscreen vật lý):**
+>   1. Sau khi Deploy (tick "Ẩn nút Activities") + **khởi động lại** ZCU, mở app kiosk. **Vuốt 3 ngón từ dưới lên** giữa màn hình → mong đợi: overview **KHÔNG** bung (nếu có bung thì tự đóng ngay, không thao tác được). Trước F10: overview bung + có ô "Type to search".
+>   2. **Chạm-giữ ~1s** (long-press = right-click) lên vùng trống và trên app → mong đợi: không ra menu nguy hiểm, không bung overview.
+>   3. **Chạm 1 ngón** vào các nút trong app → mong đợi: app phản hồi bình thường (extension KHÔNG chặn chạm dùng app).
+>   4. (Watchdog) Sau khi deploy app thật + tick Watchdog + restart: đóng/kill app → mong đợi app **tự mở lại trong ~3 giây**, không lộ desktop trống.
+> - **Giới hạn còn lại:** nếu bản GNOME/extension tương lai đổi cấu trúc `Main.overview`, các override có `try/catch` nên không crash shell nhưng có thể mất tác dụng — cần verify lại khi nâng GNOME. Hướng bền vững nhất vẫn là session kiosk chuyên dụng (`gnome-kiosk`/`cage`) — chưa có gói cho Ubuntu 22.04 (backlog).
+> - **Backup / hoàn tác trên ZCU:** F10 CHƯA áp lên cấu hình kiosk thật của ZCU (chỉ test watchdog bằng binary giả rồi gỡ). Khi Deploy thật: extension là thư mục tạo mới (gỡ = bỏ tick Ẩn Activities + Deploy, hoặc `rm -rf ~/.local/share/gnome-shell/extensions/disable-overview-gestures@kztek`); watchdog unit có backup `.bak-*` khi ghi đè, gỡ = bỏ tick Watchdog + Deploy.
+> - **Build verify:** `dotnet build IPGS.RemoteControl.CcuClient -c Release` → 0 Warning 0 Error; `dotnet build IPGS.RemoteControl.CcuUI -c Release --no-dependencies` → **0 Error** (19 warnings = baseline).
+
+| Finding | Trạng thái | File chính đã sửa |
+|---|---|---|
+| F10 (A) Cử chỉ cảm ứng mở overview | ✅ Đã sửa (extension chặn overview) — **cần user thử tay trên màn cảm ứng thật** (VM không có touchscreen để giả lập) | `scripts/linux-kiosk/1-install-software.sh` |
+| F10 (B) App kiosk không tự khởi động lại | ✅ Đã sửa + **kiểm chứng thật** (restart + chống-loop) bằng binary giả, đã gỡ sạch | `scripts/linux-kiosk/2-configure-system.sh`, `CcuClient/KioskDeployService.cs`, `CcuUI/Views/KioskDeployWindow.axaml(.cs)` |

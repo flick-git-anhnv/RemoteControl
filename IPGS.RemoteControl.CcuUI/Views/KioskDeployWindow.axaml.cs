@@ -66,6 +66,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             // Tab 2 — Config phần mềm
             bool swUpdate = PART_ChkSwUpdate.IsChecked == true;
             bool autostart = PART_ChkAutostart.IsChecked == true;
+            bool watchdog = PART_ChkWatchdog.IsChecked == true;
 
             if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser))
             {
@@ -102,7 +103,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 LockSingleWorkspace = lockWorkspace,
                 LockdownShell = lockdownShell,
                 DisableSoftwareUpdate = swUpdate,
-                EnableAutostart = autostart
+                EnableAutostart = autostart,
+                EnableWatchdog = watchdog
             };
 
             try

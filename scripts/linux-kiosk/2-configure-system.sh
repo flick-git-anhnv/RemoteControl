@@ -46,6 +46,12 @@
 #                       khoá log-out/user-switching/command-line — user KHÔNG tự đổi
 #                       lại được vì key bị lock ở /etc/dconf/db/local.d/locks/.
 #                       1 = khoá, 0 = gỡ khoá (bảo trì). Xem GHI CHÚ F09 cuối file.
+#   enable_watchdog     Cài systemd USER service tự khởi động lại app kiosk khi app bị
+#                       đóng/crash (tham số 12, F10). Restart=always + StartLimit chống
+#                       vòng lặp vô hạn khi binary chưa tồn tại. Khi bật, app được quản
+#                       lý bởi service (không tạo autostart .desktop cho app để tránh
+#                       chạy 2 lần). 1 = cài+bật service, 0 = gỡ service (app quay về
+#                       autostart .desktop nếu enable_autostart=1).
 #
 # Ví dụ:
 #   bash scripts/linux-kiosk/2-configure-system.sh
@@ -64,6 +70,7 @@ DISABLE_SW_UPDATE="${8:-1}"
 ENABLE_AUTOSTART="${9:-1}"
 LOCK_SINGLE_WORKSPACE="${10:-1}"
 LOCKDOWN_SHELL="${11:-1}"
+ENABLE_WATCHDOG="${12:-1}"
 
 # Helper sudo cho SSH session không có TTY.
 # C# truyền KIOSK_SUDO_PASS qua môi trường; nếu không có thì dùng sudo bình thường
@@ -79,7 +86,7 @@ _sudo() {
 echo "=== [2] Cấu hình hệ thống cho Kiosk iPGS — Ubuntu 22.04 ==="
 echo "  Kiosk user : $KIOSK_USER"
 echo "  App exec   : $APP_EXEC"
-echo "  HotCorner=$DISABLE_HOTCORNER DockIcons=$DISABLE_DOCK_ICONS Sleep=$BLOCK_SLEEP InitialSetup=$SKIP_INITIAL_SETUP Autologin=$ENABLE_AUTOLOGIN SwUpdate=$DISABLE_SW_UPDATE Autostart=$ENABLE_AUTOSTART LockWorkspace=$LOCK_SINGLE_WORKSPACE LockdownShell=$LOCKDOWN_SHELL"
+echo "  HotCorner=$DISABLE_HOTCORNER DockIcons=$DISABLE_DOCK_ICONS Sleep=$BLOCK_SLEEP InitialSetup=$SKIP_INITIAL_SETUP Autologin=$ENABLE_AUTOLOGIN SwUpdate=$DISABLE_SW_UPDATE Autostart=$ENABLE_AUTOSTART LockWorkspace=$LOCK_SINGLE_WORKSPACE LockdownShell=$LOCKDOWN_SHELL Watchdog=$ENABLE_WATCHDOG"
 echo ""
 
 if [ "$EUID" -eq 0 ]; then
@@ -271,15 +278,23 @@ if [ "$ENABLE_AUTOSTART" = "1" ]; then
     echo "=== [8/9] Autostart app iPGS fullscreen + unclutter khi vào desktop ==="
     mkdir -p "$HOME/.config/autostart"
 
-    cat > "$HOME/.config/autostart/ipgs-kiosk.desktop" <<EOF
+    # F10: khi watchdog systemd bật, app do service quản lý (Restart=always). KHÔNG
+    # tạo autostart .desktop cho app nữa để tránh chạy 2 instance song song. Nếu có
+    # file .desktop cũ (deploy trước), gỡ đi. unclutter vẫn qua autostart .desktop.
+    if [ "$ENABLE_WATCHDOG" = "1" ]; then
+        rm -f "$HOME/.config/autostart/ipgs-kiosk.desktop"
+        echo "  → Watchdog systemd BẬT: app do service ipgs-kiosk-app quản lý; bỏ autostart .desktop của app (tránh chạy 2 lần)."
+    else
+        cat > "$HOME/.config/autostart/ipgs-kiosk.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=iPGS Kiosk
 Exec=$APP_EXEC
 X-GNOME-Autostart-enabled=true
 EOF
-    echo "  → Đã tạo $HOME/.config/autostart/ipgs-kiosk.desktop (Exec=$APP_EXEC)"
-    echo "    Nếu \$APP_EXEC chưa đúng, sửa lại field Exec= trong file trên."
+        echo "  → Đã tạo $HOME/.config/autostart/ipgs-kiosk.desktop (Exec=$APP_EXEC)"
+        echo "    Nếu \$APP_EXEC chưa đúng, sửa lại field Exec= trong file trên."
+    fi
 
     if command -v unclutter >/dev/null 2>&1; then
         cat > "$HOME/.config/autostart/unclutter.desktop" <<EOF
@@ -472,6 +487,79 @@ else
         echo "  → Đã gỡ khoá (backup: *.$BAK_SUFFIX). Đăng nhập lại/reboot để phím tắt hoạt động lại."
     else
         echo "  → Chưa từng khoá (không có $DCONF_SETTINGS) — bỏ qua."
+    fi
+fi
+
+# ─────────────────────────────────────────────────────────────
+# [10] F10 — Watchdog systemd USER service: tự khởi động lại app kiosk khi bị
+# đóng/crash, tránh lộ desktop trống (audit 2026-07-27 phát hiện app không chạy +
+# không có cơ chế restart).
+#
+# THIẾT KẾ:
+#  - Type=simple, Restart=always, RestartSec=3 → app tắt/crash thì bật lại sau 3s.
+#  - StartLimitIntervalSec=60 + StartLimitBurst=5 (ở [Unit], systemd 249) → nếu binary
+#    CHƯA tồn tại (như hiện trạng: chưa deploy app), service fail 5 lần trong 60s rồi
+#    DỪNG hẳn kèm log "start request repeated too quickly" — KHÔNG lặp vô hạn ghi đầy log.
+#  - ExecStart qua `bash -lc 'exec ...'` để nạp PATH đăng nhập ($HOME/.local/bin,
+#    /usr/local/bin) — app_exec có thể không nằm trong PATH tối giản của systemd user.
+#  - WantedBy=graphical-session.target → khởi động cùng phiên đồ hoạ của user kiosk.
+#
+# LƯU Ý VẬN HÀNH: script CHỈ cài + enable (không `start` ngay) vì binary app có thể
+# chưa được deploy — service sẽ tự chạy ở lần đăng nhập kế tiếp. Khi bật watchdog,
+# mục [8/9] đã bỏ autostart .desktop của app để không chạy 2 instance.
+WATCHDOG_UNIT_NAME="ipgs-kiosk-app.service"
+WATCHDOG_UNIT="$HOME/.config/systemd/user/$WATCHDOG_UNIT_NAME"
+
+if [ "$ENABLE_WATCHDOG" = "1" ]; then
+    echo "=== [10] Watchdog systemd: tự khởi động lại app kiosk khi đóng/crash ==="
+    mkdir -p "$HOME/.config/systemd/user"
+    [ -f "$WATCHDOG_UNIT" ] && cp "$WATCHDOG_UNIT" "$WATCHDOG_UNIT.$BAK_SUFFIX" 2>/dev/null || true
+
+    # Escape dấu ' trong APP_EXEC để nhúng an toàn vào 'exec ...' của bash -lc.
+    APP_EXEC_ESC="$(printf '%s' "$APP_EXEC" | sed "s/'/'\\\\''/g")"
+
+    cat > "$WATCHDOG_UNIT" <<EOF
+[Unit]
+Description=iPGS Kiosk App Watchdog (tu khoi dong lai khi dong/crash)
+After=graphical-session.target
+PartOf=graphical-session.target
+# Chong vong lap restart vo han khi binary chua ton tai: dung sau 5 lan fail/60s.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'exec $APP_EXEC_ESC'
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target
+EOF
+    echo "  → Đã ghi $WATCHDOG_UNIT (ExecStart=$APP_EXEC, Restart=always RestartSec=3, StartLimitBurst=5/60s)"
+
+    systemctl --user daemon-reload 2>/dev/null || true
+    systemctl --user enable "$WATCHDOG_UNIT_NAME" 2>/dev/null || true
+
+    # KIỂM CHỨNG: file unit hợp lệ + đã enable (symlink trong graphical-session.target.wants).
+    if systemctl --user cat "$WATCHDOG_UNIT_NAME" >/dev/null 2>&1; then
+        WD_STATE="$(systemctl --user is-enabled "$WATCHDOG_UNIT_NAME" 2>/dev/null || echo 'unknown')"
+        echo "  → WATCHDOG-VERIFIED: unit hợp lệ, is-enabled=$WD_STATE (sẽ tự chạy + tự restart app ở lần đăng nhập kế tiếp)."
+    else
+        echo "CẢNH BÁO: không đọc lại được unit watchdog qua systemctl --user (kiểm tra phiên user systemd)." >&2
+    fi
+    echo "  → Gỡ watchdog: chạy lại script với tham số 12 = 0, hoặc:"
+    echo "      systemctl --user disable --now $WATCHDOG_UNIT_NAME && rm $WATCHDOG_UNIT && systemctl --user daemon-reload"
+else
+    echo "=== [10] GỠ watchdog systemd app kiosk (không chọn) ==="
+    if [ -f "$WATCHDOG_UNIT" ]; then
+        systemctl --user disable --now "$WATCHDOG_UNIT_NAME" 2>/dev/null || true
+        cp "$WATCHDOG_UNIT" "$WATCHDOG_UNIT.$BAK_SUFFIX" 2>/dev/null || true
+        rm -f "$WATCHDOG_UNIT"
+        systemctl --user daemon-reload 2>/dev/null || true
+        echo "  → Đã gỡ watchdog service (backup: $WATCHDOG_UNIT.$BAK_SUFFIX). App quay về autostart .desktop nếu bật Autostart."
+    else
+        echo "  → Chưa từng cài watchdog — bỏ qua."
     fi
 fi
 

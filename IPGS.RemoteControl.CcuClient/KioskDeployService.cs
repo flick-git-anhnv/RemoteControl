@@ -61,6 +61,14 @@ namespace IPGS.RemoteControl.CcuClient
         public bool DisableSoftwareUpdate { get; set; } = true;
         public bool EnableAutostart { get; set; } = true;
 
+        /// <summary>
+        /// F10: Cài systemd USER service tự khởi động lại app kiosk khi app bị đóng/crash
+        /// (Restart=always + StartLimit chống vòng lặp vô hạn khi binary chưa tồn tại).
+        /// Khi bật, app do service quản lý — autostart .desktop của app bị bỏ để tránh
+        /// chạy 2 instance. false = gỡ service (app quay về autostart .desktop nếu bật).
+        /// </summary>
+        public bool EnableWatchdog { get; set; } = true;
+
         /// <summary>LUÔN true — cùng lý do như <see cref="RunInstallSoftware"/>.</summary>
         public bool RunConfigureSystem => true;
 
@@ -178,7 +186,7 @@ namespace IPGS.RemoteControl.CcuClient
                 {
                     Log("🔄 Đang chạy 2-configure-system.sh (Config máy tính — phần hệ thống + Config phần mềm — update/autostart)...");
                     string kioskUser = string.IsNullOrEmpty(options.KioskUser) ? options.Username : options.KioskUser;
-                    string args2 = $"{B(options.DisableHotCorner)} {B(options.DisableDockIcons)} {B(options.BlockSleep)} {B(options.SkipInitialSetup)} {B(options.EnableAutologin)} {B(options.DisableSoftwareUpdate)} {B(options.EnableAutostart)} {B(options.LockSingleWorkspace)} {B(options.LockdownShell)}";
+                    string args2 = $"{B(options.DisableHotCorner)} {B(options.DisableDockIcons)} {B(options.BlockSleep)} {B(options.SkipInitialSetup)} {B(options.EnableAutologin)} {B(options.DisableSoftwareUpdate)} {B(options.EnableAutostart)} {B(options.LockSingleWorkspace)} {B(options.LockdownShell)} {B(options.EnableWatchdog)}";
                     // S1: quote đúng chuẩn POSIX — bản cũ '{kioskUser}' không escape '
                     // bên trong nên giá trị chứa ' có thể break-out khỏi quote.
                     // F08: throwOnError — trước đây exit code của script bị bỏ qua hoàn toàn,

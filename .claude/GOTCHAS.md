@@ -502,3 +502,16 @@ nên retry ngắn khi `CreateInputStream()` ném `InvalidOperationException`.
 **Cách xử lý:** Tạo `/etc/dconf/profile/user` với 2 dòng `user-db:user` + `system-db:local` TRƯỚC/CÙNG lúc ghi local.d; sau `dconf update` BẮT BUỘC reboot (hoặc re-login) rồi mới kiểm chứng hành vi thật (`xdotool key ...` + `gnome-screenshot`). Kiểm chứng lock nhanh: `gsettings set <key bị lock> ...` phải trả "The key is not writable".
 **Không cần làm lại:** Không cần nghi cú pháp file settings/locks khi `dconf update` im lặng — kiểm tra profile trước tiên. Không cần tìm gsettings key để tắt gesture cảm ứng vuốt 3 ngón mở overview — GNOME 40+ hard-code, không có key; giảm nhẹ bằng Just Perfection (`search=false`, `type-to-search=false`, `startup-status=0`).
 **Lần đầu gặp:** F09 — WF-BUGFIX BUG-ccu-ui-findings (2026-07-27), kiểm chứng 2 lần reboot thật trên ZCU 192.168.0.101.
+
+---
+
+## G021 — Chặn TRIỆT ĐỂ cử chỉ cảm ứng mở overview bằng extension GNOME Shell cục bộ (không có dconf key); + docx2pdf báo lỗi Quit() RPC nhưng PDF VẪN được ghi
+**Bối cảnh:** F10 — kiosk cảm ứng không bàn phím trên ZCU (GNOME Shell 42.9, X11); và xuất DOCX/PDF bằng `md_to_docx_kztek.py` (docx2pdf + Word COM trên Windows).
+**Hiện tượng / Nguyên nhân:**
+1. Cử chỉ cảm ứng (vuốt đa chạm, edge-swipe, hot corner, long-press) mở Activities overview KHÔNG tắt được bằng dconf (đã ghi ở G020). Just Perfection **v26** (bản max tương thích Shell 42 — đã kiểm chứng schema thật) **KHÔNG có key `gesture`** (key này chỉ có ở bản mới hơn cho GNOME 45+), nên gợi ý "dùng key gesture của Just Perfection" là ngõ cụt trên Shell 42.
+2. `docx2pdf` (qua Word COM) báo `com_error (-2147023170) 'The remote procedure call failed'` hoặc `Word.Application.Quit` — nhưng lỗi xảy ra ở bước `word.Quit()` SAU khi file PDF đã được ghi xong (progress bar đã 100%).
+**Cách xử lý:**
+1. Cài **extension GNOME Shell CỤC BỘ** (ghi file trực tiếp, KHÔNG `gext install` từ store nên không cần bấm popup xác nhận trên màn hình) vô hiệu HOÀN TOÀN overview theo MỌI trigger: override `Main.overview.show`/`showApps` → no-op, connect `'showing'` → `hide()`, tắt các `_swipeTracker.enabled=false`. Kiosk = 1 app fullscreen nên chặn cả overview là đúng nhu cầu; chạm 1 ngón dùng app không bị ảnh hưởng. Đăng ký enable qua `gsettings ... enabled-extensions` (append) — hiệu lực sau reboot/re-login. Mọi override bọc `try/catch` để không crash shell nếu API GNOME đổi.
+2. Khi thấy lỗi Quit() RPC của docx2pdf → **KIỂM TRA mtime/kích thước file PDF trước khi kết luận thất bại** (`stat`/`ls -la`): thường PDF đã được tạo mới đúng nội dung, chỉ có tiến trình Word cleanup lỗi. `taskkill //F //IM WINWORD.EXE` để dọn tiến trình Word treo giữa các lần chạy.
+**Không cần làm lại:** Không phí thời gian tìm gsettings/Just Perfection key tắt gesture trên Shell 42 (không tồn tại). Không coi lỗi Quit() RPC là "PDF thất bại" mà không kiểm tra file thật — dễ chạy lại nhiều lần vô ích. Không giả lập được cử chỉ đa chạm qua SSH (nhất là VM VirtualBox chỉ có USB Tablet, không có touchscreen vật lý) → phải nhờ user thử tay trên màn cảm ứng thật.
+**Lần đầu gặp:** F10 — WF-BUGFIX BUG-ccu-ui-findings (2026-07-27); watchdog kiểm chứng thật bằng binary giả trên ZCU 192.168.0.101, gesture cần user thử tay.

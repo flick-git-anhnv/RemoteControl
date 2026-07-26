@@ -6,7 +6,9 @@
 **Cách kiểm chứng:** SSH (`temp/user-manual-ccu-zcu/zcu-ssh.ps1`) → chạy `gsettings`/`dconf`/`xdotool`/`gnome-screenshot` trong đúng context phiên GNOME (`DISPLAY=:0`, `DBUS_SESSION_BUS_ADDRESS=/run/user/1000/bus`, `XAUTHORITY=/run/user/1000/gdm/Xauthority`). Mọi cửa sổ test mở ra đã được đóng lại (khôi phục baseline). **KHÔNG** sửa code/cấu hình máy, **KHÔNG** reboot.
 **Phạm vi đã cover:** ~30 hạng mục thuộc 5 nhóm (bàn phím, chuột/cảm ứng, thoát app, truy cập hệ thống, chống tự chỉnh).
 
-> ⚠️ **PHÁT HIỆN NGHIÊM TRỌNG NHẤT:** Phím `Super+1..9` (`switch-to-application-N`) **KHÔNG bị F09 khoá**. Trên máy này favorite-apps = `[Nautilus, parkingv8, Extension Manager, GNOME Terminal]` → **Super+4 mở thẳng GNOME Terminal (shell tương tác), Super+1 mở Nautilus (toàn bộ filesystem)**. Đã kiểm chứng bằng xdotool + screenshot thật. Đây là lỗ hổng phá vỡ TOÀN BỘ lockdown F09.
+> ⏭️ **CẬP NHẬT PHẠM VI — QUYẾT ĐỊNH USER 2026-07-27:** Máy kiosk ZCU `192.168.0.101` là **màn hình CẢM ỨNG, KHÔNG có bàn phím vật lý**. Do đó **TOÀN BỘ NHÓM 1 (Bàn phím / phím tắt) được đánh dấu ⏭️ KHÔNG ÁP DỤNG** — các phím tắt (Super+1..9, Ctrl+Alt+Fx VT switch, Alt+SysRq, Alt+Space, Alt+F7/F8, switch-group, screenshot UI...) không thể kích hoạt khi không có bàn phím. User cũng quyết định **GIỮ NGUYÊN** user `kztek` trong group `sudo` (cần cho luồng deploy agent). Phần vá thực tế (F10) CHỈ tập trung vào: (A) chặn **cử chỉ cảm ứng** mở overview, (B) **watchdog** tự khởi động lại app kiosk. Xem `BUG-ccu-ui-findings-2026-07-26.md` F10.
+
+> ⚠️ **PHÁT HIỆN NGHIÊM TRỌNG NHẤT (nhóm bàn phím — nay ⏭️ KHÔNG ÁP DỤNG vì máy không có bàn phím):** Phím `Super+1..9` (`switch-to-application-N`) **KHÔNG bị F09 khoá**. Trên máy này favorite-apps = `[Nautilus, parkingv8, Extension Manager, GNOME Terminal]` → **Super+4 mở thẳng GNOME Terminal (shell tương tác), Super+1 mở Nautilus (toàn bộ filesystem)**. Đã kiểm chứng bằng xdotool + screenshot thật. *Trên máy cảm ứng không bàn phím thì không khai thác được qua phím — nhưng vẫn khai thác được nếu ai đó CẮM bàn phím USB vào; ghi nhận để cân nhắc nếu cổng USB không bị khoá vật lý.*
 
 ---
 
@@ -24,7 +26,9 @@
 
 Trạng thái: ✅ Chặn được · 🔴 CÒN HỞ · ⚠️ Cần thử tay tại máy · ❔ Không kiểm chứng được
 
-### Nhóm 1 — Bàn phím / phím tắt GNOME
+### Nhóm 1 — Bàn phím / phím tắt GNOME — ⏭️ TOÀN BỘ KHÔNG ÁP DỤNG (máy không có bàn phím — quyết định user 2026-07-27)
+
+> ⏭️ **Cả nhóm này KHÔNG được vá theo quyết định user:** máy kiosk chỉ có màn cảm ứng, không bàn phím vật lý → không kích hoạt được các phím tắt dưới đây. Bảng giữ lại để tham chiếu (nếu tương lai gắn bàn phím USB thì xem lại). Trạng thái gốc bên dưới là kết quả audit ban đầu, KHÔNG phản ánh việc đã vá.
 
 | Hạng mục | Trạng thái | Rủi ro | Bằng chứng | Khắc phục đề xuất |
 |---|---|---|---|---|
@@ -53,15 +57,15 @@ Trạng thái: ✅ Chặn được · 🔴 CÒN HỞ · ⚠️ Cần thử tay t
 |---|---|---|---|---|
 | Chuột phải trên desktop (context menu) | ✅ Chặn | — | **Đã kiểm chứng:** `xdotool mousemove 960 500 click 3` → không có cửa sổ menu nào (ding/desktop-icons đã tắt → root window không có menu). | — |
 | Hot corner (góc trên trái mở overview) | ✅ Chặn | — | `enable-hot-corners=false`, `writable=false` (locked). | — |
-| **Cử chỉ cảm ứng vuốt 3 ngón → Activities overview** | ⚠️ Cần thử tay | P2 | Đã biết từ F09: GNOME 40+ hard-code, không có key dconf. Giảm nhẹ: đã ẩn Activities + search (Just Perfection). **Không giả lập qua SSH được.** | Xem hướng dẫn thử tay §3. Chặn triệt để cần session `gnome-kiosk`/`cage`. |
-| **Nhấn giữ lâu trên cảm ứng = right-click** | ⚠️ Cần thử tay | P2 | User báo chính đường này bung overview trước đây. Không giả lập touch thật qua SSH. | Thử tay §3. |
+| **Cử chỉ cảm ứng vuốt 3 ngón → Activities overview** | ✅ Đã vá (F10) — **cần user thử tay xác nhận** | P2 | Đã biết từ F09: GNOME 40+ hard-code, không có key dconf. **F10 (2026-07-27):** cài extension GNOME Shell cục bộ `disable-overview-gestures@kztek` vô hiệu HOÀN TOÀN overview (override `Main.overview.show`/`showApps` + hide-on-showing + tắt SwipeTracker) — chặn theo MỌI trigger, không cần nhận diện từng cử chỉ. **VM test không có touchscreen vật lý → không giả lập được, cần user thử tay.** | ✅ Đã triển khai cách chặn config-lockable (F10). Chặn triệt để về lâu dài vẫn nên session `gnome-kiosk`/`cage` (backlog). |
+| **Nhấn giữ lâu trên cảm ứng = right-click** | ✅ Đã vá (F10) — **cần user thử tay xác nhận** | P2 | User báo chính đường này bung overview. F10 chặn overview theo mọi trigger nên long-press cũng không mở được overview. Menu ngữ cảnh desktop đã inert (Nhóm 2). Không giả lập touch qua SSH. | Thử tay §3 (mục 2). |
 | Chuột giữa (paste/middle-click emulation) | ✅ Chặn (touchpad) | P3 | `touchpad middle-click-emulation=false`. Chuột USB vẫn có nút giữa vật lý (không dconf hoá được). | Rủi ro thấp. |
 
 ### Nhóm 3 — Thoát / đóng ứng dụng kiosk
 
 | Hạng mục | Trạng thái | Rủi ro | Bằng chứng | Khắc phục |
 |---|---|---|---|---|
-| App crash/đóng → không tự khởi động lại | 🔴 CÒN HỞ | **P1** | Không có systemd service/watchdog cho app (chỉ autostart `.desktop` chạy 1 lần). Hiện tại app **không chạy** → desktop trống. | Chạy app qua systemd `--user` service `Restart=always` (hoặc `gnome-kiosk` session), không dựa vào autostart `.desktop`. Sửa `Exec=` trỏ đúng binary. |
+| App crash/đóng → không tự khởi động lại | ✅ Đã vá (F10) — **kiểm chứng thật bằng binary giả** | **P1** | Không có systemd service/watchdog cho app (chỉ autostart `.desktop` chạy 1 lần). **F10 (2026-07-27):** thêm systemd USER service `ipgs-kiosk-app.service` (`Restart=always`, `RestartSec=3`, `StartLimitBurst=5/60s` chống loop khi binary chưa có), checkbox Watchdog trong KioskDeployWindow (mặc định bật); khi bật thì bỏ autostart `.desktop` để tránh 2 instance. Kiểm chứng thật trên ZCU bằng binary giả: kill MainPID → tự restart (NRestarts=1); binary không tồn tại → dừng sau 5 lần (không loop). Đã gỡ sạch test. | ✅ Đã triển khai qua systemd `--user` service (F10). |
 | Alt+F4 đóng app | ✅ Chặn | — | `close` khoá (xem Nhóm 1). | — |
 | App fullscreen/always-on-top | ❔ Không kiểm chứng được | — | App không chạy → không đánh giá được fullscreen/topmost. Cần chạy app thật để xác nhận. | Khi deploy app thật: xác nhận fullscreen + không minimize được (kết hợp khoá `minimize`). |
 
@@ -127,15 +131,17 @@ Chuẩn bị: đứng trước màn hình ZCU thật; nếu có thể, mở app 
 
 ---
 
-## 4. Kết luận — đánh giá thẳng mức an toàn
+## 4. Kết luận — đánh giá thẳng mức an toàn (viết lại theo bối cảnh CHỈ CẢM ỨNG, 2026-07-27)
 
-**Kiosk hiện tại KHÔNG an toàn để đưa ra môi trường công cộng.**
+**Bối cảnh quyết định:** máy kiosk ZCU là **màn hình cảm ứng, KHÔNG có bàn phím vật lý**. Đây là thay đổi giả định quan trọng so với bản audit gốc: **toàn bộ nhóm lỗ phím tắt (Nhóm 1) trở thành KHÔNG ÁP DỤNG** vì không có phím để bấm — bao gồm cả phát hiện "nghiêm trọng nhất" ban đầu (Super+1..9 mở Terminal/Nautilus). User cũng quyết định **giữ nguyên `kztek` trong group `sudo`** (cần cho luồng deploy agent). Vì vậy vector tấn công thực tế thu hẹp về đúng những gì làm được **bằng ngón tay trên màn cảm ứng**.
 
-F09 (dconf system-db + lock) **có hoạt động đúng** cho tập key nó bao phủ (đã kiểm chứng `writable=false`), nhưng **danh sách khoá bị thiếu nhiều key nguy hiểm** — nghiêm trọng nhất là `switch-to-application-1..9` (Super+1..9), cho phép **mở thẳng GNOME Terminal (Super+4) và Nautilus (Super+1)** chỉ bằng một tổ hợp phím vật lý, đã chứng minh bằng ảnh chụp thật. Khi đã có terminal + user `kztek` nằm trong group `sudo` + home ghi được, kẻ tấn công tại chỗ có thể: chạy lệnh tùy ý, gỡ toàn bộ dconf lock (nếu biết mật khẩu → root), cài cửa hậu bền vững. Bên cạnh đó còn hàng loạt đường phụ chưa chặn: VT switch (Ctrl+Alt+Fx), USB automount-open, Alt+SysRq, và bộ phím WM (Super+h/Alt+Space/Alt+F7/Ctrl+Alt+Tab...).
+**Với ràng buộc chỉ-cảm-ứng, 2 vector còn thực sự nguy hiểm đã được xử lý ở F10:**
+1. **Cử chỉ cảm ứng mở Activities overview** (vuốt đa chạm/edge-swipe/hot-corner/long-press) — F09 (dconf) không chặn được vì đây là hành vi hard-code GNOME 42 không có key cấu hình. **F10 đã vá** bằng extension GNOME Shell cục bộ vô hiệu HOÀN TOÀN overview theo mọi trigger (không chỉ ẩn ô search như F09). Cần user thử tay xác nhận trên màn cảm ứng thật (VM test không có touchscreen để giả lập).
+2. **App kiosk không tự khởi động lại** khi đóng/crash → lộ desktop GNOME trống, phơi bày mọi thứ. **F10 đã vá** bằng systemd user service `Restart=always` + chống-loop `StartLimit`; đã kiểm chứng thật bằng binary giả (restart đúng + không loop) rồi gỡ sạch.
 
-Ngoài ra app kiosk **không chạy và không có watchdog** — bản thân màn hình đang là desktop GNOME trống, phơi bày mọi vector trên ngay lập tức.
+**Các vector còn lại — mức rủi ro trên máy chỉ-cảm-ứng:** menu ngữ cảnh chuột phải desktop đã inert; hot corner đã tắt+lock; lock screen đã vô hiệu. USB automount-open (cắm USB tự mở Nautilus) vẫn còn hở **nếu** có người cắm USB vật lý — đây là vector cảm-ứng-độc-lập, nên cân nhắc vá `automount-open=false` ở đợt sau (ngoài phạm vi F10 do user đã chốt scope). Các đường qua bàn phím (VT switch, SysRq, Super+*) chỉ khai thác được nếu **cắm thêm bàn phím USB** — nằm ngoài mô hình đe doạ đã chốt.
 
-**Khuyến nghị chiến lược:** vá gấp nhóm P1 (khoá Super+1..9 + dọn favorites + watchdog app + gỡ/chặn Terminal/Nautilus/firefox) là bắt buộc trước bất kỳ release nào. Về lâu dài, cách bền vững nhất là chuyển sang **session kiosk chuyên dụng (`gnome-kiosk` hoặc compositor `cage`)** thay vì khoá từng phím trên GNOME Shell đầy đủ — vì cách khoá-từng-key luôn có nguy cơ bỏ sót (đúng như audit này phát hiện), và mọi thứ đổ vỡ nếu user có được một terminal + sudo.
+**Khuyến nghị chiến lược:** với thiết bị cảm ứng, sau khi triển khai F10 (extension chặn overview + watchdog) và user thử tay xác nhận cử chỉ đã bị chặn, mức an toàn đủ cho vận hành. Về lâu dài, cách bền vững nhất vẫn là **session kiosk chuyên dụng (`gnome-kiosk`/`cage`)** — không có overview/gesture ngay từ compositor, không phụ thuộc override JS của extension (có thể vỡ khi nâng GNOME). Gói chưa có cho Ubuntu 22.04 → giữ trong backlog. Nếu môi trường có nguy cơ ai đó cắm bàn phím/USB vật lý, cân nhắc thêm: khoá cổng USB vật lý, `automount-open=false`, và (nếu chấp nhận đánh đổi vận hành) tách user bảo trì khỏi `sudo`.
 
 ---
 

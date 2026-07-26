@@ -176,6 +176,16 @@
                     <TextBlock Text="❓" ToolTip.Tip="Tự động mở phần mềm và công cụ ẩn con trỏ chuột (unclutter) ngay khi máy tính khởi động vào màn hình chính." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                   </StackPanel>
                 </CheckBox>
+                <CheckBox x:Name="PART_ChkWatchdog" IsChecked="True">
+                  <StackPanel Spacing="1">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <TextBlock Text="Watchdog: tự khởi động lại app kiosk khi đóng/crash" VerticalAlignment="Center"/>
+                      <TextBlock Text="❓" ToolTip.Tip="Cài dịch vụ systemd giám sát app kiosk: nếu app bị đóng hoặc crash sẽ tự bật lại sau vài giây, không để lộ màn hình desktop trống. Có giới hạn chống lặp vô hạn nếu app chưa được cài. Khi bật, app do dịch vụ quản lý (không dùng autostart .desktop để tránh chạy 2 lần)." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock Text="Nếu app bị tắt/crash sẽ tự bật lại trong vài giây (systemd Restart=always) — tránh lộ desktop trống (F10)."
+                               FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </CheckBox>
               </StackPanel>
             </TabItem>
 
