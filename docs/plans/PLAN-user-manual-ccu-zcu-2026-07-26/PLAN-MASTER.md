@@ -1,7 +1,7 @@
 ---
 task: user-manual-ccu-zcu
 created: 2026-07-26
-updated: 2026-07-26
+updated: 2026-07-26 16:39
 status: planning
 workflow: WF-DOCS
 priority: P2
@@ -32,7 +32,7 @@ Screenshot BẮT BUỘC chụp từ app chạy thật (build Release trên máy 
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
 |---|------|-------|--------|-----------|-----------------|
 | 0.1 | PM chốt scope tài liệu + đối tượng đọc + cấu trúc mục lục HDSD | product-manager | ✅ | `steps/STEP-0.1-pm-scope.md` | 2026-07-26 16:29 |
-| 0.2 | Kiểm kê 100% màn hình CcuUI (Screen Inventory) + checklist screenshot + phân nhóm chụp | documentation-writer | ⬜ | `steps/STEP-0.2-screen-inventory.md` | - |
+| 0.2 | Kiểm kê 100% màn hình CcuUI (Screen Inventory) + checklist screenshot + phân nhóm chụp | documentation-writer | ✅ | `steps/STEP-0.2-screen-inventory.md` | 2026-07-26 16:39 |
 
 ### Phase 1: Build & chạy app thật
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
@@ -77,7 +77,7 @@ Không có (tại thời điểm tạo plan).
 - **[USER DUYỆT 2026-07-26]** Plan được duyệt, chạy liên tục các bước (không dừng chờ OK giữa từng bước).
 - **[USER CHỐT 2026-07-26]** Scope BAO GỒM cả `KeyGen` (quy trình sinh khóa) và `LicenseWindow` — không loại trừ. Bước 0.1 không cần đề xuất lại vấn đề này.
 - **[USER CHỐT 2026-07-26]** 1 file duy nhất `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md` — Phần 1 = triển khai ZCU, Phần 2 = thao tác CCU. KHÔNG tách 2 file.
-- **[USER CHỐT 2026-07-26]** Sẽ có thiết bị ZCU thật/SSH cho Phase 2 — user cung cấp thông tin kết nối trước khi bắt đầu Phase 2. Dispatcher PHẢI hỏi user IP/tài khoản SSH trước bước 2.1.
+- **[USER CUNG CẤP 2026-07-26]** Thiết bị ZCU thật cho Phase 2: host `192.168.1.4`, user `kztek`. **Credential đầy đủ (kèm mật khẩu) lưu tại `temp/user-manual-ccu-zcu/zcu-connection.md` — thư mục `temp/` đã gitignore, TUYỆT ĐỐI KHÔNG chép mật khẩu vào bất kỳ file nào dưới `docs/` hoặc `_workspace/`.** Trong MANUAL phải dùng giá trị ví dụ giả (`192.168.1.x`, `<user>`), không ghi credential thật.
 - Phạm vi + screenshot từ app thật đã được user chốt trước khi tạo plan — không hỏi lại.
 - Phase 2 chia 4 bước theo cụm chức năng để mỗi session subagent không quá lớn (§16.5).
 - Documentation Writer PHẢI đọc `.claude/commands/kztek-brand-info.md` trước khi tạo bất kỳ file tài liệu nào (điều kiện WF-DOCS).
@@ -88,6 +88,7 @@ Không có (tại thời điểm tạo plan).
 | 2026-07-26 | Plan tạo mới | task-planner |
 | 2026-07-26 | User duyệt plan; chốt 4 quyết định (chạy liên tục, KeyGen+License trong scope, 1 file gộp, có thiết bị ZCU thật cho Phase 2); Bước 0.1 → In Progress | Dispatcher |
 | 2026-07-26 | Bước 0.1 ✅ — scope + mục lục 16 chương tại `_workspace/00_pm_docs-scope.md`; ghi nhận MainWindow ≡ ConnectionEntryWindow (18 view duy nhất) | product-manager |
+| 2026-07-26 | Bước 0.2 ✅ — Screen Inventory 18/18 view + checklist 79 ảnh (2.1=16, 2.2=28, 2.3=20, 2.4=15) tại `_workspace/00_docwriter_screen-inventory.md`; điều chỉnh: ConfirmDeleteDialog + SystemInventoryWindow chụp trong bước 2.2; LicenseWindow không có entry point UI → cần harness dev tạm; 5 mục cần quyết định trước Phase 2 (mục 4 inventory) | documentation-writer |
 
 ---
 **Status icons:** ⬜ Todo | 🔄 In Progress | ✅ Done | 🛑 Blocked | ⏭️ Skipped
