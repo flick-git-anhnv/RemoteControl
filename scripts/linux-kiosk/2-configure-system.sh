@@ -47,11 +47,14 @@
 #                       lại được vì key bị lock ở /etc/dconf/db/local.d/locks/.
 #                       1 = khoá, 0 = gỡ khoá (bảo trì). Xem GHI CHÚ F09 cuối file.
 #   enable_watchdog     Cài systemd USER service tự khởi động lại app kiosk khi app bị
-#                       đóng/crash (tham số 12, F10). Restart=always + StartLimit chống
-#                       vòng lặp vô hạn khi binary chưa tồn tại. Khi bật, app được quản
-#                       lý bởi service (không tạo autostart .desktop cho app để tránh
-#                       chạy 2 lần). 1 = cài+bật service, 0 = gỡ service (app quay về
-#                       autostart .desktop nếu enable_autostart=1).
+#                       đóng/crash (tham số 12, F10). Restart=always RestartSec=10,
+#                       StartLimitIntervalSec=0 (R2: không bao giờ vào failed vĩnh viễn
+#                       — kiosk không người trực thà restart mãi còn hơn chết hẳn; nhịp
+#                       10s đủ chậm để không spam journal). Khi bật, app được quản lý
+#                       bởi service (autostart .desktop của app bị XÓA bất kể tham số
+#                       autostart — R1, tránh chạy 2 instance). 1 = cài+bật service,
+#                       0 = gỡ service (app quay về autostart .desktop nếu
+#                       enable_autostart=1).
 #
 # Ví dụ:
 #   bash scripts/linux-kiosk/2-configure-system.sh
@@ -274,28 +277,42 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-if [ "$ENABLE_AUTOSTART" = "1" ]; then
-    echo "=== [8/9] Autostart app iPGS fullscreen + unclutter khi vào desktop ==="
-    mkdir -p "$HOME/.config/autostart"
+# F10-R1: Trạng thái autostart .desktop của APP phụ thuộc WATCHDOG trước tiên (không
+# phụ thuộc ENABLE_AUTOSTART) — tránh file .desktop "mồ côi" từ lần deploy trước gây
+# chạy 2 instance khi lần này bật watchdog. Ma trận trạng thái sau deploy (luôn nhất
+# quán với cấu hình VỪA chọn, bất kể lần deploy trước):
+#
+#   Watchdog | Autostart | ipgs-kiosk.desktop (app) | ipgs-kiosk-app.service | unclutter.desktop
+#   ---------|-----------|--------------------------|------------------------|------------------
+#      1     |   1/0     | XÓA (service quản lý app)| cài + enable (mục [10])| theo Autostart
+#      0     |    1      | TẠO                      | gỡ (mục [10])          | tạo
+#      0     |    0      | XÓA (2 chiều)            | gỡ (mục [10])          | xóa (2 chiều)
+echo "=== [8/9] Autostart app iPGS + unclutter khi vào desktop (Autostart=$ENABLE_AUTOSTART, Watchdog=$ENABLE_WATCHDOG) ==="
+mkdir -p "$HOME/.config/autostart"
 
-    # F10: khi watchdog systemd bật, app do service quản lý (Restart=always). KHÔNG
-    # tạo autostart .desktop cho app nữa để tránh chạy 2 instance song song. Nếu có
-    # file .desktop cũ (deploy trước), gỡ đi. unclutter vẫn qua autostart .desktop.
-    if [ "$ENABLE_WATCHDOG" = "1" ]; then
-        rm -f "$HOME/.config/autostart/ipgs-kiosk.desktop"
-        echo "  → Watchdog systemd BẬT: app do service ipgs-kiosk-app quản lý; bỏ autostart .desktop của app (tránh chạy 2 lần)."
-    else
-        cat > "$HOME/.config/autostart/ipgs-kiosk.desktop" <<EOF
+if [ "$ENABLE_WATCHDOG" = "1" ]; then
+    # App do systemd service quản lý (Restart=always) — .desktop cũ (nếu có từ deploy
+    # trước) PHẢI xóa dù Autostart tick hay không, tránh app chạy 2 instance.
+    rm -f "$HOME/.config/autostart/ipgs-kiosk.desktop"
+    echo "  → Watchdog BẬT: app do service ipgs-kiosk-app quản lý; đã xóa autostart .desktop của app (tránh chạy 2 lần)."
+elif [ "$ENABLE_AUTOSTART" = "1" ]; then
+    cat > "$HOME/.config/autostart/ipgs-kiosk.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=iPGS Kiosk
 Exec=$APP_EXEC
 X-GNOME-Autostart-enabled=true
 EOF
-        echo "  → Đã tạo $HOME/.config/autostart/ipgs-kiosk.desktop (Exec=$APP_EXEC)"
-        echo "    Nếu \$APP_EXEC chưa đúng, sửa lại field Exec= trong file trên."
-    fi
+    echo "  → Đã tạo $HOME/.config/autostart/ipgs-kiosk.desktop (Exec=$APP_EXEC)"
+    echo "    Nếu \$APP_EXEC chưa đúng, sửa lại field Exec= trong file trên."
+else
+    # 2 chiều: bỏ tick Autostart (và không watchdog) = app không tự chạy nữa.
+    rm -f "$HOME/.config/autostart/ipgs-kiosk.desktop"
+    echo "  → Autostart + Watchdog đều TẮT: đã xóa autostart .desktop của app (nếu có)."
+fi
 
+# unclutter độc lập với watchdog — theo đúng ô Autostart (2 chiều).
+if [ "$ENABLE_AUTOSTART" = "1" ]; then
     if command -v unclutter >/dev/null 2>&1; then
         cat > "$HOME/.config/autostart/unclutter.desktop" <<EOF
 [Desktop Entry]
@@ -309,7 +326,8 @@ EOF
         echo "CẢNH BÁO: chưa thấy lệnh 'unclutter' — chạy 1-install-software.sh trước khi chạy script này." >&2
     fi
 else
-    echo "=== [8/9] Bỏ qua (không chọn) ==="
+    rm -f "$HOME/.config/autostart/unclutter.desktop"
+    echo "  → Autostart TẮT: đã xóa unclutter.desktop (nếu có)."
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -325,6 +343,9 @@ fi
 #   (dconf update chạy thành công nhưng không có tác dụng gì). PHẢI tạo profile trước.
 # - Khoá được: phím Super (overlay-key), Super+S/A/V/N, Alt+F2, Alt+Tab/Super+Tab,
 #   Alt+F4, Ctrl+Alt+T, log out/user switching/command-line (lockdown schema).
+#   R3 (audit 2026-07-27): thêm Super+1..9 (switch-to-application-N — mở app trong
+#   favorites, gồm Terminal/Nautilus → lỗ P1 trên máy có bàn phím), Alt+` (switch-group),
+#   Alt+Space (activate-window-menu), Super+H (minimize).
 # - KHÔNG khoá được bằng dconf: cử chỉ cảm ứng vuốt 3 ngón lên (GNOME 40+) vẫn mở
 #   được Activities overview — hard-code trong GNOME Shell, không có gsettings key.
 #   Giảm nhẹ: đã ẩn Activities button + search (Just Perfection), workspace khoá 1.
@@ -371,12 +392,25 @@ toggle-overview=@as []
 toggle-application-view=@as []
 toggle-message-tray=@as []
 focus-active-notification=@as []
+switch-to-application-1=@as []
+switch-to-application-2=@as []
+switch-to-application-3=@as []
+switch-to-application-4=@as []
+switch-to-application-5=@as []
+switch-to-application-6=@as []
+switch-to-application-7=@as []
+switch-to-application-8=@as []
+switch-to-application-9=@as []
 
 [org/gnome/desktop/wm/keybindings]
 panel-main-menu=@as []
 panel-run-dialog=@as []
 switch-applications=@as []
 switch-applications-backward=@as []
+switch-group=@as []
+switch-group-backward=@as []
+activate-window-menu=@as []
+minimize=@as []
 switch-windows=@as []
 switch-windows-backward=@as []
 cycle-windows=@as []
@@ -419,10 +453,23 @@ EOF
 /org/gnome/shell/keybindings/toggle-application-view
 /org/gnome/shell/keybindings/toggle-message-tray
 /org/gnome/shell/keybindings/focus-active-notification
+/org/gnome/shell/keybindings/switch-to-application-1
+/org/gnome/shell/keybindings/switch-to-application-2
+/org/gnome/shell/keybindings/switch-to-application-3
+/org/gnome/shell/keybindings/switch-to-application-4
+/org/gnome/shell/keybindings/switch-to-application-5
+/org/gnome/shell/keybindings/switch-to-application-6
+/org/gnome/shell/keybindings/switch-to-application-7
+/org/gnome/shell/keybindings/switch-to-application-8
+/org/gnome/shell/keybindings/switch-to-application-9
 /org/gnome/desktop/wm/keybindings/panel-main-menu
 /org/gnome/desktop/wm/keybindings/panel-run-dialog
 /org/gnome/desktop/wm/keybindings/switch-applications
 /org/gnome/desktop/wm/keybindings/switch-applications-backward
+/org/gnome/desktop/wm/keybindings/switch-group
+/org/gnome/desktop/wm/keybindings/switch-group-backward
+/org/gnome/desktop/wm/keybindings/activate-window-menu
+/org/gnome/desktop/wm/keybindings/minimize
 /org/gnome/desktop/wm/keybindings/switch-windows
 /org/gnome/desktop/wm/keybindings/switch-windows-backward
 /org/gnome/desktop/wm/keybindings/cycle-windows
@@ -495,11 +542,16 @@ fi
 # đóng/crash, tránh lộ desktop trống (audit 2026-07-27 phát hiện app không chạy +
 # không có cơ chế restart).
 #
-# THIẾT KẾ:
-#  - Type=simple, Restart=always, RestartSec=3 → app tắt/crash thì bật lại sau 3s.
-#  - StartLimitIntervalSec=60 + StartLimitBurst=5 (ở [Unit], systemd 249) → nếu binary
-#    CHƯA tồn tại (như hiện trạng: chưa deploy app), service fail 5 lần trong 60s rồi
-#    DỪNG hẳn kèm log "start request repeated too quickly" — KHÔNG lặp vô hạn ghi đầy log.
+# THIẾT KẾ (R2 — điều chỉnh theo review Tech Lead 2026-07-27):
+#  - Type=simple, Restart=always, RestartSec=10 → app tắt/crash thì bật lại sau 10s.
+#  - StartLimitIntervalSec=0 → TẮT hẳn rate-limit start: kiosk KHÔNG NGƯỜI TRỰC, nếu
+#    dùng StartLimitBurst thì app crash-loop (hoặc binary chưa deploy) sẽ đưa service
+#    vào trạng thái `failed` VĨNH VIỄN → lộ desktop trống mãi mãi — tái mở đúng lỗ P1
+#    mà watchdog sinh ra để chặn. Thà restart mãi còn hơn chết hẳn.
+#  - Chống spam log khi restart mãi: RestartSec=10 → tối đa ~6 chu kỳ/phút (~vài chục
+#    dòng journal/phút), nằm dưới ngưỡng rate-limit mặc định của journald
+#    (RateLimitBurst=10000/30s) nên không đầy log; journald cũng tự xoay vòng theo
+#    SystemMaxUse. Không cần StandardOutput=null — giữ log để chẩn đoán vì sao app chết.
 #  - ExecStart qua `bash -lc 'exec ...'` để nạp PATH đăng nhập ($HOME/.local/bin,
 #    /usr/local/bin) — app_exec có thể không nằm trong PATH tối giản của systemd user.
 #  - WantedBy=graphical-session.target → khởi động cùng phiên đồ hoạ của user kiosk.
@@ -523,20 +575,21 @@ if [ "$ENABLE_WATCHDOG" = "1" ]; then
 Description=iPGS Kiosk App Watchdog (tu khoi dong lai khi dong/crash)
 After=graphical-session.target
 PartOf=graphical-session.target
-# Chong vong lap restart vo han khi binary chua ton tai: dung sau 5 lan fail/60s.
-StartLimitIntervalSec=60
-StartLimitBurst=5
+# R2: TAT rate-limit start — kiosk khong nguoi truc, service KHONG duoc phep chet
+# vinh vien (failed) khi app crash-loop/binary chua deploy. RestartSec=10 giu nhip
+# restart cham de khong spam journal.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 ExecStart=/bin/bash -lc 'exec $APP_EXEC_ESC'
 Restart=always
-RestartSec=3
+RestartSec=10
 
 [Install]
 WantedBy=graphical-session.target
 EOF
-    echo "  → Đã ghi $WATCHDOG_UNIT (ExecStart=$APP_EXEC, Restart=always RestartSec=3, StartLimitBurst=5/60s)"
+    echo "  → Đã ghi $WATCHDOG_UNIT (ExecStart=$APP_EXEC, Restart=always RestartSec=10, StartLimitIntervalSec=0 — không bao giờ chết hẳn)"
 
     systemctl --user daemon-reload 2>/dev/null || true
     systemctl --user enable "$WATCHDOG_UNIT_NAME" 2>/dev/null || true
