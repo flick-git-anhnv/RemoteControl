@@ -50,7 +50,7 @@ Chạy app thật (build Release từ STEP-1.1), chụp screenshot các màn hì
 - Bước sau cần biết: (1) **ZCU 192.168.1.4 hiện KHÔNG mở cổng 22/17600 — bước 2.2 phải kiểm tra lại thiết bị/nhờ user bật trước khi chụp nhóm Remote**; (2) Gotcha UIA-Avalonia: dialog con KHÔNG xuất hiện trong UIA RootElement.Children — tìm qua Win32 EnumWindows rồi `AutomationElement.FromHandle` (đã có sẵn `Get-WindowElByWin32` trong actions-21.ps1); so sánh tiêu đề cửa sổ tiếng Việt có thể fail do Unicode normalization — LUÔN dùng phần title thuần ASCII; script .ps1 có tiếng Việt PHẢI lưu UTF-8 **có BOM**; app chạy PID mới (restart trong bước này), giữ nguyên đang chạy.
 
 ## Commit
-- Hash: [điền sau khi commit]
+- Hash: f80c4b2 (ảnh + step + MASTER); hash cập nhật commit-hash: xem commit kế tiếp
 - Đã push: không (theo chỉ thị bước — không push)
 
 ---
