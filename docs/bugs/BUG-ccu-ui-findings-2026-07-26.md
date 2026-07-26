@@ -229,3 +229,33 @@ Không phát hiện lỗi mới trong phạm vi verify (không append F07). Ghi 
 ✅ **Đủ điều kiện SIGN-OFF** — cả 6 finding F01–F06 (F06 phần agent) đã verify PASS trên app + ZCU thật với agent 1.1; regression luồng chính không bị phá. **Bàn giao QA Lead sign-off (Bước 5 WF-BUGFIX).** F06(a) backdoor license `ANHNV` vẫn ⏭️ giữ nguyên theo quyết định user (ngoài scope vòng fix này).
 
 — QA Engineer, 2026-07-26 23:05
+
+---
+
+## F07 — Lệnh reboot/shutdown báo "❌ LỖI" đỏ dù đã chạy thành công + lộ dòng `[debug]` kỹ thuật nội bộ
+
+> **Người phát hiện:** USER (thao tác thật trên app, sau vòng QA verify ở trên).
+
+| Trường | Nội dung |
+|---|---|
+| **Màn hình** | RemoteCommandWindow "Quản lý File & Lệnh (SFTP / SSH)" — tab >_ Console (CMD), kết nối `kztek@192.168.0.101:22` |
+| **Mức độ** | P3 (UX) |
+| **Các bước tái hiện** | 1. Mở >_ CMD Shell của máy ZCU. 2. Gõ `sudo reboot`. 3. Bấm 🚀 Chạy lệnh. |
+| **Kết quả thực tế** | Console hiện: `[debug] sudo=1, cmd gửi đi: env DISPLAY=:0 ... bash -c 'sudo -S -p '\''\'' reboot'` rồi `❌ LỖI: An established connection was aborted by the server.`; thanh trạng thái đỏ `❌ Lỗi: An established connection was aborted by the server.` — trong khi máy ZCU THỰC CHẤT đã reboot thành công (SSH ngắt là tất yếu). Dòng `[debug]` lộ chi tiết kỹ thuật nội bộ (cấu trúc lệnh sudo/escape) cho người dùng cuối. |
+| **Kết quả mong đợi** | (1) Lệnh thuộc nhóm reboot/shutdown (`reboot`/`poweroff`/`halt`/`shutdown`/`init 0|6`/`systemctl reboot|poweroff|halt`, kể cả kèm `sudo`) + lỗi trả về là MẤT KẾT NỐI → hiển thị thông tin thân thiện, VD "ℹ️ Đã gửi lệnh khởi động lại tới máy — kết nối SSH sẽ ngắt trong giây lát. Vui lòng kết nối lại sau khoảng 1 phút." — KHÔNG tô đỏ LỖI. Lỗi khác (sai password sudo, lệnh không tồn tại...) vẫn báo lỗi như cũ, không nuốt lỗi thật. (2) Dòng `[debug]` ẩn mặc định, chỉ hiện khi bật chế độ debug. |
+
+> **✅ Đã sửa (2026-07-26, senior-developer):**
+> - **Nguyên nhân gốc:** (1) `RemoteCommandWindow.OnRunCommandClick` có duy nhất 1 nhánh `catch` chung → mọi exception (kể cả `SshConnectionException` do máy đích reboot cắt TCP — hệ quả TẤT YẾU của chính lệnh vừa gửi) đều hiển thị "❌ LỖI" đỏ. (2) Dòng chẩn đoán `[debug] sudo=..., cmd gửi đi: ...` được thêm khi fix hồi quy S3/G017 (`RunSshCommandAsync` → `diag?.Invoke`) và luôn ghi thẳng vào Console Output không có điều kiện.
+> - **Cách sửa:**
+>   1. **File mới `CcuUI/Views/SshCommandHints.cs`** (helper dùng chung): `IsShutdownCommand()` — regex match nhóm lệnh shutdown ở VỊ TRÍ LỆNH (đầu chuỗi/sau `;&|(`, cho phép tiền tố `sudo [options]`): `reboot|poweroff|halt|shutdown|(tel)init 0|6|systemctl reboot|poweroff|halt`; `IsConnectionDropped()` — duyệt cả chuỗi InnerException, nhận `SshConnectionException`/`SocketException` hoặc message chứa aborted/closed/reset/broken pipe/EOF/timed out; `DiagEnabled` — đọc env var `IPGS_RC_DEBUG=1` một lần.
+>   2. `CcuUI/Views/RemoteCommandWindow.axaml.cs` — catch của `OnRunCommandClick`: điều kiện KÉP `IsShutdownCommand(cmdToRun) && IsConnectionDropped(ex)` → status xám "ℹ️ Đã gửi lệnh khởi động lại/tắt máy — kết nối SSH sẽ ngắt trong giây lát." + log thông tin thân thiện; mọi trường hợp khác giữ nguyên nhánh báo lỗi cũ. Dòng `[debug]` chỉ ghi khi `SshCommandHints.DiagEnabled`.
+>   3. `CcuUI/Views/BulkActionWindow.axaml.cs` — cùng vấn đề (snippet "🔄 Khởi động lại" cũng điền `sudo reboot`, chạy hàng loạt): bọc `RunSshCommandAsync` bằng `catch ... when` cùng điều kiện kép → máy đó hiển thị Thành công kèm thông báo thân thiện thay vì ❌ Lỗi đỏ. (BulkAction không có dòng `[debug]` nên không cần gate.)
+> - **Lý do chọn env var `IPGS_RC_DEBUG` cho debug flag:** codebase CcuUI chưa có cơ chế log-level/debug-flag nào sẵn có; env var cho phép kỹ sư hỗ trợ bật chẩn đoán ngay trên bản Release tại hiện trường không cần build lại (hơn `#if DEBUG`), và không thêm UI setting mới ngoài scope P3.
+> - **Màn hình khác đã rà:** `CronJobWindow` (chỉ chạy `crontab` — không có lệnh shutdown), các installer (`ZcuSetupWizard`/`RemoteAppInstall`/`KioskDeploy` — không cho user gõ lệnh tùy ý, restart service không cắt SSH) → KHÔNG cần sửa.
+> - **Build verify:** `dotnet build IPGS.RemoteControl.CcuUI -c Release` → **0 Error** (456 warnings = baseline full-rebuild đã biết).
+
+| Finding | Trạng thái | File chính đã sửa |
+|---|---|---|
+| F07 Reboot báo LỖI đỏ + lộ dòng `[debug]` | ✅ Đã sửa (chờ QA smoke test) | `CcuUI/Views/SshCommandHints.cs` (mới), `RemoteCommandWindow.axaml.cs`, `BulkActionWindow.axaml.cs` |
+
+**QA cần smoke test:** (1) `sudo reboot` trên tab Console → thông báo ℹ️ xám, không còn ❌ đỏ, không còn dòng `[debug]`; (2) sai password sudo → vẫn báo lỗi đỏ như cũ ("incorrect password attempts"); (3) lệnh không tồn tại → vẫn [STDERR] như cũ; (4) BulkAction snippet Reboot trên nhiều máy → từng máy Thành công kèm ghi chú ℹ️; (5) set `IPGS_RC_DEBUG=1` rồi chạy lệnh sudo → dòng `[debug]` xuất hiện lại.

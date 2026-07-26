@@ -57,6 +57,8 @@ Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Li
         FileManager, RemoteCommand, BulkAction, CronJob, HealthMonitor, NetworkScan,
         KioskDeploy, RemoteAppInstall, ZcuSetupWizard, SystemInventory, ComputerEdit,
         License, RemoteScreenControl, SessionPickerWindow [MỚI], ConfirmDeleteDialog [MỚI])
+        + SshCommandHints.cs [MỚI — F07] helper static dùng chung RemoteCommand/BulkAction:
+          nhận diện lệnh reboot/shutdown + lỗi mất-kết-nối (thông báo thân thiện), gate debug log
 ```
 
 ---
@@ -120,6 +122,7 @@ Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Li
 | `Agent:Token` | ZcuAgent appsettings.json | placeholder | **Fail-fast**: còn placeholder/rỗng → service từ chối start |
 | `Agent:AllowedClientIPs` | ZcuAgent appsettings.json | File mẫu còn `["0.0.0.0/0"]` (hook chặn sửa) nhưng **mặc định hiệu lực khi deploy = 3 dải LAN RFC 1918** (F06: installer/wizard/script `setup-zcu-agent.sh` đều dùng `DefaultLanAllowedClientIPs`) | List rỗng = **deny-all**; `0.0.0.0/0` tường minh → warning; token < 16 ký tự → warning (không fail-fast) |
 | `Agent:EnableDesktopIntegration` | ZcuAgent appsettings.json | true | Tắt notify-send/xclip |
+| `IPGS_RC_DEBUG` | env trên máy CCU (CcuUI) | (unset) | **[MỚI — F07]** `=1` → hiện dòng chẩn đoán `[debug] sudo=..., cmd gửi đi: ...` trong Console Output của RemoteCommandWindow (mặc định ẩn với người dùng cuối); đọc 1 lần lúc load `SshCommandHints` |
 | `KIOSK_SUDO_PASS` | env khi chạy script kiosk | — | Chỉ còn `KioskDeployService` set; CcuUI RemoteCommand/BulkAction ĐÃ BỎ (S3) — chạy tay script kiosk qua RemoteCommandWindow sẽ không có env này, `_sudo()` fallback sudo thường |
 
 ---
@@ -132,6 +135,7 @@ Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Li
 | 2026-07-26 | `CcuClient/ShellQuote.cs`, `SecretProtector.cs` | Add | Helper shell-quoting + DPAPI secret (chi tiết bảng Interface) | senior-developer |
 | 2026-07-26 | `CcuUI/Views/SessionPickerWindow`, `ConfirmDeleteDialog` | Add | Dialog mới (A6, Q14) | senior-developer |
 | 2026-07-26 | `code-graph/CODE-GRAPH.md` | Rewrite | Viết lại v2.0 đúng repo RemoteControlTool (bản cũ mô tả workspace khác) | senior-developer |
+| 2026-07-26 | `CcuUI/Views/SshCommandHints.cs` (mới) + `RemoteCommandWindow`/`BulkActionWindow` | Fix | F07: lệnh reboot/shutdown làm SSH ngắt → thông báo ℹ️ thân thiện (điều kiện kép: lệnh shutdown + lỗi mất-kết-nối, không nuốt lỗi thật); dòng `[debug]` ẩn mặc định, bật bằng env `IPGS_RC_DEBUG=1` | senior-developer |
 | 2026-07-26 | CcuClient + CcuUI Views + ZcuAgent | Fix | F01-F05 + F06 phần agent (BUG-ccu-ui-findings): resolution theo frame, ServerName + timeout SysInfo, snippet PopulateComplete, reset status, ValidateSshProfile, default AllowedClientIPs → LAN + cảnh báo token yếu; agent HELLO_ACK → `ZcuAgent/1.1` | senior-developer |
 
 ---

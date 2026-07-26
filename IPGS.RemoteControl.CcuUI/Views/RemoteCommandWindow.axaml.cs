@@ -75,7 +75,10 @@ namespace IPGS.RemoteControl.CcuUI.Views
             string bashCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus bash -c {ShQuote(finalCmd)}";
 
             // Chẩn đoán: bashCmd KHÔNG chứa password (password chỉ đi qua stdin) nên log an toàn.
-            diag?.Invoke($"[debug] sudo={sudoCount}, cmd gửi đi: {bashCmd}");
+            // F07: ẩn mặc định với người dùng cuối (lộ chi tiết kỹ thuật nội bộ) —
+            // chỉ hiện khi bật env var IPGS_RC_DEBUG=1 (xem SshCommandHints.DiagEnabled).
+            if (SshCommandHints.DiagEnabled)
+                diag?.Invoke($"[debug] sudo={sudoCount}, cmd gửi đi: {bashCmd}");
 
             using var cmd = ssh.CreateCommand(bashCmd, Encoding.UTF8);
             if (!hasSudo)
@@ -310,8 +313,20 @@ namespace IPGS.RemoteControl.CcuUI.Views
             }
             catch (Exception ex)
             {
-                SetStatus("❌ Lỗi: " + ex.Message, true);
-                Log("❌ LỖI: " + ex.Message);
+                // F07: lệnh reboot/shutdown làm SSH ngắt là KẾT QUẢ MONG ĐỢI (máy đích đang
+                // khởi động lại/tắt) — hiển thị thông tin thân thiện thay vì LỖI đỏ.
+                // Điều kiện kép (lệnh thuộc nhóm shutdown VÀ lỗi là mất-kết-nối) đảm bảo
+                // lỗi thật khác (sai password sudo, lệnh không tồn tại...) vẫn báo như cũ.
+                if (SshCommandHints.IsShutdownCommand(cmdToRun) && SshCommandHints.IsConnectionDropped(ex))
+                {
+                    SetStatus("ℹ️ Đã gửi lệnh khởi động lại/tắt máy — kết nối SSH sẽ ngắt trong giây lát.", false);
+                    Log(SshCommandHints.ShutdownInfoMessage);
+                }
+                else
+                {
+                    SetStatus("❌ Lỗi: " + ex.Message, true);
+                    Log("❌ LỖI: " + ex.Message);
+                }
             }
             finally
             {

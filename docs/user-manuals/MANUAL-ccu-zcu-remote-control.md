@@ -652,6 +652,8 @@ Cửa sổ "Quản lý File & Lệnh (SFTP / SSH)" có 2 tab:
 ![Lỗi khi chạy lệnh sai](screenshots/remote-command-error.png)
 *Hình 40: Gõ lệnh không tồn tại — khối [STDERR / WARNING] "command not found" hiển thị ngay trong Console Output*
 
+> ℹ️ **Lưu ý về lệnh khởi động lại / tắt máy:** Khi chạy các lệnh như `sudo reboot`, `sudo poweroff`, `sudo shutdown`... máy ZCU sẽ ngắt kết nối SSH ngay sau khi nhận lệnh — đây là hành vi **bình thường**, không phải lỗi. Ứng dụng sẽ hiển thị thông báo "ℹ️ Đã gửi lệnh khởi động lại/tắt máy — kết nối SSH sẽ ngắt trong giây lát." Hãy kết nối lại sau khoảng 1 phút (với lệnh tắt máy, cần bật lại máy trước).
+
 > ⚠️ **Cảnh báo:** Lệnh chạy từ xa tác động trực tiếp lên máy ZCU. Chỉ chạy lệnh bạn hiểu rõ hoặc được kỹ thuật viên cung cấp.
 
 #### 6.2.2 Tab "📁 Truyền nhận File (SFTP)"

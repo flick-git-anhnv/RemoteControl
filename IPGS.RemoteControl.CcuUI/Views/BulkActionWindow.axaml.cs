@@ -265,8 +265,19 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 ssh.Connect();
 
                 // S3: password sudo đi qua stdin của channel, không nhúng vào command line / env
-                var (output, error) = await RunSshCommandAsync(ssh, cmdToRun, profile.SshPassword ?? "");
-                return output + "\n" + error;
+                try
+                {
+                    var (output, error) = await RunSshCommandAsync(ssh, cmdToRun, profile.SshPassword ?? "");
+                    return output + "\n" + error;
+                }
+                catch (Exception ex) when (SshCommandHints.IsShutdownCommand(cmdToRun)
+                                           && SshCommandHints.IsConnectionDropped(ex))
+                {
+                    // F07: reboot/shutdown làm SSH ngắt là kết quả mong đợi — máy này coi như
+                    // thành công kèm ghi chú, không hiển thị ❌ Lỗi đỏ. Lỗi thật khác (sai
+                    // password sudo, thiếu SSH user...) không rơi vào filter này → vẫn SetError.
+                    return SshCommandHints.ShutdownInfoMessage;
+                }
             });
         }
 
