@@ -46,7 +46,7 @@ Viết tiếp `docs/user-manuals/MANUAL-ccu-zcu-remote-control.md` — phần CC
 - Bước sau cần biết: Phần 2 ZCU cần thêm marker cho 8 ảnh terminal + KeyGen (KHÔNG có trong Phụ lục A hiện tại — bước 3.1 phải BỔ SUNG các dòng đó vào bảng Phụ lục A); lưu ý mâu thuẫn cổng 17600 (installer) vs 5900 (appsettings mẫu) khi viết chương 12.4 — nói rõ giá trị thực tế do installer ghi đè; KHÔNG ghi credential thật (temp/user-manual-ccu-zcu/zcu-connection.md là nguồn — gitignore).
 
 ## Commit
-- Hash: [điền sau khi commit]
+- Hash: 2d1955d
 - Đã push: không (theo chỉ thị bước — không push)
 
 ---
