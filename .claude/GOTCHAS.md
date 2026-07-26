@@ -21,6 +21,12 @@
 | G007 | Kztek.Cameras SDK (FFmpeg/PINVOKE) cấp phát ~100MB native memory mỗi camera khi `StartCamera()` — bất kể camera có kết nối được không; tight reconnect loop tiêu thụ thêm ~94-130MB/s khi camera offline | 2026-07-18 |
 | G008 | Avalonia `AttachedToVisualTree` fires TRƯỚC khi Measure/Arrange → `Bounds.Width/Height = 0` → camera decode ở native resolution (1920×1080) thay vì control size (~300px) → CPU spike khi kết hợp với Motion detection. Fix: `DispatcherPriority.Loaded` | 2026-07-18 |
 | G009 | `RestSharp.Authenticators.Digest 2.0.0` + `RestSharp` bị NuGet nổi phiên bản lên 114.0.0 (do project khác trong graph kéo) → `MissingMethodException: Method 'Authenticate'...` runtime, build vẫn sạch. Fix: nâng Digest lên 3.0.0 | 2026-07-20 |
+| G011 | Avalonia 12 (bản dùng trong RemoteControlTool): `TextBox.Watermark` bị đánh dấu OBSOLETE, tên mới là `PlaceholderText` — NGƯỢC với Avalonia 11 (chỉ có `Watermark`). Đừng "sửa" PlaceholderText về Watermark theo trí nhớ Avalonia 11 | 2026-07-26 |
+| G012 | `xclip` tự daemonize → `WaitForExit` gần như luôn timeout; `Process` không dispose = leak fd mỗi lần sync clipboard; KHÔNG kill process tree (mất clipboard) — chỉ release handle | 2026-07-26 |
+| G013 | Heartbeat/watchdog đặt CÙNG loop với `WriteAsync` không timeout → slow-reader chặn WriteAsync vô hạn, timeout không bao giờ fire; `NetworkStream.WriteTimeout` KHÔNG áp dụng cho async write — phải `CancelAfter` | 2026-07-26 |
+| G014 | Whitelist filename quá chặt từ chối oan tên `.deb` Debian hợp lệ — version chuẩn Debian chứa `~` (`1.0~rc1`) và có thể chứa `%` | 2026-07-26 |
+| G015 | `printf` với chuỗi chứa `%`: an toàn khi chuỗi ở vị trí **argument** của `printf '%s\n' '<arg>'`; NGUY HIỂM nếu đặt vào vị trí format string | 2026-07-26 |
+| G016 | DPAPI `ProtectedData` chỉ chạy Windows — app cross-platform PHẢI xử lý tường minh trên Linux (cảnh báo/lỗi rõ), TUYỆT ĐỐI không im lặng fallback plaintext | 2026-07-26 |
 
 ---
 
@@ -321,6 +327,18 @@ Nâng cả 2 nơi dùng Digest lên bản 3.0.0 (đã hỗ trợ RestSharp 114 +
 
 -->
 
+## G011 — Avalonia 12: `TextBox.Watermark` OBSOLETE, tên đúng là `PlaceholderText` (ngược Avalonia 11)
+
+**Ngày phát hiện:** 2026-07-26
+**Môi trường:** Avalonia 12.x (IPGS.RemoteControl.CcuUI, KztekComponentAvalonia), .NET, Windows
+**Vấn đề:** `RemoteScreenWindow.axaml` dùng `PlaceholderText` trên plain `TextBox` — theo trí nhớ Avalonia 11 đây là property không tồn tại (Avalonia 11 chỉ có `Watermark`), tưởng là bug hiển thị. Đổi sang `Watermark` thì build phát cảnh báo `AVLN5001: 'TextBox.Watermark' is obsolete: Use PlaceholderText instead`.
+**Nguyên nhân:** Avalonia 12 đổi tên `Watermark` → `PlaceholderText` (đồng bộ tên với các platform khác), giữ `Watermark` như alias obsolete. Hành vi NGƯỢC hoàn toàn với Avalonia 11 — dễ sửa "lùi" nếu quen bản cũ.
+**Cách xử lý:** Trong repo dùng Avalonia 12 (RemoteControlTool): LUÔN dùng `PlaceholderText` cho TextBox/AutoCompleteBox. `KztekComponentAvalonia` còn nhiều chỗ dùng `Watermark` (chỉ warning, không phải error) — dọn dần khi chạm vào.
+**Lần đầu gặp:** Bước 3.1 PLAN-remote-control-audit-fix (2026-07-26)
+**Không cần làm lại:** Không cần "fix" `PlaceholderText` thành `Watermark` — PlaceholderText hiển thị đúng ở Avalonia 12; chỉ Avalonia 11 mới cần Watermark.
+
+---
+
 ## G010 — Lỗi RAM tăng dần khi xem LiveView do khởi tạo luồng giải mã 2 lần (Double allocation)
 
 **Ngày phát hiện:** 2026-07-20
@@ -340,3 +358,63 @@ Người dùng phản ánh RAM tăng dần sau khi bấm xem LiveView. Mở Live
 
 **Bài học tổng quát:**
 Tuyệt đối không gọi KzCamera.Start() nếu chỉ cần lấy URL/StreamInfo (sẽ khởi động ngầm một decoder pipeline cực nặng). Luôn thêm Watchdog Timer (timeout tuỳ ý, khuyến nghị 8s) để Stop() các Native Player nếu chúng rớt mạng, tránh tình trạng rò rỉ không giới hạn của FFmpeg khi reconnect.
+
+---
+
+## G012 — `xclip` tự daemonize: `WaitForExit` luôn timeout, `Process` không dispose = leak fd; KHÔNG kill tree
+
+**Ngày phát hiện:** 2026-07-26
+**Môi trường:** Linux (X11), .NET 8 — `IPGS.RemoteControl.ZcuAgent/Net/ClientSession.cs` (sync clipboard)
+**Vấn đề:** Mỗi lần sync clipboard qua `xclip -selection clipboard` leak 1 file descriptor + 1 object `Process`; `WaitForExit(1000)` chặn thread-pool 1s mỗi message và gần như luôn timeout.
+**Nguyên nhân:** `xclip` **cố ý fork/daemonize** để tiếp tục sở hữu X selection sau khi lệnh "xong" (clipboard X11 là pull-model — process phải sống để phục vụ paste). Tiến trình cha exit nhưng cách gọi cũ giữ `proc` không dispose → leak.
+**Cách xử lý:** Ghi stdin async, đóng stdin, rồi **dispose `Process` (release handle) NGAY** — không chờ exit, và **TUYỆT ĐỐI KHÔNG kill process tree** (kill = mất nội dung clipboard vừa set vì daemon giữ selection bị giết).
+**Lần đầu gặp:** Fix L2 — Bước 2.1 PLAN-remote-control-audit-fix (2026-07-26, commit `1ab4f03`)
+**Không cần làm lại:** Không tăng timeout `WaitForExit` (vô nghĩa — daemon không bao giờ exit khi còn giữ selection); không chuyển sang `xsel` để "fix" (hành vi daemonize tương tự).
+
+---
+
+## G013 — Heartbeat/watchdog đặt CÙNG loop với `WriteAsync` không timeout → timeout không bao giờ fire; `NetworkStream.WriteTimeout` KHÔNG áp dụng cho async write
+
+**Ngày phát hiện:** 2026-07-26
+**Môi trường:** .NET 8 TCP server — `IPGS.RemoteControl.ZcuAgent/Net/ClientSession.cs`
+**Vấn đề:** Client đã auth nhưng ngừng đọc (slow-reader/độc hại) → `WriteAsync(frame)` backpressure chặn vô hạn → kiểm tra heartbeat `now - lastPong > PingTimeoutMs` nằm cùng capture loop **không bao giờ chạy tới** → 1 client kẹt chiếm luôn slot session duy nhất.
+**Nguyên nhân:** (1) Watchdog và write nằm cùng 1 loop tuần tự — write chặn thì watchdog chết theo; (2) `NetworkStream.WriteTimeout` chỉ áp dụng cho **sync** `Write`, hoàn toàn bị bỏ qua với `WriteAsync` (behavior documented nhưng dễ quên).
+**Cách xử lý:** (1) Tách watchdog PONG thành **task riêng** chỉ đọc `_lastPongTicks` (Interlocked) và cancel session khi quá hạn; (2) Mọi `WriteAsync` bọc CTS `CancelAfter(10s)`, convert timeout → `IOException` (phân biệt với session-cancel qua `when (!ct.IsCancellationRequested)`); (3) `WhenAny` + `CancelAsync` + `WhenAll` để đóng sạch cả các task.
+**Lần đầu gặp:** Fix L3 — Bước 2.1 PLAN-remote-control-audit-fix (2026-07-26, commit `1ab4f03`)
+**Không cần làm lại:** Không set `NetworkStream.WriteTimeout` cho code async — vô tác dụng; không đưa PING/kiểm tra timeout ngược vào write loop.
+
+---
+
+## G014 — Whitelist filename từ chối oan tên `.deb` Debian hợp lệ chứa `~`/`%`
+
+**Ngày phát hiện:** 2026-07-26
+**Môi trường:** `IPGS.RemoteControl.CcuClient/ShellQuote.cs` — validate tên file trước khi đưa vào lệnh SSH
+**Vấn đề:** `ValidateFileName` regex whitelist alphanumeric + `._-+` từ chối `pkg_1.0~rc1_amd64.deb` → nhánh cài đặt `.deb` fail oan với package hoàn toàn hợp lệ.
+**Nguyên nhân:** Version chuẩn Debian dùng `~` (sort thấp hơn — `1.0~rc1 < 1.0`) rất phổ biến trong tên file `.deb`; `%` cũng có thể xuất hiện (URL-encoded khi tải về). Whitelist viết theo "tên file thông thường" bỏ sót convention này.
+**Cách xử lý:** Cho phép `~` và `%` ở mọi vị trí TRỪ ký tự đầu (ký tự đầu vẫn alphanumeric — chặn tilde-expansion `~user` và option-injection `-x`). Cả 2 ký tự vô hại khi nằm trong `"$HOME/..."` bên trong `bash -c '...'`.
+**Lần đầu gặp:** Tech Lead review Bước 4.1 PLAN-remote-control-audit-fix (2026-07-26, commit `de981cf`)
+**Không cần làm lại:** Không nới whitelist thêm ký tự shell-active khác (`$`, backtick, `;`, space...) — chỉ `~`/`%` là cần cho tên package Debian.
+
+---
+
+## G015 — `printf` với chuỗi chứa `%`: an toàn ở vị trí argument, nguy hiểm ở vị trí format string
+
+**Ngày phát hiện:** 2026-07-26
+**Môi trường:** Bash remote qua SSH — `IPGS.RemoteControl.CcuUI/Views/CronJobWindow.axaml.cs` (ghi crontab)
+**Vấn đề:** Khi thay `echo` bằng `printf` để ghi crontab (fix `echo` không dịch `\n`), lo ngại chuỗi user chứa `%` sẽ bị printf hiểu là format specifier.
+**Nguyên nhân/Phân tích:** `printf '%s\n' '<chuỗi-user>'` — format string là hằng `'%s\n'`, chuỗi user ở vị trí **argument** → `%` trong argument là literal, hoàn toàn an toàn. Chỉ nguy hiểm khi nội suy chuỗi user vào **chính format string** (`printf "<chuỗi-user>"`) → `%s`/`%n` bị diễn giải. Bonus: single-quote quanh argument giữ nguyên `$`, backtick, newline.
+**Cách xử lý:** Luôn dùng dạng `printf '%s\n' '<arg-đã-quote>'`; không bao giờ đặt dữ liệu user vào format string. Xóa job cuối cùng → dùng `crontab -r` (pipe chuỗi rỗng vào `crontab -` sẽ fail).
+**Lần đầu gặp:** Fix A1/Q13 — Bước 3.1 PLAN-remote-control-audit-fix (2026-07-26, commit `58909eb`)
+**Không cần làm lại:** Không cần escape `%` thành `%%` khi chuỗi ở vị trí argument — chỉ cần khi (không nên) đặt vào format string.
+
+---
+
+## G016 — DPAPI `ProtectedData` chỉ chạy Windows — app cross-platform phải xử lý tường minh, không im lặng fallback plaintext
+
+**Ngày phát hiện:** 2026-07-26
+**Môi trường:** .NET 8 cross-platform (`win-x64;linux-x64`) — `IPGS.RemoteControl.CcuClient/SecretProtector.cs`
+**Vấn đề:** `System.Security.Cryptography.ProtectedData` (package 8.0.0) ném `PlatformNotSupportedException` trên Linux. App build cả 2 RID → nếu chỉ try/catch nuốt lỗi sẽ **im lặng ghi plaintext** trên Linux — tệ hơn không mã hoá vì tạo cảm giác an toàn giả.
+**Nguyên nhân:** DPAPI là API Windows (gắn user profile/machine key); .NET không có bản tương đương built-in trên Linux.
+**Cách xử lý (pattern tái dùng):** (1) Prefix version `enc:v1:` cho giá trị đã mã hoá — đọc giá trị không prefix = plaintext cũ, giữ nguyên và tự mã hoá ở lần Persist kế (migrate không mất dữ liệu); (2) Trên Linux: cảnh báo NỔI BẬT đúng 1 lần (Interlocked guard), lưu plaintext CÓ CHỦ ĐÍCH và được log rõ; (3) Gặp `enc:v1:` trên Linux (file copy từ Windows) → trả rỗng + log, không ném (không mất cả danh sách profile); (4) Decrypt fail → trả rỗng, không throw; (5) Không bao giờ log giá trị secret — chỉ log `ex.Message`.
+**Lần đầu gặp:** Fix S7 — Bước 1.1 PLAN-remote-control-audit-fix (2026-07-26, commit `0146cb4`)
+**Không cần làm lại:** Không tìm "DPAPI cho Linux" built-in — không tồn tại; muốn mã hoá thật trên Linux phải tự chọn scheme (AES + key từ keyring/file perm 600) — ngoài scope hiện tại.

@@ -1,8 +1,8 @@
 ---
 task: remote-control-audit-fix
 created: 2026-07-26
-updated: 2026-07-26 14:53
-status: in-progress
+updated: 2026-07-26 15:10
+status: completed
 workflow: WF-REFACTOR (mở rộng — bao gồm cả bug fix bảo mật)
 priority: P1
 ---
@@ -110,7 +110,7 @@ Windows, trên Linux phải báo lỗi/cảnh báo rõ ràng, TUYỆT ĐỐI kh�
 | 3.1 | Fix `CcuUI` phần 1 (critical) — A1, A2, A3, A4, A6, L5, Q13, Q16, Q19 | Senior Developer | ✅ | `steps/STEP-3.1-ccuui-critical-fix.md` | 2026-07-26 14:32 |
 | 3.2 | Fix `CcuUI` phần 2 (security/quality) — S3, L6, L7, Q14, Q15, Q17, Q18 | Senior Developer | ✅ | `steps/STEP-3.2-ccuui-quality-fix.md` | 2026-07-26 14:44 |
 | 4.1 | Tech Lead review toàn bộ + build sạch cả 3 project (win-x64 + linux-x64) | Tech Lead | ✅ | `steps/STEP-4.1-review-verify.md` | 2026-07-26 14:53 |
-| 5.1 | Đồng bộ tài liệu — GOTCHAS, lessons, CODE-GRAPH, ghi nhận vấn đề License không sửa | Senior Developer | ⬜ | `steps/STEP-5.1-docs-sync.md` | - |
+| 5.1 | Đồng bộ tài liệu — GOTCHAS, lessons, CODE-GRAPH, ghi nhận vấn đề License không sửa | Senior Developer | ✅ | `steps/STEP-5.1-docs-sync.md` | 2026-07-26 15:10 |
 
 ## Artifacts dự kiến
 
@@ -145,6 +145,7 @@ Không có.
 | 2026-07-26 14:32 | Bước 3.1 Done — fix 9 mục critical CcuUI (A1, A2, A3, A4, A6, L5, Q13, Q16, Q19) + 2 mục gộp; tạo mới SessionPickerWindow (A6, không đụng ConnectionEntryWindow); PlaceholderText verify-giữ-nguyên (GOTCHA G011: Avalonia 12 Watermark obsolete); build 0 error, commit 58909eb (chưa push) | Senior Developer |
 | 2026-07-26 14:53 | Bước 4.1 Done — review PASS toàn bộ 4 commit; build 0 error cả 3 project (kể cả ZcuAgent publish linux-x64, CcuUI win-x64/linux-x64); tự fix 1 lỗi ShellQuote từ chối oan `~`/`%` trong tên .deb (de981cf); TD-1 (ShellQuote public) + TD-2 (EncodeFrameJpeg alloc) ghi tech-debt; xác nhận bỏ KIOSK_SUDO_PASS ở CcuUI an toàn (script kiosk đi qua KioskDeployService vẫn set env); appsettings.json ZcuAgent còn default 0.0.0.0/0 do hook chặn — cần user quyết. CHƯA PUSH — chờ user | Tech Lead |
 | 2026-07-26 14:44 | Bước 3.2 Done — fix 7 mục security/quality CcuUI (S3, L6, L7, Q14, Q15, Q17, Q18); S3: password sudo qua STDIN channel (CreateInputStream), bỏ KIOSK_SUDO_PASS; tạo mới ConfirmDeleteDialog (Q14, §20.4); build 0 error / 19 warning baseline, commit 8b0aaa3 (chưa push). Đề xuất 4.1: nâng ShellQuote public + helper sudo dùng chung | Senior Developer |
+| 2026-07-26 15:10 | Bước 5.1 Done — CODE-GRAPH viết lại v2.0 (8 thay đổi API) + PDF; GOTCHAS G012–G016; 3 lessons toàn cục + INDEX/LESSONS-LOG; BUG report §9 kết quả xử lý (S5/S6 cố ý giữ nguyên) → status Đã xử lý; TECH-DEBT.md mới (TD-1, TD-2). **PLAN HOÀN THÀNH — status: completed. CHƯA PUSH, chờ user; còn 2 việc cần user quyết: appsettings.json ZcuAgent + lịch TD-1/TD-2** | Senior Developer |
 
 ---
 **Status icons:** ⬜ Todo | 🔄 In Progress | ✅ Done | 🛑 Blocked | ⏭️ Skipped
