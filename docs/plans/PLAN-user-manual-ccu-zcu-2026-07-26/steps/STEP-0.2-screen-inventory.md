@@ -43,7 +43,7 @@ completed_at: 2026-07-26 16:39
 - Bước sau cần biết (1.1): build `dotnet build IPGS.RemoteControl.CcuUI -c Release` (KHÔNG build 3 project song song — tranh chấp obj/); app mở thẳng ConnectionEntryWindow, không có license gate; trước khi chụp 2.1 phải backup profile store và chụp `connection-entry-empty` TRƯỚC khi thêm 3 máy mẫu.
 
 ## Commit
-- Hash: 2a221c6
+- Hash: 36dbf7c
 - Đã push: không (theo chỉ đạo bước này)
 
 ---
