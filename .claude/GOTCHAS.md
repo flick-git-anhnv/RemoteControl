@@ -28,6 +28,7 @@
 | G015 | `printf` với chuỗi chứa `%`: an toàn khi chuỗi ở vị trí **argument** của `printf '%s\n' '<arg>'`; NGUY HIỂM nếu đặt vào vị trí format string | 2026-07-26 |
 | G016 | DPAPI `ProtectedData` chỉ chạy Windows — app cross-platform PHẢI xử lý tường minh trên Linux (cảnh báo/lỗi rõ), TUYỆT ĐỐI không im lặng fallback plaintext | 2026-07-26 |
 | G017 | SSH exec channel KHÔNG có tty → `sudo` trần báo `no tty present and no askpass program specified`. Có `sudo` là PHẢI luôn thêm `-S`; đừng để nhánh "không có password" chạy sudo trần | 2026-07-26 |
+| G018 | Avalonia `AutoCompleteBox`: set `IsDropDownOpen = true` khi view lọc nội bộ còn RỖNG → popup mở 0 item (vô hình) + property kẹt `true`, gõ phím sau đó không mở lại. Phải `PopulateComplete()` trước khi mở | 2026-07-26 |
 
 ---
 
@@ -468,3 +469,15 @@ nên retry ngắn khi `CreateInputStream()` ném `InvalidOperationException`.
 - Không cần cấp pseudo-tty (`ShellStream`) để chạy sudo — `sudo -S` đọc stdin là đủ, thêm tty
   còn làm password bị echo lại vào output.
 - Không cần quay lại `echo 'pass' | sudo -S` — cách đó làm lộ password qua `ps -ef` trên ZCU.
+
+---
+
+## G018 — Avalonia `AutoCompleteBox`: mở dropdown thủ công khi view rỗng → popup vô hình + kẹt `IsDropDownOpen=true`
+
+**Ngày phát hiện:** 2026-07-26
+**Môi trường:** Avalonia 12.1.0, `IPGS.RemoteControl.CcuUI` (RemoteCommandWindow/BulkActionWindow — ô snippet lệnh mẫu)
+**Vấn đề:** `Tapped` handler set `combo.IsDropDownOpen = true` nhưng dropdown không bao giờ hiện — dù `MinimumPrefixLength=0`, `FilterMode=Contains`, ItemsSource đã gán; sau cú tap đầu, gõ từ khóa cũng KHÔNG mở được nữa.
+**Nguyên nhân:** View lọc nội bộ của `AutoCompleteBox` chỉ được populate trong pipeline TextChanged/population. Set `IsDropDownOpen = true` khi view còn rỗng → popup mở với 0 item (cao 0px, vô hình) và property giữ nguyên `true`; các lần population sau (gõ phím) không đổi giá trị property nên popup không được kích mở lại. Đối chứng: ô có `Text` prefill (population đã chạy) thì nút ▼ set `IsDropDownOpen=true` hoạt động bình thường (RemoteAppInstallWindow).
+**Cách xử lý:** Trong handler mở-thủ-công: `combo.IsDropDownOpen = false;` (reset trạng thái kẹt) → `combo.PopulateComplete();` (ép refresh view từ ItemsSource theo SearchText hiện tại — rỗng = toàn bộ item) → `combo.IsDropDownOpen = true;`.
+**Lần đầu gặp:** Fix F03 — WF-BUGFIX BUG-ccu-ui-findings (2026-07-26, commit `b5b8033`)
+**Không cần làm lại:** Không cần đổi `MinimumPrefixLength`/`FilterMode` (đã đúng); không cần thay bằng ComboBox thường — mất tính năng lọc theo từ khóa.
