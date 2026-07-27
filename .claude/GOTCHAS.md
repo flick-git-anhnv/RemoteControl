@@ -35,6 +35,7 @@
 | G022 | `dconf update` biên dịch MỌI file trong `local.d/`/`locks/` bất kể đuôi tên — backup `.bak` tại chỗ tái áp lock → phá đường gỡ khoá bảo trì; phải lưu backup ra ngoài cây `/etc/dconf/db/` | 2026-07-27 |
 | G023 | `BASH_SOURCE[0]` khi bash exec symlink qua PATH = đường dẫn symlink (KHÔNG phải target) → wrapper tự định vị bị DIR=/usr/bin → binary not found → exit 127; fix: `readlink -f` hoặc ExecStart đường dẫn tuyệt đối target | 2026-07-27 |
 | G024 | `gext install` gọi D-Bus GUI dialog xác nhận — treo ~24s qua SSH không có người bấm → timeout → `set -e` abort script; fix: curl+unzip offline từ extensions.gnome.org, không cần D-Bus | 2026-07-27 |
+| G025 | Desktop Icons NG (`ding@rastersoft.com`, GNOME 41+) từ chối thực thi `.desktop` chưa có `metadata::trusted=true` — click icon desktop không có phản hồi, không báo lỗi. Fix: `gio set <file> metadata::trusted true` sau khi tạo/copy file. Cần DISPLAY=:0 + DBUS_SESSION_BUS_ADDRESS (GVfs đang chạy). Package cài app thường không tự set flag này — phải làm trong deploy script. | 2026-07-27 |
 
 ---
 
@@ -561,3 +562,37 @@ unzip -o -q /tmp/ext.zip -d ~/.local/share/gnome-shell/extensions/$uuid
 Không cần D-Bus, không cần shell đang chạy, không cần popup bấm. Sau install, GNOME Shell đang chạy chưa scan thư mục mới → `gnome-extensions enable` trả "Extension does not exist" → thêm fallback `gsettings set org.gnome.shell enabled-extensions` (append uuid vào list) để đảm bảo enabled sau reboot.
 **Lần đầu gặp:** F13 — WF-BUGFIX BUG-ccu-ui-findings (2026-07-27), ZCU `192.168.21.16`, verify idempotency 2 lần (dir có/không có) + reboot xác nhận extensions ENABLED.
 **Không cần làm lại:** Không thử truyền `DBUS_SESSION_BUS_ADDRESS` vào plink để "gext thấy D-Bus" — ngay cả khi D-Bus tìm được, popup vẫn hiện và không ai bấm → vẫn timeout. Không dùng `gnome-extensions install` (wrapper của gext, cùng vấn đề D-Bus). Chỉ offline install mới triệt để.
+
+---
+
+## G025 — Desktop Icons NG (`ding@rastersoft.com`) từ chối chạy `.desktop` chưa có `metadata::trusted=true` — click icon desktop không phản hồi
+
+**Bối cảnh:** F14 — GNOME 41+, Desktop Icons NG extension (Ubuntu 22.04 mặc định), kiosk deploy.
+
+**Hiện tượng:** Package cài app kiosk tạo `/home/kztek/Desktop/kztek-ipgskioskavalonia.desktop` với `Exec=/opt/kztek/ipgskioskavalonia/run.sh` (đường dẫn đúng, `Terminal=false`, `chmod +x` đúng). Nhưng double-click icon không làm gì — không mở app, không báo lỗi. Extension `ding@rastersoft.com` `State: INITIALIZED`.
+
+**Nguyên nhân:** Từ GNOME 41+, Desktop Icons NG áp dụng cơ chế bảo mật: **từ chối thực thi bất kỳ `.desktop` nào chưa được đánh dấu `metadata::trusted=true`** qua GVfs. File chỉ có quyền `+x` là không đủ. Khi click, extension kiểm tra flag này; nếu thiếu → bỏ qua silently (hoặc hiện dialog hỏi "không tin cậy" tùy version). Package cài app thường KHÔNG tự set flag sau khi copy file lên Desktop.
+
+**Xác minh root cause:**
+```bash
+gio info /home/kztek/Desktop/kztek-ipgskioskavalonia.desktop | grep trust
+# → NO_META (chưa set) hoặc metadata::trusted: false
+```
+
+**Fix:**
+```bash
+gio set /home/kztek/Desktop/kztek-ipgskioskavalonia.desktop metadata::trusted true
+# Yêu cầu: DISPLAY=:0 + DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus (GVfs đang chạy)
+# Verify:
+gio info /home/kztek/Desktop/kztek-ipgskioskavalonia.desktop | grep trust
+# → metadata::trusted: true
+```
+
+**Áp dụng vào deploy script (`2-configure-system.sh` mục [8/10]):** Sau khi tạo `~/Desktop/ipgs-kiosk.desktop`, gọi `gio set ... metadata::trusted true` ngay. Script chạy qua SSH với `env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=...` (C# đã truyền qua `envCmd`) nên GVfs sẵn sàng khi GNOME session đang chạy.
+
+**Lưu ý quan trọng:**
+- `gio set` chỉ hoạt động khi GVfs đang chạy (= user đã đăng nhập vào desktop). Nếu chạy deploy khi máy chưa vào GNOME session → lệnh silently fail (exit 0 nhưng không set). Script in cảnh báo để user biết.
+- Nếu sau deploy icon vẫn không click được: chạy lại lệnh `gio set` trong terminal ngay trên máy ZCU.
+- Extension `ubuntu-dock@ubuntu.com` và `ding@rastersoft.com` là 2 extension ĐỘC LẬP — tắt dock không ảnh hưởng Desktop Icons và ngược lại. Tách thành 2 checkbox riêng trong KioskDeploy (DisableUbuntuDock / DisableDesktopIcons).
+
+**Lần đầu gặp:** F14 — WF-BUGFIX BUG-ccu-ui-findings, ZCU `192.168.21.16` (2026-07-27).

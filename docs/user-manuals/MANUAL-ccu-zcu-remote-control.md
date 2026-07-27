@@ -907,10 +907,12 @@ Cửa sổ "Deploy Kiosk Setup" gồm: khung máy đích, ô **Sudo password** (
 *Hình 62: Tab Config máy tính — ô Kiosk user (autologin) và 2 cột ô tick: ① Ẩn giao diện GNOME, ② Hành vi máy / màn hình; mỗi dòng có dấu ❓ giải thích*
 
 - **Kiosk user (autologin):** tài khoản trên máy ZCU sẽ được tự đăng nhập.
-- **Cột ① Ẩn giao diện GNOME:** Ẩn Top Bar, Ẩn nút Activities, Ẩn Workspace Switcher, Ẩn Dash, Tắt Ubuntu Dock + Desktop Icons.
+- **Cột ① Ẩn giao diện GNOME:** Ẩn Top Bar, Ẩn nút Activities, Ẩn Workspace Switcher, Ẩn Dash, **Tắt Ubuntu Dock (thanh icon bên cạnh)** (mặc định tick ON), **Tắt Desktop Icons (icon trên desktop)** (mặc định **không tick** — giữ bật để icon shortcut app trên desktop click được, xem ghi chú F14 bên dưới).
 - **Cột ② Hành vi máy / màn hình:** Cài unclutter (tự ẩn con trỏ chuột), Tắt bàn phím ảo, Tắt hot corner / thông báo / khóa màn hình, Chặn ngủ khi cắm điện, Bỏ qua màn hình thiết lập ban đầu, Autologin, Khóa còn 1 workspace tĩnh, **Khoá lối thoát kiosk (dconf lock)**.
 
 > **Lưu ý:** Mỗi ô tick là công tắc **2 chiều**: tick = ẩn/tắt, bỏ tick = hiện lại/bật lại như mặc định (không phải "bỏ qua"). Riêng "Cài unclutter" chỉ 1 chiều — bỏ tick không tự gỡ phần đã cài. Di chuột lên dấu **❓** cạnh từng dòng để xem giải thích chi tiết.
+
+> **Ghi chú (F14 — Icon desktop không click được):** Trên Ubuntu GNOME, sau khi cài app kiosk, package thường tạo sẵn icon shortcut trong `~/Desktop/`. Tuy nhiên từ GNOME 41+, tiện ích Desktop Icons NG (`ding@rastersoft.com`) **từ chối chạy** bất kỳ file `.desktop` nào chưa được đánh dấu tin cậy (`metadata::trusted`). Kiosk Deploy đã tự động xử lý vấn đề này: khi deploy (Autostart bật), script tạo file `~/Desktop/ipgs-kiosk.desktop` và gọi `gio set metadata::trusted true` ngay — sau khi deploy thành công, người dùng có thể double-click icon trên desktop để mở app. Để icon hiển thị được, **cần giữ ô "Tắt Desktop Icons" không tick** (mặc định).
 
 #### Tab "⚙️ Config phần mềm"
 

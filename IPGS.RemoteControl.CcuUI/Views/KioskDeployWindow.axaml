@@ -23,7 +23,7 @@
     <ScrollViewer Grid.Row="1">
       <StackPanel Spacing="18" Margin="24,18">
 
-        <!-- Target host (chỉ hiển thị, lấy từ hồ sơ máy tính đã lưu — xem "Sửa" để đổi SSH) -->
+        <!-- Target host -->
         <Border Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" CornerRadius="8" Padding="14">
           <StackPanel Orientation="Horizontal" Spacing="10">
             <TextBlock Text="🎯" FontSize="16"/>
@@ -34,23 +34,31 @@
           </StackPanel>
         </Border>
 
-        <!-- Sudo password — dùng chung cho cả 2 tab (apt install ở Tab 1, sửa GDM autologin ở Tab 1/2) -->
+        <!-- Sudo password -->
         <StackPanel Spacing="4">
           <TextBlock Text="Sudo password (để trống nếu giống SSH password):" FontSize="12" Foreground="#64748B"/>
-          <TextBox x:Name="PART_SudoPassword" PasswordChar="•" Watermark="Để trống nếu dùng chung với SSH password" Height="36" VerticalContentAlignment="Center"/>
+          <TextBox x:Name="PART_SudoPassword" PasswordChar="•" PlaceholderText="Để trống nếu dùng chung với SSH password" Height="36" VerticalContentAlignment="Center"/>
         </StackPanel>
 
-        <!-- Cấu hình Kiosk — tách 2 tab: Tab 1 = mọi thứ thuộc về MÁY TÍNH, Tab 2 = CHỈ update/autostart phần mềm -->
+        <!-- TabControl -->
         <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="4">
           <TabControl>
 
-            <!-- TAB 1: Config máy tính — toàn bộ tinh chỉnh OS/UI/hành vi máy (KHÔNG phải update/autostart phần mềm) -->
+            <!-- TAB 1: Config máy tính -->
             <TabItem Header="🖥️ Config máy tính">
               <StackPanel Spacing="12" Margin="16,14,16,10">
 
                 <StackPanel Spacing="4" MaxWidth="320" HorizontalAlignment="Left">
                   <TextBlock Text="Kiosk user (autologin):" FontSize="12" Foreground="#64748B"/>
                   <kz:KzTextBox x:Name="PART_KioskUser" Text="kztek" />
+                </StackPanel>
+
+                <!-- ── Nút Chọn tất cả / Bỏ chọn tất cả ── -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <kz:KzButton x:Name="PART_BtnSelectAll" Content="☑ Chọn tất cả" KzSize="Sm"
+                                ToolTip.Tip="Tick tất cả các ô cấu hình máy tính"/>
+                  <kz:KzButton x:Name="PART_BtnDeselectAll" Content="☐ Bỏ chọn tất cả" KzSize="Sm"
+                                ToolTip.Tip="Bỏ tick tất cả — bỏ tick = khôi phục mặc định hệ thống. Lưu ý: 'Cài unclutter' chỉ 1 chiều — bỏ tick không gỡ package đã cài."/>
                 </StackPanel>
 
                 <TextBlock FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap" Margin="0,2,0,0">
@@ -85,10 +93,16 @@
                         <TextBlock Text="❓" ToolTip.Tip="Ẩn thanh dock chứa các ứng dụng khi mở menu, tránh người dùng mở app ngoài luồng." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
-                    <CheckBox x:Name="PART_ChkHideDockIcons" IsChecked="True">
+                    <CheckBox x:Name="PART_ChkHideUbuntuDock" IsChecked="True">
                       <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="Tắt Ubuntu Dock + Desktop Icons" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Tắt hoàn toàn thanh dock (taskbar) mặc định của Ubuntu và các icon trên màn hình nền." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <TextBlock Text="Tắt Ubuntu Dock (thanh icon bên cạnh)" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Tắt extension ubuntu-dock@ubuntu.com — thanh dock (taskbar) bên cạnh màn hình mặc định của Ubuntu." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="PART_ChkHideDesktopIcons" IsChecked="False">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Tắt Desktop Icons (icon trên desktop)" VerticalAlignment="Center"/>
+                        <TextBlock Text="❓" ToolTip.Tip="Tắt extension Desktop Icons NG (ding@rastersoft.com) — ẩn mọi icon hiển thị trên màn hình nền. Bỏ tick (giữ bật) để icon shortcut app trên desktop click được (F14)." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                   </StackPanel>
@@ -156,12 +170,29 @@
               </StackPanel>
             </TabItem>
 
-            <!-- TAB 2: Config phần mềm — CHỈ update + autostart phần mềm -->
+            <!-- TAB 2: Config phần mềm -->
             <TabItem Header="⚙️ Config phần mềm">
               <StackPanel Spacing="12" Margin="12,14,12,10">
+
+                <!-- App exec — editable ComboBox + nút nạp danh sách từ ZCU -->
                 <StackPanel Spacing="4">
                   <TextBlock Text="App exec (lệnh autostart app):" FontSize="12" Foreground="#64748B"/>
-                  <kz:KzTextBox x:Name="PART_AppExec" Text="kioskapp" />
+                  <Grid ColumnDefinitions="*,8,Auto">
+                    <kz:KzComboBox Grid.Column="0"
+                                    x:Name="PART_AppExec"
+                                    IsEditable="True"
+                                    PlaceholderText="Nhập lệnh hoặc bấm 🔄 để nạp danh sách từ máy ZCU..."
+                                    HorizontalAlignment="Stretch"/>
+                    <kz:KzButton Grid.Column="2"
+                                  x:Name="PART_BtnLoadApps"
+                                  Content="🔄 Nạp DS"
+                                  KzSize="Sm"
+                                  ToolTip.Tip="Kết nối SSH tới máy ZCU, quét danh sách ứng dụng có thể dùng làm kiosk app để chọn. Vẫn có thể nhập tay lệnh vào ô bên trái."/>
+                  </Grid>
+                  <!-- Trạng thái nạp danh sách (hiển thị khi đang load hoặc có lỗi) -->
+                  <TextBlock x:Name="PART_LoadAppsStatus"
+                              Text="" FontSize="11" Foreground="#64748B"
+                              TextWrapping="Wrap"/>
                 </StackPanel>
 
                 <CheckBox x:Name="PART_ChkSwUpdate" IsChecked="True">
@@ -192,7 +223,7 @@
           </TabControl>
         </Border>
 
-        <!-- STEP 3: Console log -->
+        <!-- Console log -->
         <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14">
           <StackPanel Spacing="8">
             <TextBlock Text="💻 Nhật ký Deploy (Console Output):" Foreground="#475569" FontSize="13" FontWeight="SemiBold"/>
@@ -218,13 +249,10 @@
     <!-- ── Footer ────────────────────────────────────────────────── -->
     <Border Grid.Row="2" Background="#F8FAFC" Padding="20,12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Grid.Column="0" x:Name="PART_StatusMsg" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12"/>
+        <TextBlock Grid.Column="0" x:Name="PART_StatusMsg" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"/>
         <kz:KzButton Grid.Column="1" x:Name="PART_BtnDeploy" Content="🚀 Deploy" Classes="kz-primary"/>
       </Grid>
     </Border>
 
   </Grid>
 </Window>
-
-
-

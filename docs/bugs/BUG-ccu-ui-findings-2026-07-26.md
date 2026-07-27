@@ -946,3 +946,53 @@ GNOME Shell đã restart (`killall -3 gnome-shell`) để flush cache — list s
 
 — DevOps Engineer, 2026-07-27 10:12
 
+---
+
+## F14 — Click icon desktop không mở app kiosk (Desktop Icons NG từ chối thực thi file chưa trusted)
+
+| Trường | Nội dung |
+|---|---|
+| **Thành phần** | ZCU — Desktop shortcut `~/Desktop/kztek-ipgskioskavalonia.desktop` |
+| **Mức độ** | P2 |
+| **Người phát hiện** | Senior Developer (kiểm tra thực tế 2026-07-27 qua SSH vào ZCU 192.168.21.16) |
+| **Các bước tái hiện** | 1. Cài app kiosk xong, icon `.desktop` có trên Desktop. 2. Double-click icon → không có gì xảy ra (app không mở, không báo lỗi). |
+| **Kết quả thực tế** | Desktop Icons NG (`ding@rastersoft.com`) hiển thị icon nhưng từ chối chạy khi click — do `metadata::trusted` chưa được set. |
+| **Kết quả mong đợi** | Double-click icon → app kiosk khởi động. |
+
+### Phân tích root cause (xác minh thực tế trên ZCU 192.168.21.16)
+
+Nguyên nhân gốc xác định qua SSH:
+
+1. File `/home/kztek/Desktop/kztek-ipgskioskavalonia.desktop` có đúng `Exec=/opt/kztek/ipgskioskavalonia/run.sh` (không phải lỗi symlink).
+2. `gio info ... | grep trusted` trả về `NO_META` → **`metadata::trusted` CHƯA được set**.
+3. Desktop Icons NG (GNOME 41+) **từ chối thực thi** bất kỳ `.desktop` nào chưa được người dùng xác nhận tin cậy (`trusted=true`).
+4. App package cài `.desktop` lên Desktop nhưng **không gọi** `gio set metadata::trusted true` sau khi cài.
+
+Sau khi chạy `gio set /home/kztek/Desktop/kztek-ipgskioskavalonia.desktop metadata::trusted true` → verify: `metadata::trusted: true` — app mở được từ icon.
+
+### Fix áp dụng
+
+**`scripts/linux-kiosk/2-configure-system.sh`** — thêm khối tạo desktop icon trong mục `[8/10]`:
+- Tạo `~/Desktop/ipgs-kiosk.desktop` với `Exec=<REAL_EXEC>`, `Terminal=false`, `Icon=<path icon từ package>`.
+- `chmod +x` file.
+- `gio set metadata::trusted true` ngay sau khi tạo (cần DISPLAY=:0 + DBUS_SESSION_BUS_ADDRESS — đã set sẵn qua `envCmd` trong C#).
+- 2 chiều: khi Autostart tắt → xóa file.
+
+**`KioskDeployService.cs` / `KioskDeployWindow.axaml(.cs)`** — tách `PART_ChkHideDockIcons` thành 2 checkbox độc lập:
+- `PART_ChkHideUbuntuDock` (mặc định tick ON) — tắt `ubuntu-dock@ubuntu.com`.
+- `PART_ChkHideDesktopIcons` (mặc định **NOT ticked**) — tắt `ding@rastersoft.com`. Mặc định giữ Desktop Icons bật để icon desktop click được.
+
+**`2-configure-system.sh`** — tách mục `[3/9]` thành `[3a/10]` (ubuntu-dock) và `[3b/10]` (ding), thêm param `$5=DISABLE_DESKTOP_ICONS` (default=0).
+
+### Ảnh chứng minh
+
+- `docs/bugs/screenshots/f14-kiosk-app-running.png` — App IPGS Kiosk Avalonia đang chạy trên ZCU (màn hình cấu hình kết nối), chụp ngay sau khi verified `trusted=true`. App đang active với title "IPGS Kiosk Avalonia" và session bus /run/user/1000/bus hoạt động.
+
+### Trạng thái
+
+> ✅ Đã sửa (2026-07-27, senior-developer):
+> - `gio set metadata::trusted true` thêm vào deploy script (mục [8/10]).
+> - Tách checkbox: `DisableUbuntuDock` (default=true) / `DisableDesktopIcons` (default=false).
+> - `2-configure-system.sh` param $4=disable_ubuntu_dock, $5=disable_desktop_icons (mới, default=0), $6..$13 shift +1.
+> - `GOTCHAS.md` cập nhật entry G024.
+

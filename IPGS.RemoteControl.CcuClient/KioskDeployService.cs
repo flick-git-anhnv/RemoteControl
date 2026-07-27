@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -8,6 +9,14 @@ using Renci.SshNet;
 
 namespace IPGS.RemoteControl.CcuClient
 {
+    /// <summary>Một ứng dụng có thể dùng làm kiosk app — kết quả quét từ máy ZCU.</summary>
+    public record KioskAppEntry(
+        string Name,           // Tên thân thiện (từ .desktop Name=) — có thể rỗng
+        string ExecCommand,    // Lệnh thực thi (Exec= đã loại %placeholder)
+        bool IsRecommended,    // true nếu tên/lệnh chứa "ipgs" hoặc "kiosk"
+        bool ExistsOnSystem    // true nếu binary tìm thấy trên PATH hoặc đường dẫn tuyệt đối
+    );
+
     public class KioskDeployOptions
     {
         public string Host { get; set; } = string.Empty;
@@ -45,7 +54,14 @@ namespace IPGS.RemoteControl.CcuClient
         /// false = gỡ khoá (chế độ bảo trì cho quản trị viên).
         /// </summary>
         public bool LockdownShell { get; set; } = true;
-        public bool DisableDockIcons { get; set; } = true;
+        /// <summary>Tắt extension ubuntu-dock@ubuntu.com (thanh dock bên cạnh màn hình Ubuntu). Mặc định: true.</summary>
+        public bool DisableUbuntuDock { get; set; } = true;
+
+        /// <summary>
+        /// Tắt extension ding@rastersoft.com (Desktop Icons NG — icon trên màn hình nền).
+        /// false (mặc định) = GIỮ icon desktop — cần để click shortcut app mở được (F14).
+        /// </summary>
+        public bool DisableDesktopIcons { get; set; } = false;
         public bool BlockSleep { get; set; } = true;
         public bool SkipInitialSetup { get; set; } = true;
         public bool EnableAutologin { get; set; } = true;
@@ -186,7 +202,12 @@ namespace IPGS.RemoteControl.CcuClient
                 {
                     Log("🔄 Đang chạy 2-configure-system.sh (Config máy tính — phần hệ thống + Config phần mềm — update/autostart)...");
                     string kioskUser = string.IsNullOrEmpty(options.KioskUser) ? options.Username : options.KioskUser;
-                    string args2 = $"{B(options.DisableHotCorner)} {B(options.DisableDockIcons)} {B(options.BlockSleep)} {B(options.SkipInitialSetup)} {B(options.EnableAutologin)} {B(options.DisableSoftwareUpdate)} {B(options.EnableAutostart)} {B(options.LockSingleWorkspace)} {B(options.LockdownShell)} {B(options.EnableWatchdog)}";
+                    // Thứ tự phải khớp tham số trong 2-configure-system.sh ($3..$13):
+                    // $3=disable_hotcorner $4=disable_ubuntu_dock $5=disable_desktop_icons
+                    // $6=block_sleep $7=skip_initial_setup $8=enable_autologin
+                    // $9=disable_sw_update $10=enable_autostart $11=lock_single_workspace
+                    // $12=lockdown_shell $13=enable_watchdog
+                    string args2 = $"{B(options.DisableHotCorner)} {B(options.DisableUbuntuDock)} {B(options.DisableDesktopIcons)} {B(options.BlockSleep)} {B(options.SkipInitialSetup)} {B(options.EnableAutologin)} {B(options.DisableSoftwareUpdate)} {B(options.EnableAutostart)} {B(options.LockSingleWorkspace)} {B(options.LockdownShell)} {B(options.EnableWatchdog)}";
                     // S1: quote đúng chuẩn POSIX — bản cũ '{kioskUser}' không escape '
                     // bên trong nên giá trị chứa ' có thể break-out khỏi quote.
                     // F08: throwOnError — trước đây exit code của script bị bỏ qua hoàn toàn,
@@ -261,6 +282,142 @@ namespace IPGS.RemoteControl.CcuClient
                 throw new Exception(
                     $"{errorContext ?? "Lệnh trên máy kiosk"} thất bại (exit {exitStatus}). {detail}".TrimEnd());
             }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // LoadKioskAppsAsync — quét danh sách ứng dụng có thể dùng làm kiosk app
+        // ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Script Python chạy trên ZCU để quét ứng dụng. Output: 4 cột tab-separated.
+        /// Cột: PRIORITY(1/0) | NAME | EXEC | EXISTS(1/0)
+        /// Lọc: bỏ NoDisplay=true, Hidden=true; chuẩn hoá Exec (loại %placeholder).
+        /// Kiểm tra binary: đường dẫn tuyệt đối → test -x; tên lệnh → tìm trong PATH.
+        /// Ưu tiên 1 = tên/lệnh chứa "ipgs" hoặc "kiosk".
+        /// </summary>
+        private static readonly string _scanScriptContent =
+@"import os, re, glob
+r = []
+def scan_desktop(path):
+    try:
+        c = open(path, encoding='utf-8', errors='ignore').read()
+        if re.search(r'^NoDisplay\s*=\s*true', c, re.M | re.I): return
+        if re.search(r'^Hidden\s*=\s*true', c, re.M | re.I): return
+        nm = re.search(r'^Name\s*=(.*)', c, re.M)
+        ex = re.search(r'^Exec\s*=(.*)', c, re.M)
+        if nm and ex:
+            name = nm.group(1).strip()
+            exec_cmd = re.sub(r'\s*%[uUfFiIcCkK]\s*', '', ex.group(1)).strip()
+            if exec_cmd: r.append((name, exec_cmd))
+    except: pass
+for p in (glob.glob('/usr/share/applications/*.desktop') +
+          glob.glob(os.path.expanduser('~/.local/share/applications/*.desktop'))):
+    if os.path.isfile(p): scan_desktop(p)
+for pattern in ['/opt/kztek/*/run.sh', '/opt/kztek/*/bin/*', '/usr/bin/ipgs*', '/usr/local/bin/ipgs*']:
+    for f in glob.glob(pattern):
+        try:
+            if os.path.isfile(f) and (os.access(f, os.X_OK) or f.endswith('.sh')): r.append(('', f))
+        except: pass
+seen = set()
+for name, exec_cmd in r:
+    if exec_cmd in seen: continue
+    seen.add(exec_cmd)
+    prio = '1' if any(k in exec_cmd.lower() or k in name.lower() for k in ['ipgs', 'kiosk']) else '0'
+    bin_part = exec_cmd.split()[0] if exec_cmd else ''
+    if os.path.isabs(bin_part):
+        exists = '1' if os.access(bin_part, os.X_OK) else '0'
+    else:
+        exists = '1' if any(os.access(os.path.join(d, bin_part), os.X_OK) for d in os.environ.get('PATH', '/usr/bin:/usr/local/bin').split(':') if d) else '0'
+    print(prio + '\t' + name + '\t' + exec_cmd + '\t' + exists)
+";
+
+        /// <summary>
+        /// Kết nối SSH tới máy ZCU, quét danh sách ứng dụng có thể dùng làm kiosk app:
+        /// .desktop trong /usr/share/applications + ~/.local/share/applications (lọc NoDisplay/Hidden),
+        /// binary kztek tại /opt/kztek/, /usr/bin/ipgs*, /usr/local/bin/ipgs*.
+        /// Kết quả đã sắp xếp: recommended (ipgs/kiosk) trước, còn lại theo thứ tự abc.
+        /// ExistsOnSystem=true nếu lệnh tìm thấy trên PATH hoặc đường dẫn tuyệt đối tồn tại.
+        /// </summary>
+        public Task<List<KioskAppEntry>> LoadKioskAppsAsync(
+            string host, int port, string username, string password,
+            CancellationToken ct = default)
+        {
+            return Task.Run(() =>
+            {
+                var results = new List<KioskAppEntry>();
+                // Tên ngẫu nhiên để tránh xung đột khi nhiều deploy chạy song song
+                string remotePath = $"/tmp/.kz_scan_{Environment.TickCount64 & 0xFFFF}.py";
+
+                using var ssh = new SshClient(host, port, username, password);
+                ssh.Connect();
+                if (!ssh.IsConnected)
+                    throw new Exception("Không thể kết nối SSH tới máy kiosk để quét ứng dụng.");
+
+                // Upload script quét — normalize CRLF→LF, không BOM (giống UploadScript)
+                using (var sftp = new SftpClient(host, port, username, password))
+                {
+                    sftp.Connect();
+                    string normalized = _scanScriptContent
+                        .Replace("\r\n", "\n").Replace("\r", "\n");
+                    byte[] bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
+                        .GetBytes(normalized);
+                    using var ms = new MemoryStream(bytes);
+                    sftp.UploadFile(ms, remotePath, true);
+                    sftp.Disconnect();
+                }
+
+                try
+                {
+                    using var cmd = ssh.CreateCommand($"python3 {remotePath}", Encoding.UTF8);
+                    cmd.Execute();
+
+                    string output = cmd.Result ?? string.Empty;
+                    string error  = cmd.Error  ?? string.Empty;
+
+                    if (cmd.ExitStatus != 0 && string.IsNullOrWhiteSpace(output))
+                        throw new Exception(
+                            $"Không thể chạy python3 trên máy ZCU. {error.Trim()}".TrimEnd());
+
+                    // Parse: PRIORITY\tNAME\tEXEC\tEXISTS
+                    foreach (var line in output.Split('\n',
+                        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        var parts = line.Split('\t');
+                        if (parts.Length < 4) continue;
+                        bool recommended = parts[0] == "1";
+                        string name      = parts[1];
+                        string execCmd   = parts[2];
+                        bool exists      = parts[3] == "1";
+                        if (!string.IsNullOrWhiteSpace(execCmd))
+                            results.Add(new KioskAppEntry(name, execCmd, recommended, exists));
+                    }
+                }
+                finally
+                {
+                    // Dọn file tạm — không throw nếu lỗi
+                    try
+                    {
+                        using var clean = ssh.CreateCommand(
+                            $"rm -f {remotePath}", Encoding.UTF8);
+                        clean.Execute();
+                    }
+                    catch { /* best-effort cleanup */ }
+                }
+
+                ssh.Disconnect();
+
+                // Sắp xếp: recommended trước (abc), rồi còn lại (abc)
+                results.Sort((a, b) =>
+                {
+                    if (a.IsRecommended != b.IsRecommended)
+                        return a.IsRecommended ? -1 : 1;
+                    string aKey = !string.IsNullOrEmpty(a.Name) ? a.Name : a.ExecCommand;
+                    string bKey = !string.IsNullOrEmpty(b.Name) ? b.Name : b.ExecCommand;
+                    return string.Compare(aKey, bKey, StringComparison.OrdinalIgnoreCase);
+                });
+
+                return results;
+            }, ct);
         }
 
         private string? ResolveKioskScriptsDir()

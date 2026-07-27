@@ -65,15 +65,16 @@ set -e
 KIOSK_USER="${1:-kztek}"
 APP_EXEC="${2:-ipgskioskavalonia}"
 DISABLE_HOTCORNER="${3:-1}"
-DISABLE_DOCK_ICONS="${4:-1}"
-BLOCK_SLEEP="${5:-1}"
-SKIP_INITIAL_SETUP="${6:-1}"
-ENABLE_AUTOLOGIN="${7:-1}"
-DISABLE_SW_UPDATE="${8:-1}"
-ENABLE_AUTOSTART="${9:-1}"
-LOCK_SINGLE_WORKSPACE="${10:-1}"
-LOCKDOWN_SHELL="${11:-1}"
-ENABLE_WATCHDOG="${12:-1}"
+DISABLE_UBUNTU_DOCK="${4:-1}"
+DISABLE_DESKTOP_ICONS="${5:-0}"
+BLOCK_SLEEP="${6:-1}"
+SKIP_INITIAL_SETUP="${7:-1}"
+ENABLE_AUTOLOGIN="${8:-1}"
+DISABLE_SW_UPDATE="${9:-1}"
+ENABLE_AUTOSTART="${10:-1}"
+LOCK_SINGLE_WORKSPACE="${11:-1}"
+LOCKDOWN_SHELL="${12:-1}"
+ENABLE_WATCHDOG="${13:-1}"
 
 # Helper sudo cho SSH session không có TTY.
 # C# truyền KIOSK_SUDO_PASS qua môi trường; nếu không có thì dùng sudo bình thường
@@ -89,7 +90,7 @@ _sudo() {
 echo "=== [2] Cấu hình hệ thống cho Kiosk iPGS — Ubuntu 22.04 ==="
 echo "  Kiosk user : $KIOSK_USER"
 echo "  App exec   : $APP_EXEC"
-echo "  HotCorner=$DISABLE_HOTCORNER DockIcons=$DISABLE_DOCK_ICONS Sleep=$BLOCK_SLEEP InitialSetup=$SKIP_INITIAL_SETUP Autologin=$ENABLE_AUTOLOGIN SwUpdate=$DISABLE_SW_UPDATE Autostart=$ENABLE_AUTOSTART LockWorkspace=$LOCK_SINGLE_WORKSPACE LockdownShell=$LOCKDOWN_SHELL Watchdog=$ENABLE_WATCHDOG"
+echo "  HotCorner=$DISABLE_HOTCORNER UbuntuDock=$DISABLE_UBUNTU_DOCK DesktopIcons=$DISABLE_DESKTOP_ICONS Sleep=$BLOCK_SLEEP InitialSetup=$SKIP_INITIAL_SETUP Autologin=$ENABLE_AUTOLOGIN SwUpdate=$DISABLE_SW_UPDATE Autostart=$ENABLE_AUTOSTART LockWorkspace=$LOCK_SINGLE_WORKSPACE LockdownShell=$LOCKDOWN_SHELL Watchdog=$ENABLE_WATCHDOG"
 echo ""
 
 if [ "$EUID" -eq 0 ]; then
@@ -101,7 +102,7 @@ fi
 # ─────────────────────────────────────────────────────────────
 # 2 chiều: 1 = tắt/ẩn, 0 = bật/hiện lại như mặc định GNOME
 if [ "$DISABLE_HOTCORNER" = "1" ]; then
-    echo "=== [1/9] Tắt hot corner, notification banner, screensaver/lock ==="
+    echo "=== [1/10] Tắt hot corner, notification banner, screensaver/lock ==="
     # `|| true`: các key này có thể đã bị dconf lock bởi mục [9/9] (F09) — khi đó
     # gsettings set theo user bị từ chối, nhưng giá trị hệ thống đã đúng rồi.
     gsettings set org.gnome.desktop.interface enable-hot-corners false 2>/dev/null || true
@@ -109,7 +110,7 @@ if [ "$DISABLE_HOTCORNER" = "1" ]; then
     gsettings set org.gnome.desktop.screensaver lock-enabled false 2>/dev/null || true
     gsettings set org.gnome.desktop.session idle-delay 0
 else
-    echo "=== [1/9] Bật lại hot corner, notification banner, screensaver/lock (mặc định) ==="
+    echo "=== [1/10] Bật lại hot corner, notification banner, screensaver/lock (mặc định) ==="
     gsettings set org.gnome.desktop.interface enable-hot-corners true 2>/dev/null || true
     gsettings set org.gnome.desktop.notifications show-banners true
     gsettings set org.gnome.desktop.screensaver lock-enabled true 2>/dev/null || true
@@ -118,49 +119,75 @@ fi
 
 # ─────────────────────────────────────────────────────────────
 if [ "$LOCK_SINGLE_WORKSPACE" = "1" ]; then
-    echo "=== [2/9] Khóa còn 1 workspace tĩnh (chặn gesture 2/3 ngón chuyển workspace) ==="
+    echo "=== [2/10] Khóa còn 1 workspace tĩnh (chặn gesture 2/3 ngón chuyển workspace) ==="
     gsettings set org.gnome.mutter dynamic-workspaces false 2>/dev/null || true
     gsettings set org.gnome.desktop.wm.preferences num-workspaces 1 2>/dev/null || true
     gsettings set org.gnome.shell.overrides workspaces-only-on-primary true 2>/dev/null || true
 else
-    echo "=== [2/9] Bật lại workspace động (mặc định GNOME) ==="
+    echo "=== [2/10] Bật lại workspace động (mặc định GNOME) ==="
     gsettings set org.gnome.mutter dynamic-workspaces true 2>/dev/null || true
     gsettings reset org.gnome.desktop.wm.preferences num-workspaces 2>/dev/null || true
     gsettings reset org.gnome.shell.overrides workspaces-only-on-primary 2>/dev/null || true
 fi
 
 # ─────────────────────────────────────────────────────────────
-if [ "$DISABLE_DOCK_ICONS" = "1" ]; then
-    echo "=== [3/9] Tắt Ubuntu Dock + Desktop Icons (mặc định bật trên máy mới) ==="
+if [ "$DISABLE_UBUNTU_DOCK" = "1" ]; then
+    echo "=== [3a/10] Tắt Ubuntu Dock (ubuntu-dock@ubuntu.com) ==="
     gnome-extensions disable ubuntu-dock@ubuntu.com 2>/dev/null || echo "  → ubuntu-dock@ubuntu.com không có/đã tắt, bỏ qua."
+else
+    echo "=== [3a/10] Bật lại Ubuntu Dock (ubuntu-dock@ubuntu.com) ==="
+    gnome-extensions enable ubuntu-dock@ubuntu.com 2>/dev/null || echo "  → ubuntu-dock@ubuntu.com không có, bỏ qua."
+fi
+
+# ─────────────────────────────────────────────────────────────
+# [3b/10] Desktop Icons NG (ding@rastersoft.com) — tách riêng khỏi Ubuntu Dock.
+# Mặc định KHÔNG tắt (=0) để icon shortcut app trên desktop click được (F14).
+if [ "$DISABLE_DESKTOP_ICONS" = "1" ]; then
+    echo "=== [3b/10] Tắt Desktop Icons NG (ding@rastersoft.com) ==="
     gnome-extensions disable ding@rastersoft.com 2>/dev/null || echo "  → ding@rastersoft.com không có/đã tắt, bỏ qua."
 else
-    echo "=== [3/9] Bật lại Ubuntu Dock + Desktop Icons ==="
-    gnome-extensions enable ubuntu-dock@ubuntu.com 2>/dev/null || echo "  → ubuntu-dock@ubuntu.com không có, bỏ qua."
+    echo "=== [3b/10] Bật lại Desktop Icons NG (ding@rastersoft.com) ==="
     gnome-extensions enable ding@rastersoft.com 2>/dev/null || echo "  → ding@rastersoft.com không có, bỏ qua."
 fi
 
 # ─────────────────────────────────────────────────────────────
 if [ "$BLOCK_SLEEP" = "1" ]; then
-    echo "=== [4/9] Chặn suspend/sleep khi cắm điện (tránh màn hình tắt giữa chừng) ==="
+    echo "=== [4/10] Chặn suspend/sleep khi cắm điện (tránh màn hình tắt giữa chừng) ==="
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing' 2>/dev/null || true
 else
-    echo "=== [4/9] Bật lại suspend/sleep mặc định ==="
+    echo "=== [4/10] Bật lại suspend/sleep mặc định ==="
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'suspend'
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'suspend' 2>/dev/null || true
 fi
 
 # ─────────────────────────────────────────────────────────────
 if [ "$SKIP_INITIAL_SETUP" = "1" ]; then
-    echo "=== [5/9] Bỏ qua màn hình gnome-initial-setup (nếu user vừa tạo mới) ==="
+    echo "=== [5/10] Bỏ qua màn hình gnome-initial-setup (nếu user vừa tạo mới) ==="
     mkdir -p "$HOME/.config"
     touch "$HOME/.config/gnome-initial-setup-done"
     echo "  → Đã đánh dấu gnome-initial-setup-done cho '$KIOSK_USER'."
 else
-    echo "=== [5/9] Bỏ đánh dấu gnome-initial-setup-done (màn hình initial-setup sẽ hiện lại) ==="
+    echo "=== [5/10] Bỏ đánh dấu gnome-initial-setup-done (màn hình initial-setup sẽ hiện lại) ==="
     rm -f "$HOME/.config/gnome-initial-setup-done"
 fi
+
+# ─────────────────────────────────────────────────────────────
+# Giải symlink để lấy đường dẫn tuyệt đối THẬT của binary/script.
+# Dùng ở mục [10/10] watchdog và [8/10] desktop icon.
+# Nếu không tìm thấy → trả về input gốc (không exit, caller quyết định).
+_get_real_exec() {
+    local app="$1"
+    local resolved
+    if [ "${app:0:1}" = "/" ]; then
+        resolved="$(readlink -f "$app" 2>/dev/null || echo "$app")"
+    else
+        local found; found="$(command -v "$app" 2>/dev/null || true)"
+        if [ -z "$found" ]; then echo "$app"; return 0; fi
+        resolved="$(readlink -f "$found" 2>/dev/null || echo "$found")"
+    fi
+    echo "$resolved"
+}
 
 # ─────────────────────────────────────────────────────────────
 # Dò display manager THẬT đang dùng trên máy — KHÔNG hardcode gdm3.
@@ -178,7 +205,7 @@ _detect_dm() {
 
 if [ "$ENABLE_AUTOLOGIN" = "1" ]; then
     DM_NAME="$(_detect_dm)"
-    echo "=== [6/9] Autologin cho user '$KIOSK_USER' (display manager: ${DM_NAME:-không rõ}) ==="
+    echo "=== [6/10] Autologin cho user '$KIOSK_USER' (display manager: ${DM_NAME:-không rõ}) ==="
     AUTOLOGIN_OK=0
     case "$DM_NAME" in
         gdm3|gdm)
@@ -239,7 +266,7 @@ if [ "$ENABLE_AUTOLOGIN" = "1" ]; then
     fi
 else
     DM_NAME="$(_detect_dm)"
-    echo "=== [6/9] Tắt autologin (display manager: ${DM_NAME:-không rõ}) ==="
+    echo "=== [6/10] Tắt autologin (display manager: ${DM_NAME:-không rõ}) ==="
     case "$DM_NAME" in
         gdm3|gdm)
             GDM_CONF="/etc/gdm3/custom.conf"
@@ -260,7 +287,7 @@ fi
 
 # ─────────────────────────────────────────────────────────────
 if [ "$DISABLE_SW_UPDATE" = "1" ]; then
-    echo "=== [7/9] Tắt popup Software Updater ==="
+    echo "=== [7/10] Tắt popup Software Updater ==="
     mkdir -p "$HOME/.config/autostart"
     if [ -f /etc/xdg/autostart/update-notifier.desktop ]; then
         cat > "$HOME/.config/autostart/update-notifier.desktop" <<EOF
@@ -273,7 +300,7 @@ EOF
     fi
     gsettings set org.gnome.software download-updates false 2>/dev/null || true
 else
-    echo "=== [7/9] Bỏ qua (không chọn) ==="
+    echo "=== [7/10] Bỏ qua (không chọn) ==="
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -287,7 +314,7 @@ fi
 #      1     |   1/0     | XÓA (service quản lý app)| cài + enable (mục [10])| theo Autostart
 #      0     |    1      | TẠO                      | gỡ (mục [10])          | tạo
 #      0     |    0      | XÓA (2 chiều)            | gỡ (mục [10])          | xóa (2 chiều)
-echo "=== [8/9] Autostart app iPGS + unclutter khi vào desktop (Autostart=$ENABLE_AUTOSTART, Watchdog=$ENABLE_WATCHDOG) ==="
+echo "=== [8/10] Autostart app iPGS + unclutter + desktop icon khi vào desktop (Autostart=$ENABLE_AUTOSTART, Watchdog=$ENABLE_WATCHDOG) ==="
 mkdir -p "$HOME/.config/autostart"
 
 if [ "$ENABLE_WATCHDOG" = "1" ]; then
@@ -328,6 +355,51 @@ EOF
 else
     rm -f "$HOME/.config/autostart/unclutter.desktop"
     echo "  → Autostart TẮT: đã xóa unclutter.desktop (nếu có)."
+fi
+
+# ─────────────────────────────────────────────────────────────
+# Desktop icon ~/Desktop/ipgs-kiosk.desktop (F14):
+# Cho phép người dùng click icon trực tiếp để mở app khi cần.
+# BẮT BUỘC gio set metadata::trusted true vì Desktop Icons NG (ding@rastersoft.com)
+# từ GNOME 41+ từ chối thực thi .desktop file chưa được đánh dấu trusted.
+DESKTOP_ICON="$HOME/Desktop/ipgs-kiosk.desktop"
+# Pre-compute REAL_EXEC (dùng chung cho [8/10] desktop icon và [10/10] watchdog).
+_REAL_EXEC="$(_get_real_exec "$APP_EXEC")"
+_REAL_EXEC_DIR="$(dirname "$_REAL_EXEC")"
+
+if [ "$ENABLE_AUTOSTART" = "1" ]; then
+    # Tìm icon — ưu tiên từ thư mục cài đặt thực tế của app
+    _APP_ICON=""
+    for _try in "$_REAL_EXEC_DIR/.IPGSKioskAvalonia/appIcon.png" \
+                "$_REAL_EXEC_DIR/appIcon.png" \
+                "/opt/kztek/ipgskioskavalonia/.IPGSKioskAvalonia/appIcon.png"; do
+        if [ -f "$_try" ]; then _APP_ICON="$_try"; break; fi
+    done
+    mkdir -p "$HOME/Desktop"
+    cat > "$DESKTOP_ICON" <<EOF
+[Desktop Entry]
+Type=Application
+Name=IPGS Kiosk
+Comment=KZTEK IPGS Kiosk App
+Exec=$_REAL_EXEC
+Icon=$_APP_ICON
+Terminal=false
+Categories=Utility;
+EOF
+    chmod +x "$DESKTOP_ICON"
+    # F14: gio set metadata::trusted true — yêu cầu GVfs/session bus đang chạy.
+    # Khi chạy qua SSH với env DISPLAY=:0 + DBUS_SESSION_BUS_ADDRESS thì lệnh này hoạt động.
+    if gio set "$DESKTOP_ICON" metadata::trusted true 2>/dev/null; then
+        echo "  → Đã tạo $DESKTOP_ICON (Exec=$_REAL_EXEC, trusted=true — F14 fix)"
+    else
+        echo "  → Đã tạo $DESKTOP_ICON (Exec=$_REAL_EXEC)"
+        echo "CẢNH BÁO (F14): không set metadata::trusted — GVfs/session bus chưa sẵn sàng." >&2
+        echo "     Chạy thủ công trong phiên desktop: gio set $DESKTOP_ICON metadata::trusted true" >&2
+    fi
+else
+    # 2 chiều: tắt autostart = xóa cả desktop shortcut
+    rm -f "$DESKTOP_ICON"
+    echo "  → Autostart TẮT: đã xóa desktop icon $DESKTOP_ICON (nếu có)."
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -396,7 +468,7 @@ _sweep_stray_dconf_backups() {
 }
 
 if [ "$LOCKDOWN_SHELL" = "1" ]; then
-    echo "=== [9/9] Khoá lối thoát kiosk (dconf system-wide + lock) ==="
+    echo "=== [9/10] Khoá lối thoát kiosk (dconf system-wide + lock) ==="
 
     # Soạn nội dung ở file tạm của user rồi _sudo install — tránh pipe qua _sudo
     # (stdin của _sudo đã dùng để truyền mật khẩu cho sudo -S).
@@ -607,7 +679,7 @@ HELPER_EOF
     fi
     echo "  → Gỡ khoá bảo trì: sudo ipgs-kiosk-unlock  (tự dọn file rác + dconf update + xác minh writable=true)"
 else
-    echo "=== [9/9] GỠ khoá lối thoát kiosk (chế độ bảo trì) ==="
+    echo "=== [9/10] GỠ khoá lối thoát kiosk (chế độ bảo trì) ==="
     if [ -f "$DCONF_SETTINGS" ] || [ -f "$DCONF_LOCKS" ]; then
         # F11: backup ra $BACKUP_DIR (ngoài cây dconf db) + dọn cả file rác cùng prefix.
         _backup_sys_file "$DCONF_SETTINGS"
@@ -659,7 +731,7 @@ WATCHDOG_UNIT_NAME="ipgs-kiosk-app.service"
 WATCHDOG_UNIT="$HOME/.config/systemd/user/$WATCHDOG_UNIT_NAME"
 
 if [ "$ENABLE_WATCHDOG" = "1" ]; then
-    echo "=== [10] Watchdog systemd: tự khởi động lại app kiosk khi đóng/crash ==="
+    echo "=== [10/10] Watchdog systemd: tự khởi động lại app kiosk khi đóng/crash ==="
     mkdir -p "$HOME/.config/systemd/user"
     # F11: backup unit ra thư mục riêng của user — không để file lạ trong
     # ~/.config/systemd/user/ (systemd bỏ qua đuôi không hợp lệ nhưng vẫn là rác).
@@ -668,30 +740,11 @@ if [ "$ENABLE_WATCHDOG" = "1" ]; then
         cp "$WATCHDOG_UNIT" "$USER_BACKUP_DIR/$WATCHDOG_UNIT_NAME.$BAK_SUFFIX" 2>/dev/null || true
     fi
 
-    # F12 RC#2: Tìm đường dẫn tuyệt đối THẬT của binary/script để đặt vào ExecStart.
-    # Lỗi cũ: ExecStart=/bin/bash -lc 'exec ipgskioskavalonia'
-    #   → bash tìm trong PATH → /usr/bin/ipgskioskavalonia (symlink → run.sh)
-    #   → bash exec symlink: BASH_SOURCE[0]=/usr/bin/ipgskioskavalonia → DIR=/usr/bin
-    #   → exec /usr/bin/IPGS.Kiosk.Avalonia → NOT FOUND → exit 127 (crash-loop).
-    # Fix: readlink -f giải symlink → lấy đường dẫn thật của run.sh (ví dụ
-    #   /opt/kztek/ipgskioskavalonia/run.sh) → BASH_SOURCE[0] đúng → DIR đúng.
-    # Nếu không tìm thấy → báo lỗi rõ và exit != 0, KHÔNG ghi unit trỏ void.
-    _get_real_exec() {
-        local app="$1"
-        local resolved
-        # Đường dẫn tuyệt đối → resolve symlink ngay
-        if [ "${app:0:1}" = "/" ]; then
-            resolved="$(readlink -f "$app" 2>/dev/null || echo "$app")"
-        else
-            # Tên lệnh trong PATH → tìm → resolve symlink
-            local found; found="$(command -v "$app" 2>/dev/null || true)"
-            if [ -z "$found" ]; then echo "$app"; return 0; fi
-            resolved="$(readlink -f "$found" 2>/dev/null || echo "$found")"
-        fi
-        echo "$resolved"
-    }
-
-    REAL_EXEC="$(_get_real_exec "$APP_EXEC")"
+    # F12 RC#2: Dùng REAL_EXEC đã được pre-compute ở mục [8/10] (global _get_real_exec).
+    # Fix symlink: readlink -f giải /usr/bin/ipgskioskavalonia → /opt/kztek/.../run.sh
+    # → BASH_SOURCE[0] đúng → DIR đúng → không còn exit 127 crash-loop.
+    REAL_EXEC="$_REAL_EXEC"
+    REAL_EXEC_DIR="$_REAL_EXEC_DIR"
     echo "  → Kiểm tra binary: $REAL_EXEC"
     if [ ! -f "$REAL_EXEC" ] || [ ! -x "$REAL_EXEC" ]; then
         echo "LỖI: không tìm thấy binary '$REAL_EXEC' (tồn tại + có quyền thực thi)." >&2
@@ -699,7 +752,6 @@ if [ "$ENABLE_WATCHDOG" = "1" ]; then
         echo "     hoặc truyền đường dẫn tuyệt đối cho tham số app_exec." >&2
         exit 1
     fi
-    REAL_EXEC_DIR="$(dirname "$REAL_EXEC")"
 
     cat > "$WATCHDOG_UNIT" <<EOF
 [Unit]
@@ -737,7 +789,7 @@ EOF
     echo "  → Gỡ watchdog: chạy lại script với tham số 12 = 0, hoặc:"
     echo "      systemctl --user disable --now $WATCHDOG_UNIT_NAME && rm $WATCHDOG_UNIT && systemctl --user daemon-reload"
 else
-    echo "=== [10] GỠ watchdog systemd app kiosk (không chọn) ==="
+    echo "=== [10/10] GỠ watchdog systemd app kiosk (không chọn) ==="
     if [ -f "$WATCHDOG_UNIT" ]; then
         systemctl --user disable --now "$WATCHDOG_UNIT_NAME" 2>/dev/null || true
         mkdir -p "$USER_BACKUP_DIR"
