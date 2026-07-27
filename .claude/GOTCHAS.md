@@ -29,6 +29,12 @@
 | G016 | DPAPI `ProtectedData` chỉ chạy Windows — app cross-platform PHẢI xử lý tường minh trên Linux (cảnh báo/lỗi rõ), TUYỆT ĐỐI không im lặng fallback plaintext | 2026-07-26 |
 | G017 | SSH exec channel KHÔNG có tty → `sudo` trần báo `no tty present and no askpass program specified`. Có `sudo` là PHẢI luôn thêm `-S`; đừng để nhánh "không có password" chạy sudo trần | 2026-07-26 |
 | G018 | Avalonia `AutoCompleteBox`: set `IsDropDownOpen = true` khi view lọc nội bộ còn RỖNG → popup mở 0 item (vô hình) + property kẹt `true`, gõ phím sau đó không mở lại. Phải `PopulateComplete()` trước khi mở | 2026-07-26 |
+| G019 | GDM autologin race hiếm sau crash/boot bất thường — thêm `TimedLoginEnable`+`TimedLoginDelay=5` làm fallback; `RunCommand` không check ExitStatus → deploy fail vẫn hiện "thành công"; `printf ... \| _sudo tee` → tee ghi rỗng (pipe chiếm stdin của sudo) | 2026-07-26 |
+| G020 | `dconf system-db` bị bỏ qua âm thầm nếu thiếu `/etc/dconf/profile/user`; session đang chạy không nhận profile mới cho tới khi re-login/reboot | 2026-07-27 |
+| G021 | Chặn cử chỉ cảm ứng mở overview: GNOME Shell 42 không có dconf key + Just Perfection v26 không có key `gesture` (chỉ GNOME 45+) → dùng extension cục bộ; docx2pdf Quit() RPC lỗi nhưng PDF vẫn được ghi | 2026-07-27 |
+| G022 | `dconf update` biên dịch MỌI file trong `local.d/`/`locks/` bất kể đuôi tên — backup `.bak` tại chỗ tái áp lock → phá đường gỡ khoá bảo trì; phải lưu backup ra ngoài cây `/etc/dconf/db/` | 2026-07-27 |
+| G023 | `BASH_SOURCE[0]` khi bash exec symlink qua PATH = đường dẫn symlink (KHÔNG phải target) → wrapper tự định vị bị DIR=/usr/bin → binary not found → exit 127; fix: `readlink -f` hoặc ExecStart đường dẫn tuyệt đối target | 2026-07-27 |
+| G024 | `gext install` gọi D-Bus GUI dialog xác nhận — treo ~24s qua SSH không có người bấm → timeout → `set -e` abort script; fix: curl+unzip offline từ extensions.gnome.org, không cần D-Bus | 2026-07-27 |
 
 ---
 
@@ -525,3 +531,33 @@ nên retry ngắn khi `CreateInputStream()` ném `InvalidOperationException`.
 **Cách xử lý:** (1) MỌI backup của file dconf phải ghi RA NGOÀI cây `/etc/dconf/db/` (dùng `/var/backups/kztek-kiosk/`, tên đích kèm tên thư mục cha tránh trùng basename settings/locks). (2) Thao tác gỡ khoá phải xoá theo glob `00-kiosk-lockdown*` (quét cả rác cũ) rồi **XÁC MINH** bằng `gsettings writable <key bị lock>` = `true` (process mới đọc profile mới ngay — G020) — không tin "đã xoá file" là đủ. (3) Cung cấp helper 1 lệnh `sudo ipgs-kiosk-unlock` (sinh từ `2-configure-system.sh`) tự làm cả 3 bước, in `UNLOCK-VERIFIED`/`UNLOCK-FAILED`.
 **Không cần làm lại:** Không cần tìm "đuôi tên mà dconf bỏ qua" — không tồn tại, bắt buộc chuyển backup ra ngoài thư mục. Không cần sửa backup GDM `custom.conf.bak-*` trong `/etc/gdm3/` — GDM chỉ đọc đúng tên file, không quét thư mục. Kiểm chứng chu trình gỡ→khoá lại được từ xa qua SSH (không cần đứng máy): unlock → `writable=true` → restore + `dconf update` → `writable=false`.
 **Lần đầu gặp:** F11 — WF-BUGFIX BUG-ccu-ui-findings (2026-07-27), kiểm chứng chu trình đầy đủ trên ZCU 192.168.0.101 (dọn 11 file rác thật).
+
+---
+
+## G023 — `BASH_SOURCE[0]` với symlink trong `/usr/bin`: trỏ về symlink, KHÔNG phải target — wrapper script tự định vị bị sai đường dẫn
+**Bối cảnh:** F12 RC#2 — `ipgs-kiosk-app.service` crash-loop exit 127 trên Ubuntu 22.04 (GNOME X11, kiosk deploy).
+**Hiện tượng:** Service crashloop liên tục (`NRestarts > 100` sau ~1 giờ), `status=127` (Not found). `ExecStart=/bin/bash -lc 'exec ipgskioskavalonia'` → bash tìm PATH → `/usr/bin/ipgskioskavalonia` (symlink → `/opt/kztek/ipgskioskavalonia/run.sh`). Wrapper script có `DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"` — tưởng tự định vị đúng thư mục thật của script.
+**Nguyên nhân:** Khi bash **exec một symlink tìm được qua PATH** (không phải gọi trực tiếp bằng đường dẫn target), `BASH_SOURCE[0]` = `/usr/bin/ipgskioskavalonia` (đường dẫn symlink trong PATH, **KHÔNG phải** `/opt/kztek/ipgskioskavalonia/run.sh`). `dirname` = `/usr/bin` → `DIR=/usr/bin` → `exec "/usr/bin/IPGS.Kiosk.Avalonia"` không tồn tại → exit 127. Hành vi này **không thay đổi** dù có `set -e`, `source`, hay `exec` — chỉ `readlink -f` hoặc gọi đường dẫn tuyệt đối target mới giải symlink đúng.
+**Cách xử lý:** Trong unit file systemd, **KHÔNG** dùng `ExecStart=/bin/bash -lc 'exec <tên-qua-PATH>'` khi entry point là symlink. Thay bằng:
+1. Dùng `readlink -f "$(command -v <name>)"` để giải symlink → đường dẫn thật → đặt trực tiếp vào `ExecStart`.
+2. Hoặc hardcode `ExecStart=/opt/kztek/.../run.sh` (đường dẫn thật, không qua symlink).
+3. Wrapper script muốn "tự định vị": thay `dirname "${BASH_SOURCE[0]}"` bằng `readlink -f "${BASH_SOURCE[0]}"` rồi mới lấy dirname.
+Bổ sung: kiểm tra binary tồn tại + có quyền thực thi (`[ -f "$REAL" ] && [ -x "$REAL" ]`) TRƯỚC khi ghi unit file — tránh ghi unit lỗi âm thầm.
+**Lần đầu gặp:** F12 RC#2 — WF-BUGFIX BUG-ccu-ui-findings (2026-07-27), ZCU `192.168.21.16`, verify qua `systemctl --user status` + screenshot app chạy sau reboot.
+**Không cần làm lại:** Không sửa wrapper `/usr/bin/ipgskioskavalonia` (Phương án B) — khi script deploy lại sẽ overwrite; fix đúng chỗ là unit file template trong `2-configure-system.sh`.
+
+---
+
+## G024 — `gext install` kích hoạt GUI D-Bus dialog khi chạy qua SSH → treo ~24s rồi abort script
+**Bối cảnh:** F13 — `1-install-software.sh` fail khi cài GNOME Shell extension qua SSH (kiosk deploy trên Ubuntu 22.04, GNOME Shell 42.9).
+**Hiện tượng:** Bước [2/5] (`gext install just-perfection-desktop@just-perfection`) treo ~24 giây, sau đó exit non-zero → `set -e` abort toàn bộ script. Output: `GLib.Error: Timed out waiting for response`. Xảy ra LUÔN LUÔN khi extension dir bị xóa và chạy qua SSH.
+**Nguyên nhân:** `gext install <uuid>` gọi D-Bus `org.gnome.Shell.Extensions.InstallRemoteExtension(uuid)` → GNOME Shell hiển thị popup GUI xác nhận "Install this extension?" trong session GNOME. Khi chạy qua SSH (không có người ngồi trước màn hình để bấm OK), popup không được bấm → D-Bus call timeout ~24s → gext exit non-zero → `set -e` kill toàn bộ script. Lỗi này không xuất hiện khi extension dir ĐÃ có (bước check `gnome-extensions list` skip qua phần gext).
+**Cách xử lý:** Thay `gext install` bằng **offline install** dùng `curl + unzip`:
+```bash
+curl -fsSL "https://extensions.gnome.org/download-extension/${uuid}.shell-extension.zip?shell_version=${shell_ver}" -o /tmp/ext.zip
+mkdir -p ~/.local/share/gnome-shell/extensions/$uuid
+unzip -o -q /tmp/ext.zip -d ~/.local/share/gnome-shell/extensions/$uuid
+```
+Không cần D-Bus, không cần shell đang chạy, không cần popup bấm. Sau install, GNOME Shell đang chạy chưa scan thư mục mới → `gnome-extensions enable` trả "Extension does not exist" → thêm fallback `gsettings set org.gnome.shell enabled-extensions` (append uuid vào list) để đảm bảo enabled sau reboot.
+**Lần đầu gặp:** F13 — WF-BUGFIX BUG-ccu-ui-findings (2026-07-27), ZCU `192.168.21.16`, verify idempotency 2 lần (dir có/không có) + reboot xác nhận extensions ENABLED.
+**Không cần làm lại:** Không thử truyền `DBUS_SESSION_BUS_ADDRESS` vào plink để "gext thấy D-Bus" — ngay cả khi D-Bus tìm được, popup vẫn hiện và không ai bấm → vẫn timeout. Không dùng `gnome-extensions install` (wrapper của gext, cùng vấn đề D-Bus). Chỉ offline install mới triệt để.

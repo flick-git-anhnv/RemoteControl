@@ -30,13 +30,12 @@
 # BẮT BUỘC: chạy trong phiên desktop (GUI) thật của user kiosk — không SSH thuần,
 # không "sudo bash ..." cả script (script tự sudo khi cần).
 #
-# GHI CHÚ QUAN TRỌNG rút ra từ lần test đầu: bước "gext install <uuid>" gọi
-# D-Bus method InstallRemoteExtension của GNOME Shell — Shell sẽ hiện 1 popup
-# xác nhận NGAY TRÊN MÀN HÌNH VẬT LÝ của máy (không thấy được qua SSH), và có
-# timeout ngắn (~24s). Nếu không có người đứng trước màn hình bấm "Install"
-# kịp, bước này sẽ báo lỗi "Timeout was reached (24)" — không phải lỗi script,
-# chỉ cần chạy lại (script idempotent, đã cài rồi sẽ tự bỏ qua) sau khi đã bấm
-# xác nhận, hoặc đứng trước màn hình kiosk khi chạy lần đầu để bấm popup đó.
+# GHI CHÚ (đã khắc phục — F13 2026-07-27): trước đây bước "gext install <uuid>"
+# gọi D-Bus InstallRemoteExtension → GNOME Shell hiện popup xác nhận trên màn
+# hình vật lý và timeout ~24s nếu không ai bấm → set -e abort toàn script khi
+# chạy qua SSH. Đã thay bằng _install_ext_offline (curl + unzip) — tải thẳng
+# zip từ extensions.gnome.org và giải nén vào ~/.local/share/gnome-shell/extensions/
+# mà không cần D-Bus/GUI. Không cần ai đứng trước màn hình nữa.
 #
 # Chạy (mặc định ẩn tất cả, không cần đối số):
 #   bash scripts/linux-kiosk/1-install-software.sh
@@ -59,6 +58,7 @@ EXT_UUID="just-perfection-desktop@just-perfection"
 EXT_DIR="$HOME/.local/share/gnome-shell/extensions/$EXT_UUID"
 
 EXT_UUID_KEYBOARD="block-caribou-36@lxylxy123456.ercli.dev"
+EXT_DIR_KEYBOARD="$HOME/.local/share/gnome-shell/extensions/$EXT_UUID_KEYBOARD"
 
 echo "=== [1] Cài phần mềm cho Kiosk iPGS — Ubuntu 22.04 ==="
 echo "  Home hiện tại: $HOME"
@@ -71,13 +71,97 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
+# Helper sudo cho SSH session không có TTY.
+_sudo() {
+    if [ -n "${KIOSK_SUDO_PASS:-}" ]; then
+        echo "$KIOSK_SUDO_PASS" | sudo -S "$@" 2>/dev/null
+    else
+        sudo "$@"
+    fi
+}
+
+# Cài extension GNOME Shell từ extensions.gnome.org bằng curl+unzip — không cần
+# D-Bus/GUI dialog (F13: thay thế `gext install` gây popup + timeout SSH ~24s).
+# Idempotent: unzip -o ghi đè nếu dir đã có. Thất bại thật (lỗi mạng, zip hỏng)
+# vẫn exit != 0 rõ ràng thay vì âm thầm thành công giả.
+_install_ext_offline() {
+    local uuid="$1"
+    local ext_dir="$HOME/.local/share/gnome-shell/extensions/$uuid"
+
+    # Major version GNOME Shell (42, 43, ...)
+    local shell_ver
+    shell_ver="$(gnome-shell --version 2>/dev/null | grep -oE '[0-9]+' | head -1)"
+    if [ -z "$shell_ver" ]; then
+        echo "LỖI (_install_ext_offline): không xác định được phiên bản GNOME Shell." >&2
+        return 1
+    fi
+
+    local zip_url="https://extensions.gnome.org/download-extension/${uuid}.shell-extension.zip?shell_version=${shell_ver}"
+    local tmp_zip; tmp_zip="$(mktemp --suffix=.zip)"
+
+    echo "  → Tải extension '$uuid' (GNOME Shell $shell_ver) từ extensions.gnome.org..."
+    if ! curl -fsSL --max-time 30 --retry 2 --retry-delay 3 "$zip_url" -o "$tmp_zip"; then
+        rm -f "$tmp_zip"
+        echo "LỖI: không tải được extension '$uuid'." >&2
+        echo "     URL: $zip_url" >&2
+        echo "     Kiểm tra kết nối mạng hoặc shell_version=$shell_ver có bản tương thích không." >&2
+        return 1
+    fi
+
+    mkdir -p "$ext_dir"
+    if ! unzip -o -q "$tmp_zip" -d "$ext_dir"; then
+        rm -f "$tmp_zip"
+        echo "LỖI: không giải nén được extension zip '$uuid'." >&2
+        return 1
+    fi
+    rm -f "$tmp_zip"
+    echo "  → Đã cài extension '$uuid' vào $ext_dir (không cần bấm popup)."
+}
+
+# Bật extension: thử gnome-extensions enable (cần shell đã nhận diện), fallback
+# trực tiếp vào gsettings enabled-extensions (khi shell chưa scan thư mục mới).
+# Idempotent: không thêm trùng. Hiệu lực thật ở lần login kế tiếp nếu shell
+# chưa nhận diện, hoặc ngay lập tức nếu shell đã nhận diện.
+_force_enable_ext() {
+    local uuid="$1"
+    if gnome-extensions enable "$uuid" 2>/dev/null; then
+        echo "  → Extension '$uuid' đã ENABLED (gnome-extensions enable OK)."
+        return 0
+    fi
+    # gnome-extensions enable thất bại → fallback: thêm trực tiếp vào gsettings
+    local cur; cur="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || echo '@as []')"
+    if echo "$cur" | grep -q "$uuid"; then
+        echo "  → Extension '$uuid' đã có trong enabled-extensions (bỏ qua)."
+        return 0
+    fi
+    local new_ext
+    if echo "$cur" | grep -qE "^\@as \[\]$|^\[\]$"; then
+        new_ext="['$uuid']"
+    else
+        new_ext="$(echo "$cur" | sed "s/]$/, '$uuid']/")"
+    fi
+    gsettings set org.gnome.shell enabled-extensions "$new_ext" 2>/dev/null || true
+    echo "  → Extension '$uuid' đã đăng ký vào enabled-extensions qua gsettings (hiệu lực ở lần login kế tiếp)."
+}
+
 # ─────────────────────────────────────────────────────────────
 # Top Bar/Activities/Workspace/Dash giờ là toggle 2 CHIỀU thật sự (không còn kiểu
 # "bỏ qua nếu = 0") nên LUÔN cần extension Just Perfection cài & bật, dù đang ẩn
 # hay hiện lại — vì cả 2 chiều đều đi qua gsettings của chính extension đó.
-echo "=== [1/5] Cài python3-pip + gnome-extensions-cli ==="
+echo "=== [1/5] Cài công cụ cần thiết (curl, unzip, gnome-extensions-cli) ==="
+# curl + unzip: dùng cho _install_ext_offline thay thế gext install (F13).
+if ! command -v curl >/dev/null 2>&1; then
+    _sudo apt install -y curl
+else
+    echo "  → curl đã có, bỏ qua."
+fi
+if ! command -v unzip >/dev/null 2>&1; then
+    _sudo apt install -y unzip
+else
+    echo "  → unzip đã có, bỏ qua."
+fi
 if ! command -v pip3 >/dev/null 2>&1; then
-    sudo apt install -y python3-pip
+    _sudo apt install -y python3-pip
 else
     echo "  → pip3 đã có, bỏ qua."
 fi
@@ -96,19 +180,19 @@ fi
 
 # ─────────────────────────────────────────────────────────────
 echo "=== [2/5] Cài + bật extension Just Perfection ==="
-if ! gnome-extensions list 2>/dev/null | grep -q "^$EXT_UUID$"; then
-    echo "  → LƯU Ý: GNOME Shell sẽ hiện popup xác nhận trên màn hình — hãy đứng"
-    echo "    trước màn hình kiosk và bấm 'Install' trong vài giây tới."
-    gext install "$EXT_UUID"
+# F13: dùng _install_ext_offline thay gext install — không cần GUI dialog/bấm popup.
+# Idempotent: nếu dir đã có và shell đã nhận diện uuid → bỏ qua tải lại;
+#             nếu dir bị xoá → tải và cài lại từ extensions.gnome.org.
+if ! gnome-extensions list 2>/dev/null | grep -q "^$EXT_UUID$" || [ ! -d "$EXT_DIR" ]; then
+    _install_ext_offline "$EXT_UUID"
 else
     echo "  → Extension đã cài, bỏ qua bước install."
 fi
-gnome-extensions enable "$EXT_UUID" || true
+_force_enable_ext "$EXT_UUID"
 
 STATE="$(gnome-extensions info "$EXT_UUID" 2>/dev/null | grep 'State:' | awk '{print $2}')"
 if [ "$STATE" != "ENABLED" ]; then
-    echo "CẢNH BÁO: extension chưa ở trạng thái ENABLED (State: $STATE)." >&2
-    echo "          Có thể cần log out/log in lại rồi chạy lại script." >&2
+    echo "CẢNH BÁO: extension chưa ở trạng thái ENABLED (State: $STATE) — hiệu lực ở lần login kế tiếp." >&2
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -273,19 +357,17 @@ echo "=== [4/5] Bàn phím ảo GNOME (2 chiều) ==="
 if [ "$HIDE_KEYBOARD" = "1" ]; then
     gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled false 2>/dev/null || true
 
-    if ! gnome-extensions list 2>/dev/null | grep -q "^$EXT_UUID_KEYBOARD$"; then
-        echo "  → LƯU Ý: GNOME Shell sẽ hiện popup xác nhận trên màn hình — hãy đứng"
-        echo "    trước màn hình kiosk và bấm 'Install' trong vài giây tới."
-        gext install "$EXT_UUID_KEYBOARD"
+    # F13: dùng _install_ext_offline thay gext install — không cần GUI dialog.
+    if ! gnome-extensions list 2>/dev/null | grep -q "^$EXT_UUID_KEYBOARD$" || [ ! -d "$EXT_DIR_KEYBOARD" ]; then
+        _install_ext_offline "$EXT_UUID_KEYBOARD"
     else
         echo "  → Extension Block Caribou 36 đã cài, bỏ qua bước install."
     fi
-    gnome-extensions enable "$EXT_UUID_KEYBOARD" || true
+    _force_enable_ext "$EXT_UUID_KEYBOARD"
 
     KB_STATE="$(gnome-extensions info "$EXT_UUID_KEYBOARD" 2>/dev/null | grep 'State:' | awk '{print $2}')"
     if [ "$KB_STATE" != "ENABLED" ]; then
-        echo "CẢNH BÁO: Block Caribou 36 chưa ở trạng thái ENABLED (State: $KB_STATE)." >&2
-        echo "          Có thể cần log out/log in lại rồi chạy lại script." >&2
+        echo "CẢNH BÁO: Block Caribou 36 chưa ở trạng thái ENABLED (State: $KB_STATE) — hiệu lực ở lần login kế tiếp." >&2
     fi
     echo "  → Đã tắt bàn phím ảo (gsettings + extension Block Caribou 36)."
 else
@@ -298,7 +380,7 @@ fi
 if [ "$INSTALL_UNCLUTTER" = "1" ]; then
     echo "=== [5/5] Cài unclutter (ẩn con trỏ chuột) ==="
     if ! dpkg -s unclutter >/dev/null 2>&1; then
-        sudo apt install -y unclutter
+        _sudo apt install -y unclutter
     else
         echo "  → unclutter đã cài, bỏ qua."
     fi

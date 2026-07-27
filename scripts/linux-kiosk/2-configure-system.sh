@@ -668,8 +668,38 @@ if [ "$ENABLE_WATCHDOG" = "1" ]; then
         cp "$WATCHDOG_UNIT" "$USER_BACKUP_DIR/$WATCHDOG_UNIT_NAME.$BAK_SUFFIX" 2>/dev/null || true
     fi
 
-    # Escape dấu ' trong APP_EXEC để nhúng an toàn vào 'exec ...' của bash -lc.
-    APP_EXEC_ESC="$(printf '%s' "$APP_EXEC" | sed "s/'/'\\\\''/g")"
+    # F12 RC#2: Tìm đường dẫn tuyệt đối THẬT của binary/script để đặt vào ExecStart.
+    # Lỗi cũ: ExecStart=/bin/bash -lc 'exec ipgskioskavalonia'
+    #   → bash tìm trong PATH → /usr/bin/ipgskioskavalonia (symlink → run.sh)
+    #   → bash exec symlink: BASH_SOURCE[0]=/usr/bin/ipgskioskavalonia → DIR=/usr/bin
+    #   → exec /usr/bin/IPGS.Kiosk.Avalonia → NOT FOUND → exit 127 (crash-loop).
+    # Fix: readlink -f giải symlink → lấy đường dẫn thật của run.sh (ví dụ
+    #   /opt/kztek/ipgskioskavalonia/run.sh) → BASH_SOURCE[0] đúng → DIR đúng.
+    # Nếu không tìm thấy → báo lỗi rõ và exit != 0, KHÔNG ghi unit trỏ void.
+    _get_real_exec() {
+        local app="$1"
+        local resolved
+        # Đường dẫn tuyệt đối → resolve symlink ngay
+        if [ "${app:0:1}" = "/" ]; then
+            resolved="$(readlink -f "$app" 2>/dev/null || echo "$app")"
+        else
+            # Tên lệnh trong PATH → tìm → resolve symlink
+            local found; found="$(command -v "$app" 2>/dev/null || true)"
+            if [ -z "$found" ]; then echo "$app"; return 0; fi
+            resolved="$(readlink -f "$found" 2>/dev/null || echo "$found")"
+        fi
+        echo "$resolved"
+    }
+
+    REAL_EXEC="$(_get_real_exec "$APP_EXEC")"
+    echo "  → Kiểm tra binary: $REAL_EXEC"
+    if [ ! -f "$REAL_EXEC" ] || [ ! -x "$REAL_EXEC" ]; then
+        echo "LỖI: không tìm thấy binary '$REAL_EXEC' (tồn tại + có quyền thực thi)." >&2
+        echo "     Đảm bảo app kiosk đã được deploy trước khi bật watchdog," >&2
+        echo "     hoặc truyền đường dẫn tuyệt đối cho tham số app_exec." >&2
+        exit 1
+    fi
+    REAL_EXEC_DIR="$(dirname "$REAL_EXEC")"
 
     cat > "$WATCHDOG_UNIT" <<EOF
 [Unit]
@@ -683,14 +713,16 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/bin/bash -lc 'exec $APP_EXEC_ESC'
+Environment=DISPLAY=:0
+WorkingDirectory=$REAL_EXEC_DIR
+ExecStart=$REAL_EXEC
 Restart=always
 RestartSec=10
 
 [Install]
 WantedBy=graphical-session.target
 EOF
-    echo "  → Đã ghi $WATCHDOG_UNIT (ExecStart=$APP_EXEC, Restart=always RestartSec=10, StartLimitIntervalSec=0 — không bao giờ chết hẳn)"
+    echo "  → Đã ghi $WATCHDOG_UNIT (ExecStart=$REAL_EXEC, WorkingDirectory=$REAL_EXEC_DIR, Restart=always RestartSec=10, StartLimitIntervalSec=0 — không bao giờ chết hẳn)"
 
     systemctl --user daemon-reload 2>/dev/null || true
     systemctl --user enable "$WATCHDOG_UNIT_NAME" 2>/dev/null || true

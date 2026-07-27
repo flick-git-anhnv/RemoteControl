@@ -801,3 +801,89 @@ File cần sửa: `scripts/linux-kiosk/2-configure-system.sh` (phần viết `ip
 
 — QA Engineer, 2026-07-27 09:40
 
+> **✅ Đã sửa Root Cause #2 (2026-07-27, senior-developer):**
+>
+> **Nguyên nhân gốc (xác nhận):** `ExecStart=/bin/bash -lc 'exec ipgskioskavalonia'` → bash tìm trong PATH → `/usr/bin/ipgskioskavalonia` (symlink → `run.sh`). Khi bash exec một symlink qua PATH, `BASH_SOURCE[0]` = `/usr/bin/ipgskioskavalonia` (đường dẫn symlink, KHÔNG phải target). `dirname` = `/usr/bin`. `exec "/usr/bin/IPGS.Kiosk.Avalonia"` → không tồn tại → **exit 127** → crash-loop (NRestarts > 100).
+>
+> **Cách sửa (Phương án A — gọi thẳng `run.sh` qua đường dẫn tuyệt đối):** Thêm hàm `_get_real_exec()` trong `2-configure-system.sh` sử dụng `readlink -f` để giải symlink → lấy đường dẫn canonical thật (`/opt/kztek/ipgskioskavalonia/run.sh`). `ExecStart` trong unit file giờ = đường dẫn thật đó, không qua wrapper. Bổ sung kiểm tra: nếu binary sau `readlink -f` không tồn tại hoặc không có quyền thực thi → `exit 1` với thông báo rõ ràng (không âm thầm viết unit file lỗi).
+>
+> **Bằng chứng sau fix và reboot:**
+> ```
+> # systemctl --user status ipgs-kiosk-app.service
+> Active: active (running) since Mon 2026-07-27 ...
+> Main PID: 2399 (/opt/kztek/ipgskioskavalonia/IPGS.Kiosk.Avalonia)
+> ExecStart=/opt/kztek/ipgskioskavalonia/run.sh
+> ```
+> Screenshot: `docs/bugs/screenshots/f12-app-running-after-fix.png` — app IPGS Kiosk Avalonia hiển thị trên màn hình ZCU sau reboot với dialog "Kiosk chưa được cấu hình đầy đủ".
+
+---
+
+## F13 — `1-install-software.sh` treo ~24s rồi abort khi cài extension GNOME Shell qua SSH
+
+| Trường | Nội dung |
+|---|---|
+| **Thành phần** | `scripts/linux-kiosk/1-install-software.sh` — bước [2/5] và [4/5] (`gext install <uuid>`) |
+| **Mức độ** | P2 |
+| **Môi trường** | ZCU `192.168.21.16`, Ubuntu 22.04, GNOME Shell 42.9, kết nối qua SSH (không có terminal tương tác, không có DISPLAY D-Bus trực tiếp) |
+| **Các bước tái hiện** | 1. Xóa thư mục extension: `rm -rf ~/.local/share/gnome-shell/extensions/<uuid>`. 2. Chạy script qua SSH: `bash 1-install-software.sh 1 1 0 0 0 0`. 3. Quan sát output bước [2/5]. |
+| **Kết quả thực tế** | `gext install just-perfection-desktop@just-perfection` treo ~24 giây, sau đó script abort với exit 1. Log: `GLib.Error: Timed out waiting for response`. Script có `set -e` → abort toàn bộ, bước tiếp theo không chạy. |
+| **Kết quả mong đợi** | Script cài extension không cần tương tác GUI, chạy hoàn thành qua SSH, exit 0. |
+| **Phân tích gốc** | `gext install` gọi D-Bus `InstallRemoteExtension` trên `org.gnome.Shell.Extensions` → GNOME Shell hiển thị hộp thoại xác nhận cài đặt (GUI pop-up, yêu cầu bấm "Install"). Khi chạy qua SSH: hoặc không có `DBUS_SESSION_BUS_ADDRESS` → D-Bus call fail ngay; hoặc có D-Bus nhưng popup không được bấm → timeout ~24s → abort. |
+| **Tần suất** | Luôn luôn (100%) khi extension dir bị xóa và script chạy qua SSH không có người ngồi trước màn hình bấm popup |
+| **Ảnh chứng minh** | Log output `GLib.Error: Timed out waiting for response` trong session thực tế |
+
+### Idempotency trước khi fix
+
+| Lần chạy | Script | Extension dir có sẵn? | Kết quả |
+|---|---|---|---|
+| `1-install-software.sh` | Lần 1 (fresh) | ❌ Không | ❌ FAIL — `gext install` timeout 24s → exit 1, abort |
+| `1-install-software.sh` | Lần 1 (nếu dir có sẵn) | ✅ Có | ✅ OK — bước install bị skip |
+
+### Root Cause — `gext install` kích hoạt D-Bus GUI dialog
+
+`gext install <uuid>` là frontend CLI của `gnome-extensions-cli`, gọi:
+```
+org.gnome.Shell.Extensions → InstallRemoteExtension(uuid)
+```
+→ GNOME Shell hiển thị popup "Bạn có muốn cài extension này không?" — yêu cầu bấm nút "Install" trong GNOME Shell.
+
+Khi script chạy qua SSH (không có người bấm popup):
+1. `DBUS_SESSION_BUS_ADDRESS` có thể có (nếu truyền vào `plink`), nhưng popup xuất hiện mà không ai bấm.
+2. `gext` timeout sau ~24 giây → exit non-zero → `set -e` abort toàn bộ script.
+
+### Cách sửa — Cài offline bằng `curl + unzip`
+
+**Thay thế `gext install` bằng `_install_ext_offline()`:**
+
+```bash
+_install_ext_offline() {
+    local uuid="$1"
+    local ext_dir="$HOME/.local/share/gnome-shell/extensions/$uuid"
+    local shell_ver
+    shell_ver="$(gnome-shell --version 2>/dev/null | grep -oE '[0-9]+' | head -1)"
+    local zip_url="https://extensions.gnome.org/download-extension/${uuid}.shell-extension.zip?shell_version=${shell_ver}"
+    local tmp_zip; tmp_zip="$(mktemp --suffix=.zip)"
+    curl -fsSL --max-time 30 --retry 2 --retry-delay 3 "$zip_url" -o "$tmp_zip"
+    mkdir -p "$ext_dir"
+    unzip -o -q "$tmp_zip" -d "$ext_dir"
+    rm -f "$tmp_zip"
+}
+```
+
+**Kết quả:** Tải zip trực tiếp từ `extensions.gnome.org` qua HTTPS → giải nén vào `~/.local/share/gnome-shell/extensions/<uuid>/` → không cần D-Bus, không cần popup, không cần session GNOME Shell đang chạy.
+
+**Bổ sung `_force_enable_ext()`:** Sau khi unzip, GNOME Shell đang chạy chưa nhận diện thư mục mới → `gnome-extensions enable` trả `Extension does not exist`. Thêm fallback ghi thẳng vào `gsettings org.gnome.shell enabled-extensions` để extension được bật ở lần đăng nhập kế tiếp / reboot.
+
+### Verify sau fix (idempotency — 2 lần chạy qua SSH)
+
+| Lần chạy | Extension dir có sẵn? | Kết quả |
+|---|---|---|
+| Lần 1 (dir bị xóa) | ❌ Không | ✅ OK — `_install_ext_offline` tải + unzip thành công, exit 0 |
+| Lần 2 (dir đã có) | ✅ Có | ✅ OK — bỏ qua bước install (skip), exit 0 |
+
+Sau reboot: `gnome-extensions enable` hoạt động (shell đã scan dir), cả 2 extension ENABLED.
+
+File đã sửa: `scripts/linux-kiosk/1-install-software.sh` — thêm `_install_ext_offline()`, `_force_enable_ext()`, cài `curl`/`unzip` ở bước [1/5], dùng các hàm này thay `gext install` ở bước [2/5] và [4/5].
+
+— Senior Developer, 2026-07-27
+
