@@ -887,3 +887,62 @@ File đã sửa: `scripts/linux-kiosk/1-install-software.sh` — thêm `_install
 
 — Senior Developer, 2026-07-27
 
+---
+
+## Gỡ extension để user test lại — ZCU 192.168.21.16 — 2026-07-27 10:12
+
+**Mục đích:** Đưa ZCU về trạng thái chưa cài extension kiosk để user test lại luồng Kiosk Deploy từ đầu.
+
+### Danh sách extension xử lý
+
+| UUID | Tên | Trạng thái trước | Hành động | Kết quả |
+|---|---|---|---|---|
+| `just-perfection-desktop@just-perfection` | Just Perfection | ENABLED, ver 26, tại `~/.local/share/gnome-shell/extensions/` | Disable + xóa thư mục | ✅ GONE — không còn trong list |
+| `disable-overview-gestures@kztek` | Disable Overview Gestures (KZTEK Kiosk) | ENABLED, ver 1, tại `~/.local/share/gnome-shell/extensions/` | Disable + xóa thư mục | ✅ GONE — không còn trong list |
+| `block-caribou-36@lxylxy123456.ercli.dev` | Block Caribou 36 | ENABLED, ver 7, tại `~/.local/share/gnome-shell/extensions/` | Disable + xóa thư mục | ✅ GONE — không còn trong list |
+| `ding@rastersoft.com` | Desktop Icons NG | Không enabled | **GIỮ NGUYÊN** | Không đụng |
+| `ubuntu-appindicators@ubuntu.com` | Ubuntu AppIndicators | Không enabled | **GIỮ NGUYÊN** | Không đụng |
+| `ubuntu-dock@ubuntu.com` | Ubuntu Dock | Không enabled | **GIỮ NGUYÊN** | Không đụng |
+| Các extension system khác (9 cái) | apps-menu, auto-move-windows, ... | Không enabled | **GIỮ NGUYÊN** | Không đụng |
+
+### Xác minh sau gỡ (output thật)
+
+```
+# gnome-extensions list --enabled → trống (không có dòng nào)
+# gnome-extensions list → chỉ còn extension hệ thống Ubuntu:
+ding@rastersoft.com
+ubuntu-appindicators@ubuntu.com
+ubuntu-dock@ubuntu.com
+apps-menu@gnome-shell-extensions.gcampax.github.com
+auto-move-windows@gnome-shell-extensions.gcampax.github.com
+...
+
+# gsettings get org.gnome.shell enabled-extensions → @as []
+
+# test -d ~/.local/share/gnome-shell/extensions/just-perfection-desktop@just-perfection → GONE
+# test -d ~/.local/share/gnome-shell/extensions/disable-overview-gestures@kztek → GONE
+# test -d ~/.local/share/gnome-shell/extensions/block-caribou-36@lxylxy123456.ercli.dev → GONE
+```
+
+GNOME Shell đã restart (`killall -3 gnome-shell`) để flush cache — list sau restart sạch hoàn toàn.
+
+### Ảnh chứng minh
+
+`docs/bugs/screenshots/ext-removed-20260727-101109.png` — **Top Bar đã hiện lại** (thấy thanh GNOME trên cùng với "Activities", đồng hồ "Jul 27 10:11", system tray). App kiosk "IPGS Kiosk Avalonia" vẫn đang chạy (hiển thị màn hình "Kiosk chưa được cấu hình đầy đủ" — đúng trạng thái test).
+
+### Trạng thái máy sau gỡ
+
+| Hạng mục | Trạng thái |
+|---|---|
+| SSH kết nối | ✅ OK — vào được bình thường |
+| `ipgs-remote-agent` | ✅ `active (running)` — uptime 18 phút, nhận connection từ 192.168.21.15 |
+| App kiosk IPGS | ✅ Đang chạy — hiển thị "Kiosk chưa được cấu hình đầy đủ" (thiếu config — bình thường với máy test) |
+| dconf lockdown / autologin / watchdog | ✅ GIỮ NGUYÊN — không đụng |
+
+### Ghi chú
+
+- Thư mục `~/.local/share/gnome-shell/extensions/` còn 2 thư mục `.bak-2026-07-27-qa` (backup từ lần QA trước) — đây không phải extension thật, GNOME Shell không load chúng; để lại không ảnh hưởng.
+- Không có dấu hiệu dconf lockdown tự bật lại extension (enabled-extensions vẫn `@as []` sau restart shell).
+
+— DevOps Engineer, 2026-07-27 10:12
+
