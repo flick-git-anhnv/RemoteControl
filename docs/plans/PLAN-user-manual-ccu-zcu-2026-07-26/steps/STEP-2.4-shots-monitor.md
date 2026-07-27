@@ -51,7 +51,7 @@ Chụp **14/15 ảnh nhóm 2.4** từ app/thiết bị thật, mỗi ảnh verif
 - **Bước sau cần biết:** (a) MANUAL ch12.6 mô tả ufw có luật 17600/tcp ALLOW nhưng thiết bị thật ufw INACTIVE → bước thay-marker nên chỉnh câu chữ thành "nếu bật ufw…" hoặc gắn với F06. (b) Bước thay-marker xong PHẢI khôi phục profile store từ `temp/user-manual-ccu-zcu/profiles.backup.json` rồi chạy lại xuất DOCX/PDF (4.1). (c) Harness license + toolkit nằm trong temp/, KHÔNG commit; license.key ghi trong AppData\Kztek\RemoteControl đã bị xóa sau khi chụp success.
 
 ## Commit
-- Hash: [điền sau khi commit]
+- Hash: 8b29c12
 - Đã push: không (theo lệnh — chỉ commit)
 
 ---

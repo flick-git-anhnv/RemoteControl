@@ -22,7 +22,7 @@ Chạy app thật (build Release từ STEP-1.1), chụp screenshot các màn hì
 - [ ] Cập nhật step file này + PLAN-MASTER.md
 
 ## Đã làm
-- Backup profile store thật của user đã có sẵn tại `temp/user-manual-ccu-zcu/profiles.backup.json` (4 máy: Kiosk, Kien, VietAnh-VirtualMachine, ZCU 192.168.21.230 — token ANHNV). Store `%APPDATA%\iPGS\RemoteControl\profiles.json` được nạp dữ liệu mẫu 3 máy P01/P02/P03 từ `temp/user-manual-ccu-zcu/profiles.sample.json`.
+- Backup profile store thật của user đã có sẵn tại `temp/user-manual-ccu-zcu/profiles.backup.json` (4 máy: Kiosk, Kien, VietAnh-VirtualMachine, ZCU 192.168.21.230 — token thật, KHÔNG ghi ra đây). Store `%APPDATA%\iPGS\RemoteControl\profiles.json` được nạp dữ liệu mẫu 3 máy P01/P02/P03 từ `temp/user-manual-ccu-zcu/profiles.sample.json`.
 - Chụp `connection-entry-empty` (store rỗng, phiên trước) → nạp 3 máy mẫu → restart app Release → chụp 14 ảnh còn lại bằng UIA (`temp/user-manual-ccu-zcu/actions-21.ps1`) + script chụp `capture-window.ps1`. Mỗi ảnh đã verify bằng Read tool (đúng cửa sổ/trạng thái).
 - **ZCU thật 192.168.1.4 KHÔNG phản hồi cổng 22/17600** (ping OK nhưng TCP timeout, thử nhiều lần) → các trạng thái "P01 online" không tạo được trong bước này.
 
@@ -39,14 +39,14 @@ Chạy app thật (build Release từ STEP-1.1), chụp screenshot các màn hì
 
 ## Quyết định quan trọng
 - MAC của P01 dùng giá trị demo `A0:B1:C2:D3:E4:F5` (không phải MAC thật) → không cần che MAC trong mọi ảnh; dialog WOL success vẫn hiện bình thường.
-- Token thật `ANHNV` giữ trong store (cần cho kết nối thật ở 2.2) nhưng mọi ảnh hiển thị token đều được set tạm `demo-****` qua UIA trước khi chụp (không lưu) — không lộ token trong ảnh.
+- Token thật (giá trị lưu trong profile store cục bộ, KHÔNG ghi ra tài liệu) giữ nguyên trong store (cần cho kết nối thật ở 2.2) nhưng mọi ảnh hiển thị token đều được set tạm `demo-****` qua UIA trước khi chụp (không lưu) — không lộ token trong ảnh.
 - `connection-entry-offline.png` = crop cận cảnh dòng P02 từ ảnh default (System.Drawing) — đúng yêu cầu "cận cảnh".
 - Giữ NGUYÊN dữ liệu mẫu P01/P02/P03 trong profile store sau bước này (bước 2.2–2.4 còn dùng P01); khôi phục store thật từ backup thực hiện ở bước 4.1.
 
 ## Handoff Log — bước sau cần biết
 - Đã làm: chụp 15/16 ảnh nhóm 2.1 từ app Release đang chạy; thiếu `network-scan-results` + cần chụp lại `connection-entry-default` khi ZCU online.
 - File/module đã đọc hoặc đổi: `docs/user-manuals/screenshots/*.png` (15 file); tool trong `temp/user-manual-ccu-zcu/`: `actions-21.ps1` (UIA: click nút theo tên/AutomationId, điền TextBox, tick checkbox bằng SetFocus+Space, chọn ListItem), `close-win32.ps1` (WM_CLOSE dialog), `list-windows.ps1`, `capture-window.ps1`.
-- Quyết định quan trọng: dữ liệu mẫu GIỮ NGUYÊN trong `%APPDATA%\iPGS\RemoteControl\profiles.json` (3 máy P01/P02/P03, P01 token thật ANHNV + SSH kztek); backup store thật (4 máy) tại `temp/user-manual-ccu-zcu/profiles.backup.json` — khôi phục ở bước 4.1 bằng copy đè ngược lại (app phải tắt khi copy).
+- Quyết định quan trọng: dữ liệu mẫu GIỮ NGUYÊN trong `%APPDATA%\iPGS\RemoteControl\profiles.json` (3 máy P01/P02/P03, P01 dùng token thật + SSH `kztek` — giá trị chỉ nằm trong store cục bộ, KHÔNG ghi ra tài liệu); backup store thật (4 máy) tại `temp/user-manual-ccu-zcu/profiles.backup.json` — khôi phục ở bước 4.1 bằng copy đè ngược lại (app phải tắt khi copy).
 - Bước sau cần biết: (1) **ZCU 192.168.1.4 hiện KHÔNG mở cổng 22/17600 — bước 2.2 phải kiểm tra lại thiết bị/nhờ user bật trước khi chụp nhóm Remote**; (2) Gotcha UIA-Avalonia: dialog con KHÔNG xuất hiện trong UIA RootElement.Children — tìm qua Win32 EnumWindows rồi `AutomationElement.FromHandle` (đã có sẵn `Get-WindowElByWin32` trong actions-21.ps1); so sánh tiêu đề cửa sổ tiếng Việt có thể fail do Unicode normalization — LUÔN dùng phần title thuần ASCII; script .ps1 có tiếng Việt PHẢI lưu UTF-8 **có BOM**; app chạy PID mới (restart trong bước này), giữ nguyên đang chạy.
 
 ## Commit

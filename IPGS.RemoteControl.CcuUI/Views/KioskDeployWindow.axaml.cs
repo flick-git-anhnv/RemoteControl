@@ -25,9 +25,9 @@ namespace IPGS.RemoteControl.CcuUI.Views
         private List<LoadedApp>? _loadedApps;
         private CancellationTokenSource? _loadAppsCts;
 
-        // Danh sách gợi ý mặc định — hiển thị ngay khi chưa nạp từ ZCU
-        private static readonly IReadOnlyList<string> _defaultExecSuggestions =
-            new[] { "ipgskioskavalonia", "kioskapp", "ipgs-kiosk-app" };
+        // KHÔNG có danh sách gợi ý hardcoded: các tên như "ipgskioskavalonia"/"kioskapp"
+        // không đảm bảo tồn tại trên máy ZCU đích — chọn nhầm sẽ deploy autostart trỏ tới
+        // binary không tồn tại (F12). Danh sách CHỈ đến từ '🔄 Nạp DS' (quét thật qua SSH).
 
         public KioskDeployWindow() : this(new ComputerProfile())
         {
@@ -50,15 +50,33 @@ namespace IPGS.RemoteControl.CcuUI.Views
             if (!string.IsNullOrWhiteSpace(_sshUser))
                 PART_KioskUser.Text = _sshUser;
 
-            // Nạp gợi ý mặc định cho App exec (trước khi user bấm 🔄)
-            PART_AppExec.ItemsSource = _defaultExecSuggestions;
-            PART_AppExec.Text = _defaultExecSuggestions[0];
+            // App exec để TRỐNG — chỉ điền sau khi nạp danh sách thật từ ZCU
+            PART_AppExec.ItemsSource = System.Array.Empty<string>();
+            PART_AppExec.Text = "";
 
             // Wire up events
             PART_BtnDeploy.Click       += OnDeployClick;
             PART_BtnLoadApps.Click     += OnLoadAppsClick;
             PART_BtnSelectAll.Click    += (_, _) => SetAllConfigMachineCheckboxes(true);
             PART_BtnDeselectAll.Click  += (_, _) => SetAllConfigMachineCheckboxes(false);
+
+            // Tự động bấm '🔄 Nạp DS' ngay khi mở cửa sổ (nếu đã có đủ thông tin SSH)
+            Opened += OnWindowOpened;
+        }
+
+        private void OnWindowOpened(object? sender, EventArgs e)
+        {
+            Opened -= OnWindowOpened;
+
+            if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser))
+            {
+                PART_LoadAppsStatus.Foreground = Brushes.DarkOrange;
+                PART_LoadAppsStatus.Text =
+                    "Chưa có thông tin SSH — vào 'Sửa' máy tính để bổ sung, rồi bấm '🔄 Nạp DS'.";
+                return;
+            }
+
+            OnLoadAppsClick(this, new RoutedEventArgs());
         }
 
         // ── Task A: Nạp danh sách ứng dụng từ ZCU ────────────────────────
@@ -120,10 +138,10 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
                 PART_AppExec.ItemsSource = _loadedApps.Select(x => x.DisplayText).ToList();
 
-                // Tự chọn entry recommended đầu tiên đã cài (ExistsOnSystem=true)
-                var bestMatch = _loadedApps.FirstOrDefault(a => a.ExistsOnSystem && a.ExistsOnSystem)
-                    ?? _loadedApps.First();
-                PART_AppExec.Text = bestMatch.DisplayText;
+                // Chỉ tự chọn entry ĐÃ CÀI THẬT trên máy. Nếu không có entry nào tồn tại
+                // → để trống, bắt user chọn/nhập tay (không tự điền giá trị sai).
+                var bestMatch = _loadedApps.FirstOrDefault(a => a.ExistsOnSystem);
+                PART_AppExec.Text = bestMatch?.DisplayText ?? "";
 
                 int notFound = _loadedApps.Count(a => !a.ExistsOnSystem);
                 PART_LoadAppsStatus.Foreground = Brushes.SeaGreen;
@@ -149,7 +167,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
         /// <summary>
         /// Lấy lệnh exec thực sự từ ComboBox (ưu tiên lookup trong _loadedApps để có lệnh sạch).
-        /// Nếu user nhập tay → dùng trực tiếp. Fallback = "ipgskioskavalonia".
+        /// Nếu user nhập tay → dùng trực tiếp. KHÔNG có fallback hardcoded —
+        /// rỗng nghĩa là chưa chọn, deploy sẽ bị chặn.
         /// </summary>
         private string GetAppExec()
         {
@@ -162,8 +181,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 if (match != null) return match.ExecCommand;
             }
 
-            // User nhập tay hoặc dùng gợi ý mặc định — giá trị là lệnh trực tiếp
-            return string.IsNullOrEmpty(text) ? "ipgskioskavalonia" : text;
+            // User nhập tay — giá trị là lệnh trực tiếp
+            return text;
         }
 
         // ── Task B: Chọn tất cả / Bỏ chọn tất cả ─────────────────────────
@@ -200,6 +219,16 @@ namespace IPGS.RemoteControl.CcuUI.Views
             string sudoPass  = string.IsNullOrEmpty(PART_SudoPassword.Text) ? _sshPassword : PART_SudoPassword.Text;
             string kioskUser = PART_KioskUser.Text?.Trim() ?? "";
             string appExec   = GetAppExec();
+
+            // Không còn giá trị mặc định — bắt buộc phải nạp danh sách (hoặc nhập tay)
+            if (string.IsNullOrWhiteSpace(appExec))
+            {
+                PART_StatusMsg.Foreground = Brushes.Red;
+                PART_StatusMsg.Text = _loadedApps == null
+                    ? "Chưa chọn App exec — bấm '🔄 Nạp DS' để nạp danh sách ứng dụng từ máy ZCU, hoặc nhập tay lệnh."
+                    : "Chưa chọn App exec — chọn một mục trong danh sách vừa nạp, hoặc nhập tay lệnh.";
+                return;
+            }
 
             // F12 prevention: cảnh báo nếu binary không được kiểm chứng
             string? execWarning = null;

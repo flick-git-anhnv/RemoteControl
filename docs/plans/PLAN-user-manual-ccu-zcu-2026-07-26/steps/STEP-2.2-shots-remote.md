@@ -67,7 +67,7 @@ Chạy app thật, chụp screenshot các màn hình: **RemoteScreenWindow, Remo
 - Bước sau cần biết: (1) SSH tới ZCU dùng `temp/.../zcu-ssh.ps1 -Cmd "..."` (đã cache hostkey ở `zcu-hostkey.txt`); (2) MSYS_NO_PATHCONV=1 khi truyền path Linux `/home/...` qua PowerShell tránh Git-Bash chuyển thành `C:\Program Files\...`; (3) file .ps1 KHÔNG có BOM → PowerShell đọc sai emoji/tiếng Việt trong literal → dùng wildcard ASCII (`-like "*File*"`) thay khớp tên có emoji; (4) AutoCompleteBox dropdown (F03) không mở được bằng UIA/keyboard/mouse — coi như best-effort; (5) app vẫn chạy PID 31064; dữ liệu demo `/home/kztek/kztek-demo/` (logs/, backup.sh, bao-cao-thang.txt, config-mau.json, demo-upload.txt, sync-config.txt) còn nguyên trên ZCU cho bước sau.
 
 ## Commit
-- Hash: [điền sau khi commit]
+- Hash: 1bc4d8e
 - Đã push: không
 
 ---

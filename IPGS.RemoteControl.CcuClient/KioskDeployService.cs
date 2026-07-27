@@ -26,7 +26,12 @@ namespace IPGS.RemoteControl.CcuClient
         public string SudoPassword { get; set; } = string.Empty;
 
         public string KioskUser { get; set; } = string.Empty;
-        public string AppExec { get; set; } = "ipgskioskavalonia";
+        /// <summary>
+        /// Lệnh autostart app kiosk. KHÔNG có giá trị mặc định — phải nạp danh sách
+        /// thật từ máy ZCU (LoadKioskAppsAsync) hoặc user nhập tay. Default hardcoded
+        /// cũ ("ipgskioskavalonia") gây deploy autostart trỏ tới binary không tồn tại (F12).
+        /// </summary>
+        public string AppExec { get; set; } = string.Empty;
 
         // ── Tab "Config máy tính" — mọi thứ liên quan đến máy/OS/UI (KHÔNG phải
         // update hay autostart phần mềm). Nửa đầu chạy qua 1-install-software.sh,
@@ -202,6 +207,15 @@ namespace IPGS.RemoteControl.CcuClient
                 {
                     Log("🔄 Đang chạy 2-configure-system.sh (Config máy tính — phần hệ thống + Config phần mềm — update/autostart)...");
                     string kioskUser = string.IsNullOrEmpty(options.KioskUser) ? options.Username : options.KioskUser;
+
+                    // Không còn default hardcoded: AppExec rỗng → 2-configure-system.sh sẽ
+                    // rơi về "${2:-ipgskioskavalonia}" và đăng ký autostart trỏ tới binary
+                    // có thể không tồn tại (F12). Chặn ngay tại đây thay vì deploy sai.
+                    if (string.IsNullOrWhiteSpace(options.AppExec))
+                        throw new Exception(
+                            "Chưa chọn lệnh autostart app (App exec). Bấm '🔄 Nạp DS' để nạp danh sách " +
+                            "ứng dụng thật từ máy ZCU rồi chọn, hoặc nhập tay lệnh.");
+
                     // Thứ tự phải khớp tham số trong 2-configure-system.sh ($3..$13):
                     // $3=disable_hotcorner $4=disable_ubuntu_dock $5=disable_desktop_icons
                     // $6=block_sleep $7=skip_initial_setup $8=enable_autologin

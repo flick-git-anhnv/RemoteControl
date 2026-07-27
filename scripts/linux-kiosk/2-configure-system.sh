@@ -358,25 +358,65 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Desktop icon ~/Desktop/ipgs-kiosk.desktop (F14):
-# Cho phép người dùng click icon trực tiếp để mở app khi cần.
-# BẮT BUỘC gio set metadata::trusted true vì Desktop Icons NG (ding@rastersoft.com)
-# từ GNOME 41+ từ chối thực thi .desktop file chưa được đánh dấu trusted.
-DESKTOP_ICON="$HOME/Desktop/ipgs-kiosk.desktop"
+# Desktop icon ~/Desktop/ (F14 + F15-b):
+# F15-b: ưu tiên sửa icon đã có sẵn (gói .deb cài) thay vì tạo thêm file mới —
+# tránh xuất hiện 2 icon cùng trỏ 1 app. Logic:
+#   1. Dọn ipgs-kiosk.desktop (stray từ deploy cũ) — LUÔN làm, bất kể Autostart.
+#   2. Tìm icon có sẵn trên Desktop trỏ cùng app (so khớp Exec đã giải symlink/PATH).
+#      → Có: chỉ chmod+x + gio set trusted, KHÔNG tạo file mới.
+#      → Không có: tạo mới ipgs-kiosk.desktop (trường hợp app chưa có icon riêng).
+#   3. Khi Autostart OFF: không tạo desktop shortcut (icon do .deb cài vẫn giữ).
+#
 # Pre-compute REAL_EXEC (dùng chung cho [8/10] desktop icon và [10/10] watchdog).
+DESKTOP_ICON="$HOME/Desktop/ipgs-kiosk.desktop"
 _REAL_EXEC="$(_get_real_exec "$APP_EXEC")"
 _REAL_EXEC_DIR="$(dirname "$_REAL_EXEC")"
 
+# F15-b Bước 1: dọn stray icon do script cũ tạo — LUÔN, không phụ thuộc Autostart.
+if [ -f "$DESKTOP_ICON" ]; then
+    rm -f "$DESKTOP_ICON"
+    echo "  → F15-b: đã dọn $DESKTOP_ICON (icon trùng do deploy cũ tạo)."
+fi
+
 if [ "$ENABLE_AUTOSTART" = "1" ]; then
-    # Tìm icon — ưu tiên từ thư mục cài đặt thực tế của app
-    _APP_ICON=""
-    for _try in "$_REAL_EXEC_DIR/.IPGSKioskAvalonia/appIcon.png" \
-                "$_REAL_EXEC_DIR/appIcon.png" \
-                "/opt/kztek/ipgskioskavalonia/.IPGSKioskAvalonia/appIcon.png"; do
-        if [ -f "$_try" ]; then _APP_ICON="$_try"; break; fi
+    # F15-b Bước 2: tìm icon có sẵn trỏ cùng app (khớp Exec đã giải symlink/PATH).
+    # So khớp theo: exec giải ra = _REAL_EXEC, hoặc thư mục của exec = _REAL_EXEC_DIR.
+    _FOUND_ICON=""
+    for _df in "$HOME/Desktop/"*.desktop; do
+        [ -f "$_df" ] || continue
+        [ "$_df" = "$DESKTOP_ICON" ] && continue  # file vừa dọn ở bước 1
+        _df_exec_raw="$(grep -m1 '^Exec=' "$_df" 2>/dev/null \
+                        | sed 's/^Exec=//' | sed 's/ *%[uUfFdDiIcCkK].*//' \
+                        | awk '{print $1}')"
+        [ -z "$_df_exec_raw" ] && continue
+        _df_exec_real="$(_get_real_exec "$_df_exec_raw")"
+        if [ "$_df_exec_real" = "$_REAL_EXEC" ] || \
+           [ "$(dirname "$_df_exec_real")" = "$_REAL_EXEC_DIR" ]; then
+            _FOUND_ICON="$_df"; break
+        fi
     done
-    mkdir -p "$HOME/Desktop"
-    cat > "$DESKTOP_ICON" <<EOF
+
+    if [ -n "$_FOUND_ICON" ]; then
+        # F15-b: icon sẵn có → chỉ chmod+x + trusted, KHÔNG tạo thêm file mới.
+        chmod +x "$_FOUND_ICON"
+        _found_exec="$(grep -m1 '^Exec=' "$_FOUND_ICON" | sed 's/^Exec=//')"
+        if gio set "$_FOUND_ICON" metadata::trusted true 2>/dev/null; then
+            echo "  → F15-b: icon có sẵn $(basename "$_FOUND_ICON") — chmod+x + trusted=true (Exec=$_found_exec)"
+        else
+            echo "  → F15-b: icon có sẵn $(basename "$_FOUND_ICON") — chmod+x (Exec=$_found_exec)"
+            echo "CẢNH BÁO (F15-b): không set metadata::trusted — GVfs/session bus chưa sẵn sàng." >&2
+            echo "     Chạy thủ công: gio set $_FOUND_ICON metadata::trusted true" >&2
+        fi
+    else
+        # F15-b: không có icon nào → tạo mới ipgs-kiosk.desktop.
+        _APP_ICON=""
+        for _try in "$_REAL_EXEC_DIR/.IPGSKioskAvalonia/appIcon.png" \
+                    "$_REAL_EXEC_DIR/appIcon.png" \
+                    "/opt/kztek/ipgskioskavalonia/.IPGSKioskAvalonia/appIcon.png"; do
+            if [ -f "$_try" ]; then _APP_ICON="$_try"; break; fi
+        done
+        mkdir -p "$HOME/Desktop"
+        cat > "$DESKTOP_ICON" <<EOF
 [Desktop Entry]
 Type=Application
 Name=IPGS Kiosk
@@ -386,20 +426,90 @@ Icon=$_APP_ICON
 Terminal=false
 Categories=Utility;
 EOF
-    chmod +x "$DESKTOP_ICON"
-    # F14: gio set metadata::trusted true — yêu cầu GVfs/session bus đang chạy.
-    # Khi chạy qua SSH với env DISPLAY=:0 + DBUS_SESSION_BUS_ADDRESS thì lệnh này hoạt động.
-    if gio set "$DESKTOP_ICON" metadata::trusted true 2>/dev/null; then
-        echo "  → Đã tạo $DESKTOP_ICON (Exec=$_REAL_EXEC, trusted=true — F14 fix)"
-    else
-        echo "  → Đã tạo $DESKTOP_ICON (Exec=$_REAL_EXEC)"
-        echo "CẢNH BÁO (F14): không set metadata::trusted — GVfs/session bus chưa sẵn sàng." >&2
-        echo "     Chạy thủ công trong phiên desktop: gio set $DESKTOP_ICON metadata::trusted true" >&2
+        chmod +x "$DESKTOP_ICON"
+        if gio set "$DESKTOP_ICON" metadata::trusted true 2>/dev/null; then
+            echo "  → Đã tạo $DESKTOP_ICON (Exec=$_REAL_EXEC, trusted=true — F14+F15-b)"
+        else
+            echo "  → Đã tạo $DESKTOP_ICON (Exec=$_REAL_EXEC)"
+            echo "CẢNH BÁO (F14): không set metadata::trusted — GVfs/session bus chưa sẵn sàng." >&2
+            echo "     Chạy thủ công trong phiên desktop: gio set $DESKTOP_ICON metadata::trusted true" >&2
+        fi
     fi
 else
-    # 2 chiều: tắt autostart = xóa cả desktop shortcut
-    rm -f "$DESKTOP_ICON"
-    echo "  → Autostart TẮT: đã xóa desktop icon $DESKTOP_ICON (nếu có)."
+    echo "  → Autostart TẮT: không tạo desktop shortcut (icon do .deb cài vẫn giữ nguyên)."
+fi
+
+# ─────────────────────────────────────────────────────────────
+# [8b] F15-a: Set trusted + kiểm tra Exec cho MỌI icon KZTEK trên Desktop.
+# Gói .deb cài icon vào ~/Desktop nhưng KHÔNG set metadata::trusted → click không chạy.
+# Chạy vô điều kiện (không phụ thuộc ENABLE_AUTOSTART) để bao phủ mọi app KZTEK.
+#
+# Xử lý từng kztek-*.desktop:
+#   - chmod +x
+#   - Kiểm tra Exec= tồn tại + thực thi được (sau khi giải symlink qua _get_real_exec).
+#   - Nếu Exec trỏ symlink → giải ra đường dẫn thật → sửa lại trong file (trừ khi vim
+#     đang mở file — có .swp — thì chỉ cảnh báo, không ghi đè nội dung file).
+#   - gio set metadata::trusted true.
+echo "=== [8b] Set trusted cho mọi icon KZTEK trên Desktop (F15-a) ==="
+_F15_TRUSTED=0
+_F15_WARN=0
+_f15_any=0
+for _kz in "$HOME/Desktop/kztek-"*.desktop; do
+    [ -f "$_kz" ] || continue
+    _f15_any=1
+    _kz_name="$(basename "$_kz")"
+
+    # Phát hiện vim .swp — nếu có thì KHÔNG ghi đè nội dung file (.swp chỉ chặn write)
+    _kz_swp="$(dirname "$_kz")/.${_kz_name}.swp"
+    _kz_has_swp=0; [ -f "$_kz_swp" ] && _kz_has_swp=1
+
+    # Lấy Exec= (bỏ %placeholder)
+    _kz_exec_raw="$(grep -m1 '^Exec=' "$_kz" 2>/dev/null \
+                    | sed 's/^Exec=//' | sed 's/ *%[uUfFdDiIcCkK].*//' \
+                    | awk '{print $1}')"
+    if [ -z "$_kz_exec_raw" ]; then
+        echo "  CẢNH BÁO: $_kz_name không có trường Exec= — bỏ qua." >&2
+        _F15_WARN=$((_F15_WARN+1)); continue
+    fi
+
+    # Giải symlink → đường dẫn thật
+    _kz_exec_real="$(_get_real_exec "$_kz_exec_raw")"
+
+    # Kiểm tra tồn tại + thực thi được
+    if [ ! -f "$_kz_exec_real" ] || [ ! -x "$_kz_exec_real" ]; then
+        echo "  CẢNH BÁO: $_kz_name Exec=$_kz_exec_raw → giải ra '$_kz_exec_real' nhưng không tồn tại hoặc không có quyền thực thi." >&2
+        _F15_WARN=$((_F15_WARN+1))
+        # Vẫn set trusted bên dưới — hữu ích khi binary được deploy sau
+    fi
+
+    # Nếu Exec trỏ symlink → sửa thành đường dẫn thật (tránh G023: BASH_SOURCE sai)
+    if [ "$_kz_exec_raw" != "$_kz_exec_real" ] && [ -f "$_kz_exec_real" ] && [ -x "$_kz_exec_real" ]; then
+        if [ "$_kz_has_swp" = "1" ]; then
+            echo "  CẢNH BÁO: $_kz_name có .swp (vim đang mở) — BỎ QUA sửa Exec= để không mất thay đổi đang soạn. Set trusted vẫn áp dụng." >&2
+            _F15_WARN=$((_F15_WARN+1))
+        else
+            sed -i "s|^Exec=.*|Exec=$_kz_exec_real|" "$_kz"
+            echo "  → $_kz_name: sửa Exec=$_kz_exec_raw → $_kz_exec_real (giải symlink G023)"
+        fi
+    fi
+
+    # chmod +x
+    chmod +x "$_kz"
+
+    # gio set trusted — an toàn kể cả khi có .swp (không ghi nội dung file)
+    if gio set "$_kz" metadata::trusted true 2>/dev/null; then
+        echo "  → trusted: $_kz_name (Exec=$_kz_exec_raw)"
+        _F15_TRUSTED=$((_F15_TRUSTED+1))
+    else
+        echo "  CẢNH BÁO: không set trusted cho $_kz_name — GVfs/session bus chưa sẵn sàng." >&2
+        echo "     Chạy thủ công: gio set $_kz metadata::trusted true" >&2
+        _F15_WARN=$((_F15_WARN+1))
+    fi
+done
+if [ "$_f15_any" = "0" ]; then
+    echo "  → Không có icon kztek-*.desktop nào trên Desktop."
+else
+    echo "  → F15-a kết quả: trusted=$_F15_TRUSTED icon, cảnh báo=$_F15_WARN."
 fi
 
 # ─────────────────────────────────────────────────────────────
