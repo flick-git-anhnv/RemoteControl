@@ -622,3 +622,182 @@ Trong lúc verify Q1/Q9 phát hiện **F11 (P2)**: script ghi file `.bak-*` củ
 — DevOps Engineer, 2026-07-27 07:01
 
 ---
+
+## Kiểm thử ZCU 192.168.21.16 — gỡ/cấu hình lại extension + lỗi autostart — 2026-07-27 09:35
+
+**Người thực hiện:** QA Engineer
+**Môi trường:** ZCU `192.168.21.16` (Ubuntu 22.04, GNOME Shell 42.9, X11, VirtualBox VM, user `kztek`). Máy vừa cài lại từ đầu — app kiosk (`IPGS.Kiosk.Avalonia`) và ZcuAgent đã deploy.
+**Phạm vi:** (1) Kiểm tra tính idempotent của script khi gỡ rồi cài lại extension; (2) Chẩn đoán root cause app không autostart sau reboot.
+
+---
+
+### Nhiệm vụ 1 — Gỡ extension + chạy lại script (idempotency test)
+
+#### Trạng thái ban đầu (trước test)
+
+| Thành phần | Giá trị ghi nhận |
+|---|---|
+| GNOME Shell | 42.9 |
+| Session type | x11 |
+| Extension `disable-overview-gestures@kztek` | ENABLED (dir `~/.local/share/gnome-shell/extensions/disable-overview-gestures@kztek` tồn tại) |
+| Extension `just-perfection-desktop@just-perfection` | ENABLED (State: ENABLED) |
+| Extension `block-caribou-36@…` | Installed |
+| dconf lockdown | CHƯA có (`/etc/dconf/db/local.d/` rỗng) |
+| GDM autologin | `AutomaticLoginEnable = false` (dù `AutomaticLogin = kztek` đã set — autologin thực tế KHÔNG hoạt động) |
+| Watchdog `ipgs-kiosk-app.service` | Chưa có |
+
+#### Bước thực hiện
+
+| # | Hành động | Kết quả |
+|---|---|---|
+| 1 | Backup config trước test (`/etc/gdm3/custom.conf.bak-2026-07-27-qa`) | OK |
+| 2 | Disable extensions: `gnome-extensions disable just-perfection-desktop@just-perfection` + `disable-overview-gestures@kztek` | OK — State → DISABLED |
+| 3 | Xoá dir extension: `rm -rf ~/.local/share/gnome-shell/extensions/just-perfection-desktop@just-perfection` + `disable-overview-gestures@kztek` | OK — dir bị xoá |
+| 4 | Chạy lần 1: `1-install-software.sh` (qua SSH với `KIOSK_SUDO_PASS`) | **EXIT CODE 1** — `gext install just-perfection-desktop@just-perfection` timeout sau 24s: `g-io-error-quark: Timeout was reached (24)`; `set -e` abort tại bước [2/5], các bước sau KHÔNG chạy |
+| 5 | Khôi phục dir extension từ backup; restore state | OK — dir được khôi phục |
+| 6 | Chạy lần 2 (dir tồn tại): `1-install-software.sh` | EXIT CODE 0 — extension đã có, script skip cài lại, hoàn thành bình thường |
+| 7 | Chạy lần 3 (idempotent run 2): `1-install-software.sh` | EXIT CODE 0 — toàn bộ bước pass, không lỗi |
+| 8 | Chạy lần 1: `2-configure-system.sh` (tất cả param mặc định=1) | EXIT CODE 0 — AUTOLOGIN-VERIFIED / LOCKDOWN-VERIFIED / WATCHDOG-VERIFIED |
+| 9 | Chạy lần 2 (idempotent): `2-configure-system.sh` | EXIT CODE 0 — kết quả đồng nhất lần 1 |
+
+#### Lỗi phát hiện trong Task 1
+
+**`1-install-software.sh` KHÔNG idempotent khi extension dir bị xoá (qua SSH không có display):**
+
+- `gext install just-perfection-desktop@just-perfection` gọi D-Bus `InstallRemoteExtension` → GNOME Shell mở popup xác nhận cài trên màn hình vật lý, đợi user bấm "Install" trong 24 giây. Khi chạy qua SSH không có interaction với màn hình, popup timeout → `GLib.GError: Timeout was reached (24)`, exit code 1.
+- `set -e` ở đầu script khiến toàn bộ script abort tại bước [2/5]; 3 bước còn lại (cài `disable-overview-gestures@kztek` local, `block-caribou`, `unclutter`) không được thực hiện.
+- **Ngược lại:** khi dir extension đã tồn tại, script phát hiện và skip `gext install` → tất cả 5 bước chạy bình thường.
+- `2-configure-system.sh` **hoàn toàn idempotent**: cả 2 lần chạy đều exit 0, AUTOLOGIN/LOCKDOWN/WATCHDOG-VERIFIED.
+
+#### Kết luận Task 1
+
+| Script | Idempotent khi dir có sẵn | Idempotent khi dir bị xoá |
+|---|---|---|
+| `1-install-software.sh` | ✅ YES (exit 0) | ❌ NO — `gext install` timeout 24s → exit 1, abort toàn script |
+| `2-configure-system.sh` | ✅ YES (exit 0) | ✅ YES (không phụ thuộc extension dir) |
+
+---
+
+## F12 — App kiosk không autostart sau reboot: `AutomaticLoginEnable = false` + wrapper script sai đường dẫn
+
+| Trường | Nội dung |
+|---|---|
+| **Thành phần** | GDM3 autologin (`/etc/gdm3/custom.conf`) + systemd user service (`ipgs-kiosk-app.service`) + wrapper `/usr/bin/ipgskioskavalonia` |
+| **Mức độ** | P2 |
+| **Môi trường** | ZCU `192.168.21.16`, Ubuntu 22.04, GNOME Shell 42.9, X11 |
+| **Các bước tái hiện** | 1. Deploy máy kiosk (app + ZcuAgent đã cài). 2. KHÔNG chạy `2-configure-system.sh` (hoặc chạy nhưng `APPLY_AUTOLOGIN=0`). 3. Reboot ZCU. 4. Quan sát: GDM dừng ở login screen, app kiosk không tự khởi động. |
+| **Kết quả thực tế** | Sau reboot: GDM hiển thị màn hình đăng nhập, không ai autologin → không có graphical session → `graphical-session.target` không đạt được → `ipgs-kiosk-app.service` (WantedBy=graphical-session.target) không start. Dù Linger=yes, systemd user manager khởi động nhưng dừng ở `default.target`, không thể tiến tới `graphical-session.target` khi chưa có GUI session. Khi đó `ipgs-kiosk-app.service` vẫn không start. |
+| **Kết quả mong đợi** | ZCU reboot → tự đăng nhập user `kztek` → mở GNOME session → watchdog service start → app kiosk chạy. |
+| **Tần suất** | Luôn luôn (100%) khi `AutomaticLoginEnable = false` |
+| **Workaround** | Chạy `2-configure-system.sh` với `APPLY_AUTOLOGIN=1` (mặc định). Script sẽ set cả `AutomaticLoginEnable = true` và `TimedLoginEnable = true` (5s fallback) trong `/etc/gdm3/custom.conf`. |
+
+### Root Cause #1 (PRIMARY) — `AutomaticLoginEnable = false`
+
+Trạng thái ban đầu ghi nhận trên máy test (`192.168.21.16`):
+
+```
+# /etc/gdm3/custom.conf (TRƯỚC khi chạy 2-configure-system.sh)
+AutomaticLoginEnable = false      ← autologin KHÔNG hoạt động dù dòng dưới có
+AutomaticLogin = kztek
+```
+
+`AutomaticLoginEnable = false` → GDM không autologin → không có graphical session → `graphical-session.target` không đạt → watchdog service không start → app không chạy.
+
+**Bằng chứng trước khi chạy script:**
+```
+=== loginctl list-sessions (TRƯỚC chạy script) ===
+SESSION  UID USER   SEAT  TTY
+      1 1000 kztek  seat0 tty2   ← session X11 tồn tại (do ta đã SSH vào và X11 đang chạy)
+```
+
+**Bằng chứng sau khi chạy `2-configure-system.sh` và reboot:**
+```
+# /etc/gdm3/custom.conf (SAU khi script chạy)
+AutomaticLoginEnable = true
+AutomaticLogin = kztek
+TimedLoginEnable = true
+TimedLogin = kztek
+TimedLoginDelay = 5
+
+# loginctl sau reboot
+SESSION  UID USER  SEAT  TTY
+      3 1000 kztek seat0 tty2    ← graphical session X11 active
+      4 1000 kztek               ← session SSH
+
+# who
+kztek    :0    2026-07-27 09:36 (:0)   ← autologin THÀNH CÔNG
+```
+
+### Root Cause #2 (SECONDARY) — Wrapper script `/usr/bin/ipgskioskavalonia` sai đường dẫn
+
+Ngay cả khi autologin hoạt động, app vẫn không start do wrapper script bị broken:
+
+```bash
+# /usr/bin/ipgskioskavalonia — nội dung thực tế
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export LD_LIBRARY_PATH="$DIR:$DIR/Players/FFMPEG/Resource:$LD_LIBRARY_PATH"
+exec "$DIR/IPGS.Kiosk.Avalonia" "$@"
+```
+
+Khi gọi qua PATH (`exec ipgskioskavalonia` trong ExecStart):
+- `BASH_SOURCE[0]` = `/usr/bin/ipgskioskavalonia`
+- `dirname` = `/usr/bin`
+- `DIR` = `/usr/bin`
+- `exec "/usr/bin/IPGS.Kiosk.Avalonia"` → **KHÔNG TỒN TẠI** → exit 127
+
+Binary thực tế nằm tại: `/opt/kztek/ipgskioskavalonia/IPGS.Kiosk.Avalonia` (ELF 64-bit, 72568 bytes).
+
+**Bằng chứng service log:**
+```
+Process: 2095 ExecStart=/bin/bash -lc exec ipgskioskavalonia (code=exited, status=127)
+Jul 27 09:36:28 ubuntu-22 systemd[829]: ipgs-kiosk-app.service: Failed with result 'exit-code'.
+NRestarts=1 (sau reboot lần đầu)
+NRestarts=107 (sau ~1 giờ chạy loop)
+```
+
+**Script `run.sh` (tự định vị đúng):** `/opt/kztek/ipgskioskavalonia/run.sh` tồn tại và chứa cơ chế tự định vị đúng. Nếu ExecStart gọi trực tiếp `run.sh` (đường dẫn tuyệt đối) thay vì qua wrapper `/usr/bin/ipgskioskavalonia`, sẽ không bị lỗi này.
+
+### Verify sau fix (Root Cause #1)
+
+Sau khi `2-configure-system.sh` chạy (fix autologin) và reboot:
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `who` | `kztek :0 2026-07-27 09:36 (:0)` — graphical session active |
+| `loginctl list-sessions` | Session 3 (seat0 tty2 — GNOME X11) + Session 4 (SSH) |
+| GDM `custom.conf` | `AutomaticLoginEnable = true`, `TimedLoginEnable = true` (5s fallback) |
+| Extensions `just-perfection` + `disable-overview-gestures` | State: ENABLED (sau reboot) |
+| `gsettings writable org.gnome.mutter overlay-key` | `false` — dconf lockdown tồn tại qua reboot |
+| `ipgs-kiosk-app.service` | `activating (auto-restart)` exit 127 — ROOT CAUSE #2 vẫn còn (wrapper bug) |
+
+### Đề xuất sửa
+
+**Root Cause #1 — `AutomaticLoginEnable = false`:**
+- Script `2-configure-system.sh` [6/9] đã set đúng. Vấn đề chỉ xảy ra khi script chưa chạy hoặc bị skip (`APPLY_AUTOLOGIN=0`).
+- `KioskDeployService.cs` (CCU) khi gọi script deploy cần đảm bảo luôn pass `APPLY_AUTOLOGIN=1` (hoặc không truyền tham số để dùng default=1).
+- Không cần sửa script — **cần review logic gọi script từ CCU**.
+
+**Root Cause #2 — Wrapper `/usr/bin/ipgskioskavalonia` sai đường dẫn:**
+
+Cách sửa đề xuất (chọn 1 trong 2):
+
+*Phương án A (ưu tiên):* Sửa ExecStart trong watchdog service template trong `2-configure-system.sh` — thay vì dùng wrapper qua PATH, gọi trực tiếp:
+```bash
+# Thay:
+ExecStart=/bin/bash -lc exec ipgskioskavalonia
+# Bằng:
+ExecStart=/opt/kztek/ipgskioskavalonia/run.sh
+```
+
+*Phương án B:* Hardcode `DIR` trong `/usr/bin/ipgskioskavalonia` thay vì dùng `BASH_SOURCE[0]`:
+```bash
+# Thay:
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Bằng:
+DIR="/opt/kztek/ipgskioskavalonia"
+```
+
+File cần sửa: `scripts/linux-kiosk/2-configure-system.sh` (phần viết `ipgs-kiosk-app.service`, bước [10]) hoặc `KioskDeployService.cs` tùy phương án chọn.
+
+— QA Engineer, 2026-07-27 09:40
+
