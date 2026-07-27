@@ -569,3 +569,56 @@ Trong lúc verify Q1/Q9 phát hiện **F11 (P2)**: script ghi file `.bak-*` củ
 | F11 Backup dconf trong thư mục db → gỡ khoá bảo trì không hiệu lực | ✅ Đã sửa + kiểm chứng chu trình gỡ khoá → khoá lại trên ZCU thật; đã dọn 11 file rác trên máy | `scripts/linux-kiosk/2-configure-system.sh` mục [9/9] (+ helper `ipgs-kiosk-unlock`) |
 
 ---
+
+## Dọn sạch ZCU về trạng thái gốc — 2026-07-27 07:01
+
+**Người thực hiện:** DevOps Engineer — theo quyết định user: dọn SẠCH HOÀN TOÀN mọi dấu vết kiosk (KỂ CẢ autologin) để test lại luồng Kiosk Deploy từ đầu; chấp nhận sau reboot máy dừng ở màn hình đăng nhập.
+**Môi trường:** ZCU thật — VM VirtualBox `ubuntu-22.06-x64`. ⚠️ **IP ĐỔI: `192.168.0.101` → `192.168.1.172`** (VM bridge qua Wi-Fi, mạng Wi-Fi của host đổi sang dải `192.168.1.x` — xác nhận qua `VBoxManage guestproperty`). Mọi thao tác qua SSH; KHÔNG sửa code/script trong repo.
+
+### Bảng inventory — hạng mục → kết quả → bằng chứng xác minh (sau reboot 06:57)
+
+| # | Hạng mục | Kết quả | Bằng chứng xác minh |
+|---|---|---|---|
+| 1 | Extension `disable-overview-gestures@kztek` (F10) | ✅ Đã disable + xoá thư mục | `gnome-extensions list \| grep kztek` → rỗng sau reboot; `~/.local/share/gnome-shell/extensions/` rỗng |
+| 2 | Extension Just Perfection (kiosk script) | ✅ Đã disable + xoá thư mục | Như trên (`grep perfection` → rỗng) |
+| 3 | dconf lockdown `/etc/dconf/db/local.d/00-kiosk-lockdown` + `locks/` + `/etc/dconf/profile/user` (F09/F11) | ✅ Đã xoá + `dconf update` | `ls /etc/dconf/db/local.d/` → "No such file or directory" (xoá cả thư mục — do ta tạo); `/etc/dconf/profile/` chỉ còn `ibus` gốc; `dconf read /org/gnome/mutter/overlay-key` → rỗng |
+| 4 | Lock đã nhả | ✅ | `gsettings writable org.gnome.mutter overlay-key` = **`true`**; `switch-to-application-4` = `true`; `wm.keybindings/close` = `true`; `lockdown/disable-command-line` = `true` |
+| 5 | Autologin `/etc/gdm3/custom.conf` | ✅ Khôi phục bản GỐC | Khôi phục từ `custom.conf.bak-20260724213826` (554B, 24/07 21:38 — bản TRƯỚC lần sửa đầu tiên; lưu ý: `.bak-2026-07-26` nêu trong kế hoạch VẪN chứa `AutomaticLogin` vì autologin đã bật từ 24/07, không dùng). `grep -cE '^(Automatic\|Timed)' custom.conf` = **0**. Đã xoá 16 file `custom.conf.bak-*` |
+| 6 | Watchdog `ipgs-kiosk-app.service` | ➖ Không có (QA đã gỡ từ phiên trước) | `systemctl --user list-unit-files \| grep kiosk` → rỗng |
+| 7 | Helper `/usr/local/sbin/ipgs-kiosk-unlock` (F11) | ✅ Đã xoá | `ls` → "No such file or directory" |
+| 8 | Autostart `ipgs-kiosk.desktop`, `unclutter.desktop`, `update-notifier.desktop` (override Hidden) | ✅ Đã xoá cả 3 | `ls ~/.config/autostart/` → rỗng |
+| 9 | `/var/backups/kztek-kiosk/` (14 file) | ✅ Đã xoá | `ls -d` → "No such file or directory" |
+| 10 | `~/.local/state/kztek-kiosk-backups/` | ➖ Không tồn tại | — |
+| 11 | `~/kiosk-qa-backup-2026-07-27/` (QA tạo) | ✅ Đã xoá | `ls -d` → "No such file or directory" |
+| 12 | `/home/kztek/kztek-demo/` (dữ liệu demo chụp tài liệu) | ✅ Đã xoá | `ls -d` → "No such file or directory" |
+| 13 | Cron job demo | ➖ Không có | `crontab -l` → "no crontab for kztek" |
+| 14 | gsettings user-level script đã set (hot-corners, show-banners, screensaver lock, idle-delay, num-workspaces, screen-keyboard) + `enabled-extensions` | ✅ Đã `gsettings reset` về mặc định | Reset sau khi gỡ lock; `enabled-extensions` = `@as []` (mặc định) |
+| 15 | apt `xdotool` + `gnome-screenshot` (ta cài 26/07 23:48) | ✅ Purge + autoremove | `which` → rỗng; đối chiếu `/var/log/apt/history.log`: `apt-get install -y xdotool gnome-screenshot` đúng lệnh của ta |
+| 16 | apt `unclutter` (kiosk script cài 23/07, `apt install -y`) | ✅ Purge | `which unclutter` → rỗng |
+| 17 | apt `gnome-shell-extension-manager` (user chỉ định đích danh gỡ) | ✅ Purge | `which extension-manager` → rỗng. **GIỮ** `gnome-shell-extensions` (cài cùng lệnh tay 23/07 nhưng không thuộc danh sách gỡ, là bundle extension mặc định) |
+| 18 | apt có sẵn/của user: `python3-pip` (cài tay, không `-y`), `git`, `terminator`, `openssh-server`, `kztek-parkingv8`, `build-essential`… | ➖ GIỮ NGUYÊN | Đối chiếu apt history: không phải script ta cài / thuộc ngoại lệ |
+| 19 | Khóa SSH demo `kztek-remote-control-agent` trong `~/.ssh/authorized_keys` (tạo 26/07 21:24, demo Hình 74) | ⚠️ **CHƯA xoá được** | Sandbox permission của phiên làm việc chặn thao tác sửa `authorized_keys` (2 lần). Key vô hại (khóa công khai demo do ta sinh); user tự xoá bằng 1 lệnh: `rm ~/.ssh/authorized_keys` (file chỉ chứa đúng 1 key demo này). SSH mật khẩu KHÔNG bị ảnh hưởng |
+
+### Cố ý GIỮ LẠI (theo phạm vi đã chốt)
+
+- **`ipgs-remote-agent.service` (ZcuAgent)** — đường quản trị từ CCU; unit enabled + linger bật (chạy từ boot).
+- **SSH (`openssh-server`)** — đường quản trị duy nhất còn lại khi chưa đăng nhập desktop.
+- `gnome-shell-extensions`, `python3-pip`, `git`, `terminator`, các gói `kztek-parkingv8`/`ipgsusecam` — không do ta cài trong lúc test.
+
+### Trạng thái sau reboot (06:57 — bằng chứng thật)
+
+- **SSH:** vào được bình thường (kiểm tra ngay sau boot).
+- **Màn hình đăng nhập:** máy DỪNG ở greeter đúng kỳ vọng — `loginctl list-sessions` chỉ có session `gdm` trên seat0 (greeter `gnome-shell` chạy dưới user `gdm`), `who` → không có session đồ họa `kztek`.
+- **Agent:** unit enabled, đang **`activating` (auto-restart mỗi 5s)** với lỗi `XOpenDisplay failed` — hệ quả TẤT YẾU của việc gỡ autologin: agent cần phiên X `:0` của kztek để capture màn hình, chưa ai đăng nhập thì chưa có `:0`. **KHÔNG phải hư hỏng:** ngay khi user đăng nhập ở console VM, agent tự `active` trong ≤ 10 giây (Restart=on-failure/5s — không bị StartLimit chặn: 2 lần start/10s < burst 5). Đã xác nhận unit + linger còn nguyên.
+
+### Việc user cần làm để test lại Kiosk Deploy từ đầu
+
+1. Mở console VM VirtualBox (`ubuntu-22.06-x64`) → đăng nhập user `kztek` bằng mật khẩu → agent tự `active` sau vài giây.
+2. **Cập nhật IP mới `192.168.1.172`** vào profile máy ZCU trong app CCU (IP cũ `192.168.0.101` không còn — mạng Wi-Fi host đã đổi dải; nếu muốn IP cố định, cân nhắc đặt static IP trong VM).
+3. (Tuỳ chọn) Xoá key demo còn sót: SSH vào ZCU chạy `rm ~/.ssh/authorized_keys` (mục 19).
+4. Chạy **Kiosk Deploy** từ app CCU (KioskDeployWindow) với các tuỳ chọn cần test: tab Config phần mềm — Ẩn Top Bar / **Ẩn nút Activities** (cài extension chặn overview) / Ẩn Workspace / Ẩn Dash / Autostart / **Watchdog** (mặc định tick); tab Config máy tính — **Autologin** / Tắt notification / Tắt screensaver-lock / **Khoá lối thoát kiosk (dconf lock)** (mặc định tick).
+5. Sau deploy: **khởi động lại ZCU** (bắt buộc để extension + dconf profile + autologin có hiệu lực), rồi nghiệm thu theo checklist Q1–Q10 (mục QA verify F09/F10 ở trên), đặc biệt Q7/Q8 thử tay trên màn cảm ứng thật.
+
+— DevOps Engineer, 2026-07-27 07:01
+
+---
