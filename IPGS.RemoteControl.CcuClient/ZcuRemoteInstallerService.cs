@@ -81,12 +81,27 @@ namespace IPGS.RemoteControl.CcuClient
                 if (!ssh.IsConnected)
                     throw new Exception("Không thể mở kết nối SSH đến máy ZCU.");
 
-                Report("🔍 [2/7] Kiểm tra hệ điều hành & môi trường X11...", 20);
-                var sessionRes = ExecuteCommand(ssh, "echo $XDG_SESSION_TYPE");
+                Report("🔍 [2/7] Kiểm tra hệ điều hành & môi trường hiển thị (X11/Wayland)...", 20);
+                // F-wayland: đọc XDG_SESSION_TYPE của phiên đồ hoạ ĐANG chạy (không phải phiên
+                // SSH hiện tại, luôn là headless) — dò qua loginctl vì agent chạy dưới graphical
+                // session của user, còn `echo $XDG_SESSION_TYPE` qua SSH thường trả rỗng.
+                var sessionRes = ExecuteCommand(ssh,
+                    $"loginctl show-user {ShellQuote.Quote(username)} -p Sessions --value 2>/dev/null | tr ' ' '\\n' | " +
+                    "xargs -I{} loginctl show-session {} -p Type --value 2>/dev/null | grep -v '^tty$\\|^unspecified$' | head -1");
                 string sessionType = sessionRes.Trim().ToLower();
+                if (string.IsNullOrEmpty(sessionType))
+                {
+                    sessionType = "x11"; // fallback an toàn — giữ hành vi cũ nếu không dò được
+                }
+
                 if (sessionType == "wayland")
                 {
-                    Report("⚠️ Cảnh báo: Session hiện tại là Wayland. ZcuAgent yêu cầu session X11 (Ubuntu on Xorg).", 25);
+                    Report("ℹ️ Session hiện tại là GNOME Wayland — dùng đường Mutter D-Bus (ScreenCast/RemoteDesktop) thay vì XTest/XShm.", 25);
+                }
+                else if (sessionType != "x11")
+                {
+                    Report($"⚠️ Cảnh báo: session type '{sessionType}' không xác định — giả định X11.", 25);
+                    sessionType = "x11";
                 }
 
                 const string remoteOfflineDir = "/tmp/ipgs-offline";
@@ -117,6 +132,20 @@ namespace IPGS.RemoteControl.CcuClient
                 else
                 {
                     ExecuteSudoCommand(ssh, "dpkg -l libx11-6 libxext6 libxtst6 wget >/dev/null 2>&1 || (systemctl stop unattended-upgrades.service 2>/dev/null || true; apt-get update -qq && apt-get install -y -qq libx11-6 libxext6 libxtst6 wget)", options.Password);
+                }
+
+                // F-wayland: WaylandScreenCapturer shells out to gst-launch-1.0 (pipewiresrc)
+                // — chỉ có sẵn từ apt, chưa có gói offline nhúng như x11-deb. Cài online;
+                // nếu máy Wayland không có mạng, cài đặt sẽ log lỗi rõ ràng thay vì agent
+                // fail âm thầm lúc runtime khi không tìm thấy gst-launch-1.0.
+                if (sessionType == "wayland")
+                {
+                    Report("📦 [3.1/7] Cài đặt GStreamer + PipeWire plugin cho capture Wayland...", 40);
+                    ExecuteSudoCommand(ssh,
+                        "dpkg -l gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-pipewire >/dev/null 2>&1 || " +
+                        "(systemctl stop unattended-upgrades.service 2>/dev/null || true; apt-get update -qq && " +
+                        "apt-get install -y -qq gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-pipewire)",
+                        options.Password);
                 }
 
                 Report("💻 [4/7] Kiểm tra & cài đặt .NET 8 Runtime...", 50);
@@ -221,9 +250,8 @@ ExecStart={remoteInstallDir}/IPGS.RemoteControl.ZcuAgent
 WorkingDirectory={remoteInstallDir}
 Environment=DOTNET_ROOT=/home/{username}/.dotnet
 Environment=PATH=/home/{username}/.dotnet:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-Environment=DISPLAY=:0
-Environment=XDG_SESSION_TYPE=x11
-Restart=on-failure
+Environment=XDG_SESSION_TYPE={sessionType}
+{(sessionType == "x11" ? "Environment=DISPLAY=:0\n" : "")}Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal

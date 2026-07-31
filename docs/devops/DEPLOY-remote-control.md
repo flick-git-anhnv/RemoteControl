@@ -107,7 +107,9 @@ Script sẽ thực hiện toàn bộ 7 bước cấu hình hệ thống và kh�
 
 ### 2.1 Hệ điều hành
 
-- **Ubuntu 22.04 LTS**, session **X11** (bắt buộc — tính năng không hoạt động trên Wayland).
+- **Ubuntu 22.04 LTS**, session **X11 hoặc GNOME Wayland** — ZcuAgent tự phát hiện lúc start
+  và chọn đúng backend (xem branch `wayland`, TDD §14b). Bất kỳ session type nào khác
+  (headless, không xác định) sẽ bị từ chối khởi động.
 
 Kiểm tra loại session đang dùng:
 
@@ -115,7 +117,15 @@ Kiểm tra loại session đang dùng:
 echo $XDG_SESSION_TYPE
 ```
 
-Kết quả phải là `x11`. Nếu thấy `wayland` → ZcuAgent sẽ từ chối khởi động với thông báo lỗi rõ ràng. Cần chuyển sang session X11 (tại màn hình đăng nhập, chọn "Ubuntu on Xorg").
+Kết quả `x11` → dùng đường XTest/XShm (mục 2.2). Kết quả `wayland` → dùng đường Mutter
+D-Bus + PipeWire (mục 2.3) — cần thêm gói `gstreamer1.0-pipewire`, ZcuSetupWizard/
+`ZcuRemoteInstallerService` tự cài khi phát hiện Wayland.
+
+> ⚠️ Đường Wayland dùng API D-Bus riêng của Mutter (`org.gnome.Mutter.ScreenCast`/
+> `RemoteDesktop`), KHÔNG phải xdg-desktop-portal chuẩn — phù hợp kiosk không người trực
+> (không cần bấm "Allow" trên dialog chia sẻ màn hình) nhưng CHƯA được kiểm chứng trên
+> phần cứng GNOME Shell 42 thật (xem mục "⚠️ CẦN VERIFY" trong TDD §14b). Khuyến nghị test
+> kỹ trên 1 máy trước khi rollout diện rộng.
 
 ### 2.2 Thư viện native X11
 
@@ -132,6 +142,21 @@ sudo apt install -y libx11-6 libxext6 libxtst6
 | `libx11-6` | P/Invoke libX11 — mở display, capture màn hình |
 | `libxext6` | P/Invoke libXext — MIT-SHM (XShmGetImage, bộ nhớ chia sẻ) |
 | `libxtst6` | P/Invoke libXtst — XTest (inject mouse/keyboard) |
+
+### 2.3 Gói cho session Wayland (chỉ cần khi `XDG_SESSION_TYPE=wayland`)
+
+```bash
+sudo apt install -y gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-pipewire
+```
+
+| Gói | Vai trò |
+|-----|---------|
+| `gstreamer1.0-tools` | cung cấp `gst-launch-1.0` — WaylandScreenCapturer chạy nó làm subprocess |
+| `gstreamer1.0-plugins-base` | element `videoconvert`/`videorate` dùng trong pipeline capture |
+| `gstreamer1.0-pipewire` | element `pipewiresrc` — đọc frame từ PipeWire node do Mutter ScreenCast tạo |
+
+Không cần cài `libx11-6`/`libxext6`/`libxtst6` khi chạy thuần Wayland (nhánh Wayland không
+gọi Xlib/XTest), nhưng cài thêm cũng không hại gì nếu máy có thể đổi qua lại X11/Wayland.
 
 ### 2.3 .NET 8 Runtime
 
@@ -253,7 +278,10 @@ chmod +x /home/<zcu-user>/ipgs/remote-agent/IPGS.RemoteControl.ZcuAgent
 
 #### Bước 5: Tạo systemd user service
 
-ZcuAgent cần quyền truy cập X11 display của session desktop đang đăng nhập. Khuyến nghị chạy như **systemd user service** (không phải system service) để kế thừa đúng biến môi trường `DISPLAY` và `XAUTHORITY` của user.
+ZcuAgent cần quyền truy cập display server (X11 hoặc Wayland) của session desktop đang đăng
+nhập. Khuyến nghị chạy như **systemd user service** (không phải system service) để kế thừa
+đúng biến môi trường (`DISPLAY`/`XAUTHORITY` cho X11, `DBUS_SESSION_BUS_ADDRESS` cho Wayland)
+của user.
 
 Tạo file unit:
 
@@ -276,8 +304,16 @@ ExecStart=/home/%u/ipgs/remote-agent/IPGS.RemoteControl.ZcuAgent
 WorkingDirectory=/home/%u/ipgs/remote-agent
 Environment=DOTNET_ROOT=%h/.dotnet
 Environment=PATH=%h/.dotnet:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-Environment=DISPLAY=:0
+# QUAN TRỌNG: XDG_SESSION_TYPE KHÔNG tự inherit vào systemd --user unit — set thủ công
+# khớp với session type thật của desktop (kiểm tra trước: `loginctl show-session
+# $XDG_SESSION_ID -p Type --value` khi đang đăng nhập desktop đó). Sai giá trị ở đây
+# khiến ZcuAgent chọn nhầm backend (Xlib vs D-Bus) và fail ngay khi start.
+# X11:     Environment=DISPLAY=:0  (thêm dòng này)
+#          Environment=XDG_SESSION_TYPE=x11
+# Wayland: KHÔNG cần DISPLAY
+#          Environment=XDG_SESSION_TYPE=wayland
 Environment=XDG_SESSION_TYPE=x11
+Environment=DISPLAY=:0
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -511,7 +547,8 @@ journalctl --user -u ipgs-remote-agent.service -n 100
 |-------------|-------------|------------|
 | CCU báo lỗi "Connection refused" | ZcuAgent chưa chạy hoặc sai port/IP | Kiểm tra `ss -tlnp \| grep 17600`; kiểm tra IP ZCU |
 | CCU kết nối được nhưng màn hình trắng/đen | ZcuAgent không có quyền truy cập X11 display | Kiểm tra `DISPLAY` trong unit file; chạy `xdpyinfo` trên ZCU để xác nhận |
-| ZcuAgent khởi động fail với lỗi "Wayland not supported" | Session ZCU đang dùng Wayland thay X11 | Đăng xuất, đăng nhập lại chọn "Ubuntu on Xorg" |
+| ZcuAgent khởi động fail với `XDG_SESSION_TYPE=...` không xác định | Unit file set sai `XDG_SESSION_TYPE` so với session thật | Kiểm tra `loginctl show-session $XDG_SESSION_ID -p Type --value` khi đăng nhập desktop, sửa lại unit file khớp giá trị đó (mục 2.1/Bước 5) |
+| Session Wayland: ZcuAgent fail lúc start với lỗi timeout gst-launch-1.0 / D-Bus | Thiếu gói `gstreamer1.0-pipewire`, hoặc Mutter D-Bus API không khớp bản GNOME (xem TDD §14b) | Cài gói mục 2.3; chạy `busctl --user introspect org.gnome.Shell /org/gnome/Mutter/ScreenCast` để so khớp signature |
 | CCU báo "AUTH_FAIL" | Token sai hoặc IP CCU không có trong `AllowedClientIPs` | Kiểm tra lại token (phân biệt hoa/thường); kiểm tra `AllowedClientIPs` trong `appsettings.json` |
 | Sau 3 lần AUTH_FAIL, IP bị ban 5 phút | Rate limit được kích hoạt | Chờ 5 phút, hoặc restart ZcuAgent service để xóa ban; sau đó sửa token cho đúng |
 | Kết nối bị ngắt sau ~15 giây không hoạt động | PING timeout | Bình thường nếu không có traffic — client tự reconnect sau 3s. Nếu reconnect liên tục: kiểm tra mạng giữa CCU và ZCU |

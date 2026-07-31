@@ -32,6 +32,17 @@
     <!-- Generic Host + DI + Configuration + Logging -->
     <PackageReference Include="Microsoft.Extensions.Hosting"              Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json"   Version="8.0.1" />
+
+    <!--
+      Tmds.DBus: talks to GNOME Shell's private org.gnome.Mutter.ScreenCast /
+      org.gnome.Mutter.RemoteDesktop D-Bus interfaces on the user session bus for
+      Wayland capture + input injection (Wayland/ folder). Version pinned to the
+      classic reflection-based CreateProxy<T> API (pre-0.90 rewrite).
+    -->
+    <!-- 0.92.0 is the first Tmds.DBus release with the GHSA-xrw6-gwf8-vvr9 fix (0.21.x line
+         only got the fix in Tmds.DBus.Protocol, not this package). Still uses the classic
+         reflection-based CreateProxy<T> API used throughout Wayland/. -->
+    <PackageReference Include="Tmds.DBus" Version="0.92.0" />
   </ItemGroup>
 
   <ItemGroup>

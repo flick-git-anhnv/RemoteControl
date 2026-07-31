@@ -12,7 +12,8 @@
           "Microsoft.Extensions.Configuration.Json": "8.0.1",
           "Microsoft.Extensions.Hosting": "8.0.1",
           "SkiaSharp": "2.88.9",
-          "SkiaSharp.NativeAssets.Linux": "2.88.9"
+          "SkiaSharp.NativeAssets.Linux": "2.88.9",
+          "Tmds.DBus": "0.92.0"
         },
         "runtime": {
           "IPGS.RemoteControl.ZcuAgent.dll": {}
@@ -402,6 +403,14 @@
             "fileVersion": "8.0.1024.46610"
           }
         }
+      },
+      "Tmds.DBus/0.92.0": {
+        "runtime": {
+          "lib/net6.0/Tmds.DBus.dll": {
+            "assemblyVersion": "0.92.0.0",
+            "fileVersion": "0.92.0.0"
+          }
+        }
       }
     }
   },
@@ -620,6 +629,13 @@
       "sha512": "sha512-n1ZP7NM2Gkn/MgD8+eOT5MulMj6wfeQMNS2Pizvq5GHCZfjlFMXV2irQlQmJhwA2VABC57M0auudO89Iu2uRLg==",
       "path": "system.diagnostics.eventlog/8.0.1",
       "hashPath": "system.diagnostics.eventlog.8.0.1.nupkg.sha512"
+    },
+    "Tmds.DBus/0.92.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-udg0st7P2fT3L1IlNmMII0rU/JCvnKn2yXkjCSExqKl7gZvQXIUN/kHJkw2fPhdU8cQ3HFl481BukLFn2K0aaA==",
+      "path": "tmds.dbus/0.92.0",
+      "hashPath": "tmds.dbus.0.92.0.nupkg.sha512"
     }
   }
 }

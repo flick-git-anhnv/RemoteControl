@@ -13,7 +13,7 @@ plan: .claude/plans/PLAN-ccu-zcu-remote-control-2026-07-22/PLAN-MASTER.md
 ## 1. Bối cảnh
 
 - **CCU:** Windows, Avalonia (IPGSUseCam) — đóng vai **client** điều khiển.
-- **ZCU:** Ubuntu 22.04, session **X11** (`XDG_SESSION_TYPE=x11`), .NET 8 — đóng vai **server**.
+- **ZCU:** Ubuntu 22.04, session **X11** hoặc **GNOME Wayland** (`XDG_SESSION_TYPE=x11|wayland`, tự phát hiện lúc start), .NET 8 — đóng vai **server**. Xem §14b cho nhánh Wayland (branch `wayland`).
 - **Mục tiêu:** Từ CCU xem màn hình ZCU và điều khiển chuột như remote desktop, KHÔNG dùng VNC/RDP/TeamViewer (tránh license).
 - **Ràng buộc cứng:** Chỉ tạo 3 project mới; **không sửa** `IPGS.Object`, `IPGSUseCam`, `IPGS.LPR_SERVER`, ... Ngoại lệ duy nhất: `IPGSUseCam` được thêm `<ProjectReference>` sang `IPGS.RemoteControl.CcuUI` + 1 entry point (menu/nút) mở window remote.
 
@@ -275,7 +275,7 @@ SysV shm (libc): `shmget`, `shmat`, `shmdt`, `shmctl`:
 **Gotcha đã ghi nhận (đưa vào `.claude/GOTCHAS.md` sau khi impl):**
 - `XInitThreads()` PHẢI gọi **trước** `XOpenDisplay` nếu muốn dùng X11 từ nhiều thread (capture thread + inject thread).
 - `XShmGetImage` trả về `Bool` (int 0/1), KHÔNG throw — phải check return.
-- Chỉ hoạt động trên **X11**, KHÔNG chạy trên Wayland. Kiểm tra `$XDG_SESSION_TYPE` khi start service, refuse nếu không phải `x11`.
+- Toàn bộ §9 chỉ áp dụng cho nhánh **X11**. Nhánh **Wayland** dùng D-Bus (Mutter) thay vì Xlib/XTest — xem §14b.
 - `XTestFakeButtonEvent` cần `XFlush(display)` sau đó để event thực sự được gửi.
 
 ## 10. Interface C# công khai
@@ -371,13 +371,87 @@ public partial class RemoteScreenControl : UserControl { ... }   // dùng KztekC
 
 | Rủi ro | Xác suất | Impact | Mitigation |
 |--------|----------|--------|------------|
-| Wayland thay X11 khi upgrade Ubuntu | Thấp v1 | Cao | Check `$XDG_SESSION_TYPE` khi start, refuse nếu `wayland` với message rõ ràng |
+| Mutter D-Bus API (private, không phải portal) đổi signature giữa các bản GNOME Shell | Trung | Cao | Verify `busctl --user introspect org.gnome.Shell /org/gnome/Mutter/{ScreenCast,RemoteDesktop}` trên từng phiên bản GNOME mục tiêu trước khi rollout (xem §14b) |
+| Kiosk Wayland thiếu `gstreamer1.0-pipewire` | Trung | Cao | Installer (`ZcuRemoteInstallerService`) tự cài qua apt khi phát hiện session Wayland — cần mạng lúc cài lần đầu |
 | `libXtst`/`libXext` không có sẵn | Thấp | Cao | Bước 2.1 doc rõ `apt install libxtst6 libxext6 libx11-6` trong deploy-linux/postinst |
 | CPU cao khi FPS=15 + JPEG q=90 | Trung | Trung | Cấu hình mặc định q=70, fps=15; expose tuning |
 | Chuột "nhảy" do delay + accumulator | Trung | Thấp | CCU throttle mouse-move ≤ 60Hz, chỉ gửi khi delta ≥ 2px |
 | Frame > 8MB (màn hình 4K, texture nhiều) | Thấp | Trung | Giảm quality động khi vượt threshold (v1.1) |
 | Token leak trong log | Trung | Cao | KHÔNG log token, kể cả debug. Log "AUTH_OK for <ip>" thôi |
 | Kết nối treo (half-open TCP) | Trung | Trung | PING/PONG 5s + timeout 15s + `TcpKeepAlive` socket option |
+
+## 14b. Wayland support (branch `wayland`)
+
+**Bối cảnh:** kiosk thực tế chạy GNOME Shell 42 / Ubuntu 22.04, có thể chạy dưới X11 hoặc
+GNOME Wayland tuỳ cấu hình máy. Vì đây là kiosk KHÔNG có người trực (không ai bấm "Allow"
+trên dialog xin chia sẻ màn hình), đường **xdg-desktop-portal chuẩn** (dùng cho app
+sandbox/Flatpak) không phù hợp. Thay vào đó dùng trực tiếp **API D-Bus riêng của Mutter**
+(`org.gnome.Mutter.ScreenCast` + `org.gnome.Mutter.RemoteDesktop`) — cùng API mà chính
+`gnome-remote-desktop` (VNC/RDP built-in của GNOME) dùng nội bộ, không cần dialog xin phép
+vì agent chạy trong cùng session user (không sandbox).
+
+**Kiến trúc:** `IScreenCapturer` / `IMouseInjector` / `IKeyboardInjector` (§10.2) không đổi
+— chỉ thêm implementation mới, chọn qua `XDG_SESSION_TYPE` lúc start (`Program.cs`):
+
+```
+IPGS.RemoteControl.ZcuAgent/Wayland/
+├── MutterDBusInterfaces.cs   ← Tmds.DBus proxy interfaces (ScreenCast, RemoteDesktop, Session, Stream)
+├── MutterSessionManager.cs   ← DI singleton: RemoteDesktop session + ScreenCast session ghép cặp,
+│                                lấy PipeWire node id, share giữa capturer + 2 injector
+├── WaylandScreenCapturer.cs  ← đọc frame BGRA từ PipeWire qua subprocess gst-launch-1.0 (pipewiresrc)
+├── WaylandMouseInjector.cs   ← NotifyPointerMotionAbsolute / NotifyPointerButton / NotifyPointerAxisDiscrete
+└── WaylandKeyboardInjector.cs ← NotifyKeyboardKeysym (nhận thẳng X11 keysym, Mutter tự resolve qua xkb)
+```
+
+**Vì sao subprocess GStreamer thay vì native libpipewire binding:** đàm phán format/buffer
+PipeWire trực tiếp qua P/Invoke là bề mặt lớn, ít tài liệu. `gst-launch-1.0` với element
+`pipewiresrc` đã làm đúng việc đó. Đánh đổi: thêm runtime dependency `gstreamer1.0-tools` +
+`gstreamer1.0-plugins-base` + `gstreamer1.0-pipewire` (installer tự `apt-get install` khi
+phát hiện session Wayland).
+
+⚠️ **VERIFIED — pixel data đi qua named pipe (FIFO), KHÔNG qua stdout:** bản GStreamer trên
+kiosk in verbose text của `-v` (dùng để lấy resolution) ra STDOUT chứ không phải stderr —
+nếu dùng chung `fdsink fd=1` cho cả text lẫn pixel data, hai luồng trộn lẫn và hỏng dữ liệu
+(`file` báo "ASCII text" thay vì binary). Pipeline thật dùng `filesink location=<fifo>`
+(tạo bằng `mkfifo`), C# mở `FileStream` đọc riêng — xem lesson Gotcha 2b để biết cách tránh
+deadlock rendezvous khi mở FIFO.
+
+**Thứ tự bắt buộc khi tạo session** (✅ ĐÃ VERIFY trên máy thật 192.168.21.230, GNOME Shell
+42.9, 2026-07-31 — xem lesson `linux-desktop/gnome-wayland-remote-control-mutter-dbus-pipewire.md`):
+1. `RemoteDesktop.CreateSession()` → lấy `SessionId` (qua `Properties.GetAll`, property
+   `SessionId`).
+2. `ScreenCast.CreateSession({"remote-desktop-session-id": <SessionId>})` — PHẢI truyền
+   property này để ghép cặp 2 session, nếu không ScreenCast sẽ bị coi là request độc lập
+   (có thể bị portal-consent chặn hoặc từ chối tuỳ cấu hình GNOME).
+3. `ScreenCastSession.RecordMonitor("", {})` → lấy `Stream` object path.
+4. Subscribe `Stream.PipeWireStreamAdded` TRƯỚC KHI gọi `Start()` (signal bắn ngay sau
+   Start(), không phải sau đó).
+5. **CHỈ gọi `RemoteDesktopSession.Start()`** — verify xác nhận việc này tự động start
+   luôn ScreenCast đã ghép cặp. Gọi `ScreenCastSession.Start()` trực tiếp sau khi ghép cặp
+   THẤT BẠI với lỗi `"Must be started from remote desktop session"`. Tương tự khi dừng:
+   chỉ gọi `RemoteDesktopSession.Stop()`, KHÔNG gọi `ScreenCastSession.Stop()`.
+
+**⚠️ CÒN CẦN VERIFY (chưa test — có side-effect trên kiosk đang chạy, cần xin phép riêng):**
+- `NotifyPointerMotionAbsolute`/`NotifyPointerButton`/`NotifyPointerAxisDiscrete`/
+  `NotifyKeyboardKeysym` — di chuyển chuột/gõ phím thật trên máy đang hoạt động.
+- Pipeline GStreamer đầy đủ (`WaylandScreenCapturer` đọc frame BGRA thật) — chưa build/deploy
+  binary agent lên máy để test end-to-end.
+- Latency thực tế của đường subprocess GStreamer so với X11 pull-based — chưa có số đo thật.
+
+Method/signal top-level (`ScreenCast.CreateSession`, `RemoteDesktop.CreateSession`,
+`RecordMonitor`, `PipeWireStreamAdded`, `SessionId` property) đã khớp đúng với
+`MutterDBusInterfaces.cs` khi verify — introspection D-Bus chuẩn (`busctl --user introspect`)
+KHÔNG dùng được để verify trước vì GNOME Shell (GJS) trả introspection XML rỗng cho các
+object Session/Stream private này; phải test bằng cách gọi thật (giữ 1 D-Bus connection sống
+xuyên suốt, không dùng CLI gọi rời rạc — mỗi lệnh `busctl call` tự đóng connection ngay sau
+khi trả kết quả, làm session bị Mutter huỷ theo và dễ hiểu nhầm là "tự hết hạn").
+
+**Input mapping khác X11:**
+- Mouse button dùng **evdev code** (`BTN_LEFT=0x110`...), không phải X11 button number.
+- Mouse wheel là **pointer axis event** (`NotifyPointerAxisDiscrete`), không phải button
+  press/release như XTest — chỉ bắn 1 step ở cạnh press, bỏ qua cạnh release.
+- Keyboard nhận thẳng X11 keysym, Mutter tự map qua xkb nội bộ — không cần
+  `XKeysymToKeycode` (đơn giản hơn X11).
 
 ## 15. Task breakdown (khớp PLAN-MASTER)
 
