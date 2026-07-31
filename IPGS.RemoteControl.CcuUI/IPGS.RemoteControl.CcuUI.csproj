@@ -32,6 +32,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      F15: nhúng sẵn ZcuAgent binaries + .NET 8 Runtime + gói X11 .deb + script setup
+      vào output publish của CcuUI, để cài đặt ZCU không cần tải mạng (offline-capable).
+      Copy cả khi `dotnet build` (dev/test) lẫn `dotnet publish` (bản phát hành).
+    -->
+    <Content Include="Resources\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\5.BaseUI\KztekComponentAvalonia\KztekComponentAvalonia\KztekComponentAvalonia.csproj" />
     <ProjectReference Include="..\IPGS.RemoteControl.CcuClient\IPGS.RemoteControl.CcuClient.csproj" />
   </ItemGroup>

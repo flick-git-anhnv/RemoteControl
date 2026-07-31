@@ -89,15 +89,65 @@ namespace IPGS.RemoteControl.CcuClient
                     Report("⚠️ Cảnh báo: Session hiện tại là Wayland. ZcuAgent yêu cầu session X11 (Ubuntu on Xorg).", 25);
                 }
 
+                const string remoteOfflineDir = "/tmp/ipgs-offline";
+                ExecuteCommand(ssh, $"mkdir -p {remoteOfflineDir}");
+
+                // F15: X11 libs + .NET Runtime giờ được cài OFFLINE từ resource nhúng sẵn
+                // trong CcuUI (Resources/x11-deb, Resources/dotnet-runtime) — không còn gọi
+                // apt-get/wget ra mạng. Nếu build CcuUI cũ chưa có resource, fallback về
+                // apt-get/wget như trước để không phá luồng cài đặt hiện có.
                 Report("📦 [3/7] Cài đặt các thư viện Native X11 (libx11, libxext, libxtst)...", 35);
-                ExecuteSudoCommand(ssh, "dpkg -l libx11-6 libxext6 libxtst6 wget >/dev/null 2>&1 || (systemctl stop unattended-upgrades.service 2>/dev/null || true; apt-get update -qq && apt-get install -y -qq libx11-6 libxext6 libxtst6 wget)", options.Password);
+                string? x11DebDir = ResolveResourceDir("x11-deb");
+                if (!string.IsNullOrEmpty(x11DebDir))
+                {
+                    using (var sftpDeb = CreateSftpClient(options))
+                    {
+                        sftpDeb.Connect();
+                        string remoteDebDir = $"{remoteOfflineDir}/x11-deb";
+                        if (!sftpDeb.Exists(remoteDebDir)) sftpDeb.CreateDirectory(remoteDebDir);
+                        foreach (var debFile in Directory.GetFiles(x11DebDir, "*.deb"))
+                        {
+                            using var fs = File.OpenRead(debFile);
+                            sftpDeb.UploadFile(fs, $"{remoteDebDir}/{Path.GetFileName(debFile)}", true);
+                        }
+                        sftpDeb.Disconnect();
+                    }
+                    ExecuteSudoCommand(ssh, $"dpkg -l libx11-6 libxext6 libxtst6 >/dev/null 2>&1 || dpkg -i {remoteOfflineDir}/x11-deb/*.deb", options.Password);
+                }
+                else
+                {
+                    ExecuteSudoCommand(ssh, "dpkg -l libx11-6 libxext6 libxtst6 wget >/dev/null 2>&1 || (systemctl stop unattended-upgrades.service 2>/dev/null || true; apt-get update -qq && apt-get install -y -qq libx11-6 libxext6 libxtst6 wget)", options.Password);
+                }
 
                 Report("💻 [4/7] Kiểm tra & cài đặt .NET 8 Runtime...", 50);
-                var dotnetCheck = ExecuteCommand(ssh, "dotnet --version 2>/dev/null || $HOME/.dotnet/dotnet --version 2>/dev/null || echo 'NOT_FOUND'");
-                if (dotnetCheck.Contains("NOT_FOUND"))
+                // F20: dùng --list-runtimes thay --version — máy chỉ cài .NET RUNTIME
+                // (framework-dependent, không có SDK) khiến `dotnet --version` luôn lỗi
+                // "No .NET SDKs were found" dù runtime đã cài đủ, làm installer tưởng
+                // NOT_FOUND và tải lại runtime mỗi lần chạy (verify thật trên ZCU
+                // 192.168.0.102 — `dotnet --version` fail nhưng `--list-runtimes` báo
+                // đúng "Microsoft.NETCore.App 8.0.20 [...]").
+                var dotnetCheck = ExecuteCommand(ssh, "dotnet --list-runtimes 2>/dev/null || $HOME/.dotnet/dotnet --list-runtimes 2>/dev/null || echo 'NOT_FOUND'");
+                if (!dotnetCheck.Contains("Microsoft.NETCore.App"))
                 {
-                    Report("⬇️ Đang tải script và cài .NET 8 Runtime...", 55);
-                    ExecuteCommand(ssh, "wget -q https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh && chmod +x /tmp/dotnet-install.sh && /tmp/dotnet-install.sh --channel 8.0 --runtime dotnet --install-dir $HOME/.dotnet && rm -f /tmp/dotnet-install.sh");
+                    string? dotnetRuntimeDir = ResolveResourceDir("dotnet-runtime");
+                    string? dotnetTarball = dotnetRuntimeDir is null ? null : Directory.GetFiles(dotnetRuntimeDir, "*.tar.gz").FirstOrDefault();
+                    if (dotnetTarball is not null)
+                    {
+                        Report("📤 Đang tải bộ cài .NET 8 Runtime (offline) lên ZCU...", 55);
+                        using var sftpDotnet = CreateSftpClient(options);
+                        sftpDotnet.Connect();
+                        using (var fs = File.OpenRead(dotnetTarball))
+                        {
+                            sftpDotnet.UploadFile(fs, $"{remoteOfflineDir}/dotnet-runtime.tar.gz", true);
+                        }
+                        sftpDotnet.Disconnect();
+                        ExecuteCommand(ssh, $"mkdir -p $HOME/.dotnet && tar -xzf {remoteOfflineDir}/dotnet-runtime.tar.gz -C $HOME/.dotnet");
+                    }
+                    else
+                    {
+                        Report("⬇️ Đang tải script và cài .NET 8 Runtime...", 55);
+                        ExecuteCommand(ssh, "wget -q https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh && chmod +x /tmp/dotnet-install.sh && /tmp/dotnet-install.sh --channel 8.0 --runtime dotnet --install-dir $HOME/.dotnet && rm -f /tmp/dotnet-install.sh");
+                    }
                 }
 
                 string remoteInstallDir = $"/home/{username}/ipgs/remote-agent";
@@ -191,6 +241,18 @@ WantedBy=default.target";
                 ExecuteCommand(ssh, "gsettings set org.gnome.desktop.screensaver lock-enabled false 2>/dev/null || true");
                 ExecuteCommand(ssh, "gsettings set org.gnome.desktop.session idle-delay 0 2>/dev/null || true");
 
+                // F18: tắt lock-enabled/idle-delay ở trên chỉ ngăn khoá màn hình TRONG
+                // TƯƠNG LAI — không tự mở khoá phiên ĐANG bị khoá sẵn từ trước lúc cài
+                // (toàn bộ cài đặt chạy qua SSH, không ai chạm màn hình ZCU). Nếu phiên đã
+                // lock do idle trước khi cài xong, ZcuAgent vẫn capture đúng màn hình đang
+                // hiển thị — mà màn hình lock/blank thì capture ra đen (gotcha ghi trong
+                // docs/devops/DEPLOY-remote-control.md mục 6.4). Chủ động unlock mọi
+                // session của user ngay sau khi tắt khoá màn hình để không cần thao tác
+                // tay ở lần cài đầu.
+                ExecuteSudoCommand(ssh,
+                    $"for sid in $(loginctl list-sessions --no-legend 2>/dev/null | awk -v u={ShellQuote.Quote(username)} '$3==u{{print $1}}'); do loginctl unlock-session \"$sid\" 2>/dev/null || true; done",
+                    options.Password);
+
                 // Start service and check active status
                 ExecuteCommand(ssh, "systemctl --user restart ipgs-remote-agent.service || true");
                 var activeCheck = ExecuteCommand(ssh, "systemctl --user is-active ipgs-remote-agent.service || echo 'inactive'");
@@ -282,8 +344,27 @@ WantedBy=default.target";
             }
         }
 
+        /// <summary>
+        /// F15: tìm thư mục resource offline (Resources/&lt;name&gt;) đã được nhúng sẵn vào
+        /// output publish của CcuUI (xem CcuUI.csproj — Content Include="Resources\**").
+        /// Trả về null nếu build CcuUI hiện tại chưa có resource này (bản cũ) — caller tự
+        /// fallback về đường mạng.
+        /// </summary>
+        private string? ResolveResourceDir(string relativeName)
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string candidate = Path.Combine(baseDir, "Resources", relativeName);
+            return Directory.Exists(candidate) ? candidate : null;
+        }
+
         private string? ResolveOrBuildZcuAgentBinaries(Action<string, double>? report)
         {
+            // F15: ưu tiên binary ZcuAgent đã nhúng sẵn trong output CcuUI trước khi
+            // tìm/publish từ source — đây là đường offline chính, không cần .NET SDK trên CCU.
+            string? embedded = ResolveResourceDir(Path.Combine("zcu-agent", "linux-x64"));
+            if (!string.IsNullOrEmpty(embedded) && File.Exists(Path.Combine(embedded, "IPGS.RemoteControl.ZcuAgent")))
+                return embedded;
+
             var searchRoots = new List<string>();
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             if (!string.IsNullOrEmpty(baseDir)) searchRoots.Add(baseDir);

@@ -40,6 +40,17 @@
           <TextBox x:Name="PART_SudoPassword" PasswordChar="•" PlaceholderText="Để trống nếu dùng chung với SSH password" Height="36" VerticalContentAlignment="Center"/>
         </StackPanel>
 
+        <!-- F22: Reset màu màn hình — công cụ độc lập, không thuộc luồng Deploy -->
+        <Border Background="#F0F9FF" BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="8" Padding="14">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Column="0" Spacing="2">
+              <TextBlock Text="🎨 Reset màu màn hình (Night Light / Gamma)" FontWeight="Bold" FontSize="13" Foreground="#0369A1"/>
+              <TextBlock x:Name="PART_ResetColorStatus" Text="Dùng khi màn hình ZCU bị ám màu (VD xanh/tím) sau khi đổi session X11↔Wayland." FontSize="11" Foreground="#0284C7" TextWrapping="Wrap"/>
+            </StackPanel>
+            <kz:KzButton Grid.Column="1" x:Name="PART_BtnResetColor" Content="Reset màu" KzSize="Sm"/>
+          </Grid>
+        </Border>
+
         <!-- TabControl -->
         <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="4">
           <TabControl>
@@ -167,6 +178,16 @@
                     </CheckBox>
                   </StackPanel>
                 </Grid>
+
+                <!-- Nút Deploy riêng cho tab này — F21: chỉ áp dụng cấu hình máy/UI,
+                     KHÔNG bắt buộc chọn App exec (autostart/watchdog sẽ tự bỏ qua nếu
+                     App exec đang trống, không chặn deploy). -->
+                <Border BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,12,0,0">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" x:Name="PART_StatusMsgMachine" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"/>
+                    <kz:KzButton Grid.Column="1" x:Name="PART_BtnDeployMachine" Content="🚀 Deploy Config máy tính" Classes="kz-primary"/>
+                  </Grid>
+                </Border>
               </StackPanel>
             </TabItem>
 
@@ -217,6 +238,17 @@
                                FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap"/>
                   </StackPanel>
                 </CheckBox>
+
+                <!-- Nút Deploy riêng cho tab này — F21: KHÔNG chạy 1-install-software.sh
+                     (bỏ qua cài extension GNOME/unclutter không liên quan), chỉ chạy
+                     2-configure-system.sh để áp dụng autostart/watchdog/software-update.
+                     Dùng khi cần đổi app autostart cho app KHÁC mà không đụng cấu hình máy. -->
+                <Border BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,12,0,0">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" x:Name="PART_StatusMsgSoftware" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"/>
+                    <kz:KzButton Grid.Column="1" x:Name="PART_BtnDeploySoftware" Content="🚀 Deploy Config phần mềm" Classes="kz-primary"/>
+                  </Grid>
+                </Border>
               </StackPanel>
             </TabItem>
 
@@ -248,10 +280,7 @@
 
     <!-- ── Footer ────────────────────────────────────────────────── -->
     <Border Grid.Row="2" Background="#F8FAFC" Padding="20,12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
-      <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Grid.Column="0" x:Name="PART_StatusMsg" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"/>
-        <kz:KzButton Grid.Column="1" x:Name="PART_BtnDeploy" Content="🚀 Deploy" Classes="kz-primary"/>
-      </Grid>
+      <TextBlock x:Name="PART_StatusMsg" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"/>
     </Border>
 
   </Grid>

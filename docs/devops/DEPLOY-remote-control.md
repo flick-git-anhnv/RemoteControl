@@ -16,6 +16,41 @@ Chi tiết giao thức TCP, message format, và kiến trúc nội bộ: xem `do
 
 ---
 
+## 🔌 Cài đặt OFFLINE (không cần Internet) — F15/F16
+
+Kể từ bản này, `IPGS.RemoteControl.CcuUI` **nhúng sẵn** mọi thứ cần thiết để cài ZCU/kiosk mà KHÔNG cần Internet:
+
+| Resource nhúng (`IPGS.RemoteControl.CcuUI/Resources/`) | Dùng cho | Kích thước |
+|---|---|---|
+| `zcu-agent/linux-x64/` | Binary ZcuAgent đã publish (framework-dependent) | ~11 MB |
+| `dotnet-runtime/dotnet-runtime-8.0-linux-x64.tar.gz` | .NET 8 Runtime — giải nén thẳng vào `$HOME/.dotnet` trên ZCU | ~30 MB |
+| `x11-deb/*.deb` | `libx11-6`, `libxext6`, `libxtst6` (Ubuntu 22.04 amd64) — cài bằng `dpkg -i` | ~700 KB |
+| `scripts/setup-zcu-agent.sh` | Bản tham khảo của script cài tay (không bắt buộc dùng qua wizard) | 8 KB |
+| `scripts/linux-kiosk/*.sh` | 4 script Kiosk Deploy (1-install-software, 2-configure-system, 3-toggle-topbar, kiosk-setup-gui) | 84 KB |
+| `gnome-extensions/*.zip` | Extension GNOME Shell 42: Just Perfection + Block Caribou 36 | ~164 KB |
+
+**Cách hoạt động:** `ZcuRemoteInstallerService` và `KioskDeployService` (trong `IPGS.RemoteControl.CcuClient`) tự tìm các resource này tại `<thư mục chứa CcuUI.exe>/Resources/...` (qua `ResolveResourceDir`). Nếu tìm thấy → upload qua SFTP và cài bằng `dpkg -i`/giải nén tarball/giải nén zip cục bộ, không gọi `apt-get`/`wget`/`curl` ra mạng cho các phần này. Nếu KHÔNG thấy (ví dụ chạy bản CcuUI cũ chưa có resource) → tự động fallback về đường mạng như trước (không phá luồng cũ).
+
+> ⚠️ Vẫn cần mạng cho: `apt install curl unzip python3-pip unclutter` + `pip3 install gnome-extensions-cli` trong `1-install-software.sh` (Kiosk Deploy) — các gói hệ thống nhẹ này chưa được offline-hóa.
+
+**Khi nào cần refresh resource:** mỗi khi sửa code ZcuAgent hoặc script kiosk, phải build/copy lại rồi rebuild CcuUI:
+
+```bash
+# 1. Publish lại ZcuAgent
+dotnet publish IPGS.RemoteControl.ZcuAgent/IPGS.RemoteControl.ZcuAgent.csproj -c Release -r linux-x64 --self-contained false -o IPGS.RemoteControl.ZcuAgent/publish/linux-x64
+
+# 2. Đồng bộ vào Resources (Windows PowerShell hoặc bash)
+cp -r IPGS.RemoteControl.ZcuAgent/publish/linux-x64/. IPGS.RemoteControl.CcuUI/Resources/zcu-agent/linux-x64/
+cp scripts/linux-kiosk/*.sh IPGS.RemoteControl.CcuUI/Resources/scripts/linux-kiosk/
+
+# 3. Build lại CcuUI — Content Include="Resources\**" trong .csproj tự copy vào output
+dotnet build IPGS.RemoteControl.CcuUI/IPGS.RemoteControl.CcuUI.csproj -c Release
+```
+
+`dotnet-runtime-8.0-linux-x64.tar.gz` và 2 file `.zip` GNOME extension chỉ cần tải lại khi nâng version .NET/extension — không đổi theo mỗi lần sửa code ZcuAgent.
+
+---
+
 ## ⚡ PHƯƠNG ÁN CÀI ĐẶT NHANH (KHUYẾN NGHỊ)
 
 Để đơn giản hóa và loại bỏ các bước cài đặt thủ công phức tạp, hệ thống hỗ trợ 2 công cụ cài đặt **1-Click tự động hóa 100%**:

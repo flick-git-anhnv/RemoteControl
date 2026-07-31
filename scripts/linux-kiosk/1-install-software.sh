@@ -3,8 +3,8 @@
 # ẩn/hiện UI GNOME cho kiosk iPGS.
 #
 # Phần "phần mềm" trong bộ setup kiosk iPGS (tách từ setup-kiosk.sh):
-#   - Cài python3-pip + gnome-extensions-cli (gext)
-#   - Cài + bật extension "Just Perfection"
+#   - Cài curl/unzip (offline qua .deb nhúng sẵn nếu có, F17)
+#   - Cài + bật extension "Just Perfection" (offline qua zip nhúng sẵn nếu có, F16)
 #   - Compile schema + set các key ẩn/HIỆN UI (panel/top bar, activities button,
 #     dash, workspace switcher) — 2 CHIỀU: 1=ẩn, 0=hiện lại
 #   - Tắt/BẬT LẠI bàn phím ảo GNOME (on-screen keyboard) — 2 chiều
@@ -88,6 +88,22 @@ _install_ext_offline() {
     local uuid="$1"
     local ext_dir="$HOME/.local/share/gnome-shell/extensions/$uuid"
 
+    # F16: ưu tiên zip offline đã upload sẵn (nhúng trong CcuUI/Resources/gnome-extensions,
+    # KioskDeployService upload lên $GEXT_OFFLINE_DIR/<uuid>.zip) — không cần mạng.
+    # Chỉ tải từ extensions.gnome.org khi không thấy file local (chạy tay script này
+    # trực tiếp trên ZCU, hoặc build CcuUI cũ chưa nhúng resource).
+    local offline_zip="${GEXT_OFFLINE_DIR:-}/${uuid}.zip"
+    if [ -n "${GEXT_OFFLINE_DIR:-}" ] && [ -f "$offline_zip" ]; then
+        echo "  → Cài extension '$uuid' từ zip offline ($offline_zip)..."
+        mkdir -p "$ext_dir"
+        if ! unzip -o -q "$offline_zip" -d "$ext_dir"; then
+            echo "LỖI: không giải nén được extension zip offline '$uuid'." >&2
+            return 1
+        fi
+        echo "  → Đã cài extension '$uuid' vào $ext_dir (offline, không cần bấm popup)."
+        return 0
+    fi
+
     # Major version GNOME Shell (42, 43, ...)
     local shell_ver
     shell_ver="$(gnome-shell --version 2>/dev/null | grep -oE '[0-9]+' | head -1)"
@@ -148,34 +164,36 @@ _force_enable_ext() {
 # Top Bar/Activities/Workspace/Dash giờ là toggle 2 CHIỀU thật sự (không còn kiểu
 # "bỏ qua nếu = 0") nên LUÔN cần extension Just Perfection cài & bật, dù đang ẩn
 # hay hiện lại — vì cả 2 chiều đều đi qua gsettings của chính extension đó.
-echo "=== [1/5] Cài công cụ cần thiết (curl, unzip, gnome-extensions-cli) ==="
-# curl + unzip: dùng cho _install_ext_offline thay thế gext install (F13).
+echo "=== [1/5] Cài công cụ cần thiết (curl, unzip) ==="
+# curl + unzip: dùng cho _install_ext_offline — giải nén zip local (đường chính,
+# đã nhúng sẵn trong CcuUI/Resources/gnome-extensions) hoặc curl mạng (fallback khi
+# không có GEXT_OFFLINE_DIR). F17: đã bỏ pip3/gnome-extensions-cli (gext) — dead
+# code từ F13, không còn nơi nào gọi lệnh `gext`; cài extension đi qua
+# _install_ext_offline (unzip) + _force_enable_ext (lệnh `gnome-extensions` có sẵn
+# của hệ thống), không cần package pip3 này nữa.
+#
+# F17: cài OFFLINE bằng dpkg -i từ $KIOSK_DEB_OFFLINE_DIR (.deb nhúng sẵn trong
+# CcuUI/Resources/kiosk-deb, KioskDeployService upload lên) nếu có; fallback về
+# apt install khi không có (chạy tay script này trực tiếp, hoặc build CcuUI cũ).
+_install_deb_offline_or_apt() {
+    local pkg="$1"
+    local deb_glob="${KIOSK_DEB_OFFLINE_DIR:-}/${pkg}"'_amd64.deb'
+    if [ -n "${KIOSK_DEB_OFFLINE_DIR:-}" ] && ls $deb_glob >/dev/null 2>&1; then
+        _sudo dpkg -i $deb_glob
+    else
+        _sudo apt install -y "$pkg"
+    fi
+}
+
 if ! command -v curl >/dev/null 2>&1; then
-    _sudo apt install -y curl
+    _install_deb_offline_or_apt curl
 else
     echo "  → curl đã có, bỏ qua."
 fi
 if ! command -v unzip >/dev/null 2>&1; then
-    _sudo apt install -y unzip
+    _install_deb_offline_or_apt unzip
 else
     echo "  → unzip đã có, bỏ qua."
-fi
-if ! command -v pip3 >/dev/null 2>&1; then
-    _sudo apt install -y python3-pip
-else
-    echo "  → pip3 đã có, bỏ qua."
-fi
-
-export PATH="$HOME/.local/bin:$PATH"
-if ! command -v gext >/dev/null 2>&1; then
-    pip3 install --user gnome-extensions-cli
-    export PATH="$HOME/.local/bin:$PATH"
-else
-    echo "  → gext đã có, bỏ qua."
-fi
-
-if ! grep -q '.local/bin' "$HOME/.bashrc" 2>/dev/null; then
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -380,7 +398,7 @@ fi
 if [ "$INSTALL_UNCLUTTER" = "1" ]; then
     echo "=== [5/5] Cài unclutter (ẩn con trỏ chuột) ==="
     if ! dpkg -s unclutter >/dev/null 2>&1; then
-        _sudo apt install -y unclutter
+        _install_deb_offline_or_apt unclutter
     else
         echo "  → unclutter đã cài, bỏ qua."
     fi

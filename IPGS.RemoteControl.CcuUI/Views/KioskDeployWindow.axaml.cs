@@ -21,7 +21,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
         // ── Task A: nạp danh sách app exec từ ZCU ─────────────────────────
         // Ánh xạ display-text → exec-command + trạng thái verified.
         // null = chưa nạp (dùng default hardcoded hoặc user nhập tay).
-        private sealed record LoadedApp(string DisplayText, string ExecCommand, bool ExistsOnSystem);
+        private sealed record LoadedApp(string DisplayText, string ExecCommand, bool ExistsOnSystem, bool IsRecommended);
         private List<LoadedApp>? _loadedApps;
         private CancellationTokenSource? _loadAppsCts;
 
@@ -55,7 +55,11 @@ namespace IPGS.RemoteControl.CcuUI.Views
             PART_AppExec.Text = "";
 
             // Wire up events
-            PART_BtnDeploy.Click       += OnDeployClick;
+            // F21: 2 nút Deploy độc lập theo tab thay vì 1 nút chung — xem OnDeployMachineClick/
+            // OnDeploySoftwareClick.
+            PART_BtnDeployMachine.Click  += OnDeployMachineClick;
+            PART_BtnDeploySoftware.Click += OnDeploySoftwareClick;
+            PART_BtnResetColor.Click   += OnResetColorClick;
             PART_BtnLoadApps.Click     += OnLoadAppsClick;
             PART_BtnSelectAll.Click    += (_, _) => SetAllConfigMachineCheckboxes(true);
             PART_BtnDeselectAll.Click  += (_, _) => SetAllConfigMachineCheckboxes(false);
@@ -133,14 +137,19 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     if (!a.ExistsOnSystem)
                         display += " ⚠️ chưa cài";
 
-                    return new LoadedApp(display, a.ExecCommand, a.ExistsOnSystem);
+                    return new LoadedApp(display, a.ExecCommand, a.ExistsOnSystem, a.IsRecommended);
                 }).ToList();
 
                 PART_AppExec.ItemsSource = _loadedApps.Select(x => x.DisplayText).ToList();
 
-                // Chỉ tự chọn entry ĐÃ CÀI THẬT trên máy. Nếu không có entry nào tồn tại
-                // → để trống, bắt user chọn/nhập tay (không tự điền giá trị sai).
-                var bestMatch = _loadedApps.FirstOrDefault(a => a.ExistsOnSystem);
+                // F23: chỉ tự chọn entry vừa ĐÃ CÀI THẬT trên máy VỪA được đánh dấu
+                // "khuyến nghị" (tên/lệnh chứa ipgs/kiosk) — trước đây chọn đại bất kỳ app
+                // nào tồn tại (kể cả tiện ích hệ thống như "Software & Updates") khi máy
+                // chưa cài app kiosk thật, khiến autostart trỏ sai (verify thật: máy ZCU
+                // sau khi gỡ ZcuAgent, không còn app nào "khuyến nghị" → tự chọn nhầm
+                // 'software-properties-gtk --open-tab=4'). Không có match phù hợp → để
+                // trống, bắt user chọn/nhập tay.
+                var bestMatch = _loadedApps.FirstOrDefault(a => a.ExistsOnSystem && a.IsRecommended);
                 PART_AppExec.Text = bestMatch?.DisplayText ?? "";
 
                 int notFound = _loadedApps.Count(a => !a.ExistsOnSystem);
@@ -212,27 +221,96 @@ namespace IPGS.RemoteControl.CcuUI.Views
             PART_ChkLockdownShell.IsChecked    = value;
         }
 
-        // ── Deploy ─────────────────────────────────────────────────────────
+        // ── F22: Reset màu màn hình ─────────────────────────────────────────
 
-        private async void OnDeployClick(object? sender, RoutedEventArgs e)
+        private async void OnResetColorClick(object? sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser))
+            {
+                PART_ResetColorStatus.Foreground = Brushes.Red;
+                PART_ResetColorStatus.Text = "Thiếu IP/SSH user — vào 'Sửa' máy tính để bổ sung thông tin SSH.";
+                return;
+            }
+
+            PART_BtnResetColor.IsEnabled = false;
+            PART_ResetColorStatus.Foreground = Brushes.SlateGray;
+            PART_ResetColorStatus.Text = "⏳ Đang tắt Night Light + reset gamma/brightness qua SSH...";
+
+            try
+            {
+                string result = await _deployService.ResetDisplayColorAsync(_sshHost, _sshPort, _sshUser, _sshPassword);
+                PART_ResetColorStatus.Foreground = Brushes.SeaGreen;
+                PART_ResetColorStatus.Text = string.IsNullOrWhiteSpace(result)
+                    ? "✅ Đã tắt Night Light + reset gamma/brightness về mặc định."
+                    : $"✅ Xong: {result}";
+            }
+            catch (Exception ex)
+            {
+                PART_ResetColorStatus.Foreground = Brushes.Red;
+                PART_ResetColorStatus.Text = $"❌ Lỗi: {ex.Message}";
+            }
+            finally
+            {
+                PART_BtnResetColor.IsEnabled = true;
+            }
+        }
+
+        // ── Deploy ─────────────────────────────────────────────────────────
+        //
+        // F21: 2 nút Deploy độc lập theo tab (tool này còn dùng để deploy autostart
+        // cho app KHÁC, không muốn mỗi lần đổi app phải chạy lại toàn bộ config máy tính):
+        //   - "Deploy Config máy tính" (Tab 1): chạy 1-install-software.sh +
+        //     2-configure-system.sh. KHÔNG bắt buộc chọn App exec — nếu App exec đang
+        //     trống, tự tắt Autostart/Watchdog cho LẦN CHẠY NÀY (không throw chặn deploy),
+        //     vì 2 mục đó cần App exec hợp lệ mới áp dụng đúng (F12).
+        //   - "Deploy Config phần mềm" (Tab 2): CHỈ chạy 2-configure-system.sh (bỏ qua
+        //     1-install-software.sh — không liên quan autostart/watchdog, tránh mất thời
+        //     gian cài lại extension GNOME không cần thiết). Vẫn bắt buộc App exec nếu
+        //     Autostart hoặc Watchdog đang được tick, vì đây là mục đích chính của nút này.
+
+        private async void OnDeployMachineClick(object? sender, RoutedEventArgs e)
+            => await RunDeployAsync(isMachineTab: true, PART_BtnDeployMachine, PART_StatusMsgMachine);
+
+        private async void OnDeploySoftwareClick(object? sender, RoutedEventArgs e)
+            => await RunDeployAsync(isMachineTab: false, PART_BtnDeploySoftware, PART_StatusMsgSoftware);
+
+        private async System.Threading.Tasks.Task RunDeployAsync(bool isMachineTab, Button deployButton, TextBlock tabStatusMsg)
         {
             string sudoPass  = string.IsNullOrEmpty(PART_SudoPassword.Text) ? _sshPassword : PART_SudoPassword.Text;
             string kioskUser = PART_KioskUser.Text?.Trim() ?? "";
             string appExec   = GetAppExec();
 
-            // Không còn giá trị mặc định — bắt buộc phải nạp danh sách (hoặc nhập tay)
-            if (string.IsNullOrWhiteSpace(appExec))
+            // Tab 2 — Config phần mềm (đọc trước để biết Autostart/Watchdog có cần App exec không)
+            bool swUpdate  = PART_ChkSwUpdate.IsChecked == true;
+            bool autostart = PART_ChkAutostart.IsChecked == true;
+            bool watchdog  = PART_ChkWatchdog.IsChecked == true;
+
+            bool needsAppExec = autostart || watchdog;
+
+            if (string.IsNullOrWhiteSpace(appExec) && needsAppExec)
             {
-                PART_StatusMsg.Foreground = Brushes.Red;
-                PART_StatusMsg.Text = _loadedApps == null
-                    ? "Chưa chọn App exec — bấm '🔄 Nạp DS' để nạp danh sách ứng dụng từ máy ZCU, hoặc nhập tay lệnh."
-                    : "Chưa chọn App exec — chọn một mục trong danh sách vừa nạp, hoặc nhập tay lệnh.";
-                return;
+                if (isMachineTab)
+                {
+                    // F21: Tab "Config máy tính" không bắt buộc App exec — tự tắt
+                    // autostart/watchdog cho lần deploy này thay vì chặn toàn bộ.
+                    autostart = false;
+                    watchdog = false;
+                    tabStatusMsg.Foreground = Brushes.DarkOrange;
+                    tabStatusMsg.Text = "ℹ️ Chưa chọn App exec — bỏ qua Autostart/Watchdog cho lần deploy này (chỉ áp dụng cấu hình máy).";
+                }
+                else
+                {
+                    tabStatusMsg.Foreground = Brushes.Red;
+                    tabStatusMsg.Text = _loadedApps == null
+                        ? "Chưa chọn App exec — bấm '🔄 Nạp DS' để nạp danh sách ứng dụng từ máy ZCU, hoặc nhập tay lệnh."
+                        : "Chưa chọn App exec — chọn một mục trong danh sách vừa nạp, hoặc nhập tay lệnh.";
+                    return;
+                }
             }
 
             // F12 prevention: cảnh báo nếu binary không được kiểm chứng
             string? execWarning = null;
-            if (_loadedApps != null)
+            if (needsAppExec && !string.IsNullOrWhiteSpace(appExec) && _loadedApps != null)
             {
                 var loaded = _loadedApps.FirstOrDefault(a => a.ExecCommand == appExec);
                 if (loaded == null)
@@ -257,31 +335,29 @@ namespace IPGS.RemoteControl.CcuUI.Views
             bool lockWorkspace   = PART_ChkLockWorkspace.IsChecked == true;
             bool lockdownShell   = PART_ChkLockdownShell.IsChecked == true;
 
-            // Tab 2 — Config phần mềm
-            bool swUpdate  = PART_ChkSwUpdate.IsChecked == true;
-            bool autostart = PART_ChkAutostart.IsChecked == true;
-            bool watchdog  = PART_ChkWatchdog.IsChecked == true;
-
             if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser))
             {
-                PART_StatusMsg.Foreground = Brushes.Red;
-                PART_StatusMsg.Text = "Thiếu IP/SSH user — vào 'Sửa' máy tính để bổ sung thông tin SSH.";
+                tabStatusMsg.Foreground = Brushes.Red;
+                tabStatusMsg.Text = "Thiếu IP/SSH user — vào 'Sửa' máy tính để bổ sung thông tin SSH.";
                 return;
             }
 
-            PART_BtnDeploy.IsEnabled = false;
+            PART_BtnDeployMachine.IsEnabled = false;
+            PART_BtnDeploySoftware.IsEnabled = false;
             PART_LogConsole.Text = "";
+            PART_StatusMsg.Text = "";
 
-            // Hiển thị cảnh báo exec (nếu có) TRƯỚC khi bắt đầu deploy
+            // Hiển thị cảnh báo exec (nếu có) TRƯỚC khi bắt đầu deploy — không ghi đè
+            // thông báo "bỏ qua Autostart/Watchdog" đã set ở trên nếu chưa có execWarning mới.
             if (execWarning != null)
             {
-                PART_StatusMsg.Foreground = Brushes.DarkOrange;
-                PART_StatusMsg.Text = execWarning;
+                tabStatusMsg.Foreground = Brushes.DarkOrange;
+                tabStatusMsg.Text = execWarning;
             }
-            else
+            else if (string.IsNullOrEmpty(tabStatusMsg.Text))
             {
-                PART_StatusMsg.Foreground = Brushes.SlateGray;
-                PART_StatusMsg.Text = "Đang deploy...";
+                tabStatusMsg.Foreground = Brushes.SlateGray;
+                tabStatusMsg.Text = "Đang deploy...";
             }
 
             var options = new KioskDeployOptions
@@ -293,6 +369,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 SudoPassword          = sudoPass,
                 KioskUser             = kioskUser,
                 AppExec               = appExec,
+                // F21: chỉ chạy 1-install-software.sh khi deploy từ Tab "Config máy tính".
+                RunInstallSoftware    = isMachineTab,
                 HideTopBar            = hideTopBar,
                 HideActivities        = hideActivities,
                 HideWorkspaceSwitcher = hideWorkspace,
@@ -316,18 +394,19 @@ namespace IPGS.RemoteControl.CcuUI.Views
             {
                 await _deployService.DeployAsync(options, Log);
 
-                PART_StatusMsg.Foreground = Brushes.Green;
-                PART_StatusMsg.Text = "🎉 Deploy hoàn tất! Nhớ RESTART máy kiosk để áp dụng autologin + autostart.";
+                tabStatusMsg.Foreground = Brushes.Green;
+                tabStatusMsg.Text = "🎉 Deploy hoàn tất! Nhớ RESTART máy kiosk để áp dụng autologin + autostart.";
             }
             catch (Exception ex)
             {
-                PART_StatusMsg.Foreground = Brushes.Red;
-                PART_StatusMsg.Text = "❌ Deploy thất bại: " + ex.Message;
+                tabStatusMsg.Foreground = Brushes.Red;
+                tabStatusMsg.Text = "❌ Deploy thất bại: " + ex.Message;
                 Log("❌ LỖI: " + ex.Message);
             }
             finally
             {
-                PART_BtnDeploy.IsEnabled = true;
+                PART_BtnDeployMachine.IsEnabled = true;
+                PART_BtnDeploySoftware.IsEnabled = true;
             }
         }
 
