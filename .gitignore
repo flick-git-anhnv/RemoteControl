@@ -266,3 +266,10 @@ __pycache__/
 **/App/iScaleStation/iScaleStation/References/
 
 temp/
+
+# File nen/backup/package output - khong commit vao git (chong phinh .git)
+*.rar
+*.zip
+*.7z
+*.deb
+dist/
