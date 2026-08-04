@@ -55,6 +55,11 @@
 #                       autostart — R1, tránh chạy 2 instance). 1 = cài+bật service,
 #                       0 = gỡ service (app quay về autostart .desktop nếu
 #                       enable_autostart=1).
+#   enable_firewall     Bật tường lửa ufw (tham số 14, F27) — cài nếu chưa có, LUÔN
+#                       allow OpenSSH trước khi enable để không tự khoá mất SSH.
+#                       1 = bật, 0 = tắt (`ufw disable`, giữ nguyên rule để bật lại
+#                       nhanh). Không tự mở port ZcuAgent ở đây — xem
+#                       scripts/setup-zcu-agent.sh (tự mở đúng port khi cài agent).
 #
 # Ví dụ:
 #   bash scripts/linux-kiosk/2-configure-system.sh
@@ -75,6 +80,7 @@ ENABLE_AUTOSTART="${10:-1}"
 LOCK_SINGLE_WORKSPACE="${11:-1}"
 LOCKDOWN_SHELL="${12:-1}"
 ENABLE_WATCHDOG="${13:-1}"
+ENABLE_FIREWALL="${14:-1}"
 
 # Helper sudo cho SSH session không có TTY.
 # C# truyền KIOSK_SUDO_PASS qua môi trường; nếu không có thì dùng sudo bình thường
@@ -90,7 +96,7 @@ _sudo() {
 echo "=== [2] Cấu hình hệ thống cho Kiosk iPGS — Ubuntu 22.04 ==="
 echo "  Kiosk user : $KIOSK_USER"
 echo "  App exec   : $APP_EXEC"
-echo "  HotCorner=$DISABLE_HOTCORNER UbuntuDock=$DISABLE_UBUNTU_DOCK DesktopIcons=$DISABLE_DESKTOP_ICONS Sleep=$BLOCK_SLEEP InitialSetup=$SKIP_INITIAL_SETUP Autologin=$ENABLE_AUTOLOGIN SwUpdate=$DISABLE_SW_UPDATE Autostart=$ENABLE_AUTOSTART LockWorkspace=$LOCK_SINGLE_WORKSPACE LockdownShell=$LOCKDOWN_SHELL Watchdog=$ENABLE_WATCHDOG"
+echo "  HotCorner=$DISABLE_HOTCORNER UbuntuDock=$DISABLE_UBUNTU_DOCK DesktopIcons=$DISABLE_DESKTOP_ICONS Sleep=$BLOCK_SLEEP InitialSetup=$SKIP_INITIAL_SETUP Autologin=$ENABLE_AUTOLOGIN SwUpdate=$DISABLE_SW_UPDATE Autostart=$ENABLE_AUTOSTART LockWorkspace=$LOCK_SINGLE_WORKSPACE LockdownShell=$LOCKDOWN_SHELL Watchdog=$ENABLE_WATCHDOG Firewall=$ENABLE_FIREWALL"
 echo ""
 
 if [ "$EUID" -eq 0 ]; then
@@ -915,6 +921,29 @@ else
     else
         echo "  → Chưa từng cài watchdog — bỏ qua."
     fi
+fi
+
+# ─────────────────────────────────────────────────────────────
+# [11/11] Tường lửa ufw (F27). LUÔN allow OpenSSH TRƯỚC khi enable — nếu quên bước
+# này, bật ufw trên máy chỉ có SSH sẽ tự khoá luôn quyền truy cập từ xa (không có GUI
+# để mở lại nếu kỹ thuật viên đang thao tác qua SSH). Đã verify thứ tự này an toàn
+# trên máy Lubuntu thật (SSH vẫn sống sau khi enable) — dùng chung logic cho GNOME.
+if [ "$ENABLE_FIREWALL" = "1" ]; then
+    echo "=== [11/11] Bật tường lửa ufw ==="
+    if ! command -v ufw >/dev/null 2>&1; then
+        _sudo apt-get install -y -qq ufw 2>&1 || true
+    fi
+    if command -v ufw >/dev/null 2>&1; then
+        _sudo ufw allow OpenSSH 2>/dev/null || _sudo ufw allow 22/tcp 2>/dev/null || true
+        _sudo ufw --force enable 2>&1
+        UFW_STATE="$(_sudo ufw status 2>/dev/null | head -1)"
+        echo "  → FIREWALL-VERIFIED: $UFW_STATE (đã allow OpenSSH trước khi enable)."
+    else
+        echo "CẢNH BÁO: không cài được ufw (cần mạng để apt install) — bỏ qua." >&2
+    fi
+else
+    echo "=== [11/11] Tắt tường lửa ufw (giữ nguyên rule, chỉ ufw disable) ==="
+    command -v ufw >/dev/null 2>&1 && _sudo ufw disable 2>&1 || echo "  → Chưa cài ufw — bỏ qua."
 fi
 
 # ─────────────────────────────────────────────────────────────

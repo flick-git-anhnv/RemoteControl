@@ -34,6 +34,19 @@
           </StackPanel>
         </Border>
 
+        <!-- F28: chọn hệ điều hành máy đích — quyết định script + tham số script nào
+             được gọi (scripts/linux-kiosk = Ubuntu/GNOME, scripts/lubuntu-kiosk =
+             Lubuntu/LXQt). BẮT BUỘC chọn đúng — chọn sai sẽ chạy nhầm script (VD gọi
+             lệnh gsettings/gnome-extensions trên máy Lubuntu không có GNOME → lỗi
+             ngay từ bước đầu, exit 1). -->
+        <StackPanel Spacing="4">
+          <TextBlock Text="Hệ điều hành máy đích:" FontSize="12" Foreground="#64748B"/>
+          <ComboBox x:Name="PART_CmbOsFamily" SelectedIndex="0" HorizontalAlignment="Left" MinWidth="260">
+            <ComboBoxItem Content="Ubuntu Desktop (GNOME Shell)"/>
+            <ComboBoxItem Content="Lubuntu (LXQt/Openbox)"/>
+          </ComboBox>
+        </StackPanel>
+
         <!-- Sudo password -->
         <StackPanel Spacing="4">
           <TextBlock Text="Sudo password (để trống nếu giống SSH password):" FontSize="12" Foreground="#64748B"/>
@@ -173,6 +186,16 @@
                           <TextBlock Text="❓" ToolTip.Tip="Vô hiệu phím Super (mở Activities/tìm kiếm), Alt+F2, Ctrl+Alt+T (Terminal), Alt+Tab, Alt+F4 và chặn đăng xuất/đổi user bằng dconf system-wide + lock — người dùng KHÔNG tự bật lại được. Bỏ tick = gỡ khoá để bảo trì." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                         </StackPanel>
                         <TextBlock Text="Chặn người dùng mở Activities/tìm kiếm/Terminal, thoát app kiosk hoặc đăng xuất (F09). Bỏ tick khi cần bảo trì máy."
+                                   FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap"/>
+                      </StackPanel>
+                    </CheckBox>
+                    <CheckBox x:Name="PART_ChkFirewall" IsChecked="True">
+                      <StackPanel Spacing="1">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock Text="Bật tường lửa (ufw)" FontWeight="Normal" VerticalAlignment="Center"/>
+                          <TextBlock Text="❓" ToolTip.Tip="Cài + bật ufw, LUÔN allow OpenSSH trước khi enable nên không tự khoá mất kết nối SSH đang dùng để deploy. Bỏ tick = ufw disable (giữ nguyên rule để bật lại nhanh)." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="Chỉ mở port cần thiết (SSH + port ZcuAgent), chặn phần còn lại — giảm bề mặt tấn công máy kiosk."
                                    FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap"/>
                       </StackPanel>
                     </CheckBox>

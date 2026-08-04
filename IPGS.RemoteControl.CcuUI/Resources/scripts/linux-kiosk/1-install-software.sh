@@ -175,18 +175,36 @@ echo "=== [1/5] Cài công cụ cần thiết (curl, unzip) ==="
 # F17: cài OFFLINE bằng dpkg -i từ $KIOSK_DEB_OFFLINE_DIR (.deb nhúng sẵn trong
 # CcuUI/Resources/kiosk-deb, KioskDeployService upload lên) nếu có; fallback về
 # apt install khi không có (chạy tay script này trực tiếp, hoặc build CcuUI cũ).
+#
+# F26: tham số 2+ là các gói .deb DEPENDENCY đi kèm (VD libcurl4 cho curl) — dpkg -i
+# không tự resolve version lệch như apt, nên phải nhúng sẵn + cài CÙNG LÚC để khớp
+# version nội bộ, không phụ thuộc bản dependency có sẵn trên máy đích (verify thật:
+# curl .deb offline yêu cầu libcurl4 đúng version, máy đích có bản libcurl4 cũ hơn
+# → dpkg -i unpack xong nhưng "chưa cấu hình" (iU) → LỖI exit 1, dù log trông như
+# đã cài xong). Nếu sau dpkg -i package vẫn chưa "ii" (installed ok) → fallback
+# sửa qua apt-get install -f (cần mạng) thay vì fail cứng toàn bộ deploy.
 _install_deb_offline_or_apt() {
-    local pkg="$1"
-    local deb_glob="${KIOSK_DEB_OFFLINE_DIR:-}/${pkg}"'_amd64.deb'
+    local pkg="$1"; shift
+    local deb_glob="${KIOSK_DEB_OFFLINE_DIR:-}/${pkg}_amd64.deb"
     if [ -n "${KIOSK_DEB_OFFLINE_DIR:-}" ] && ls $deb_glob >/dev/null 2>&1; then
-        _sudo dpkg -i $deb_glob
+        local all_debs=("$deb_glob")
+        local dep
+        for dep in "$@"; do
+            local dep_glob="${KIOSK_DEB_OFFLINE_DIR}/${dep}_amd64.deb"
+            ls $dep_glob >/dev/null 2>&1 && all_debs+=("$dep_glob")
+        done
+        _sudo dpkg -i "${all_debs[@]}"
+        if ! dpkg -s "$pkg" 2>/dev/null | grep -q "^Status: install ok installed"; then
+            echo "  ⚠️ $pkg chưa cấu hình xong sau dpkg -i offline (lệch version dependency?) — thử sửa qua apt (cần mạng)..."
+            _sudo apt-get install -f -y 2>&1 || echo "  ⚠️ Không sửa được offline — $pkg có thể chưa hoạt động đúng, cần kiểm tra tay."
+        fi
     else
         _sudo apt install -y "$pkg"
     fi
 }
 
 if ! command -v curl >/dev/null 2>&1; then
-    _install_deb_offline_or_apt curl
+    _install_deb_offline_or_apt curl libcurl4
 else
     echo "  → curl đã có, bỏ qua."
 fi

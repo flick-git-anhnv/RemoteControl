@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Threading.Channels;
 using IPGS.RemoteControl.Protocol;
 using IPGS.RemoteControl.ZcuAgent.Auth;
 using Microsoft.Extensions.Logging;
@@ -47,6 +48,24 @@ internal sealed class ClientSession
     /// </summary>
     private long _lastPongTicks;
 
+    /// <summary>
+    /// F25: hàng đợi lệnh inject chuột/bàn phím — tách khỏi <see cref="RunReceiveLoopAsync"/>.
+    /// <see cref="Input.MouseInjector.Move"/>/<c>Button</c> gọi <c>XSync</c> (round-trip đồng bộ
+    /// tới X server); nếu X server bận (VD capture đang fallback XGetImage sau khi XShmAttach
+    /// bị từ chối — nặng tải hơn XShm nhiều), XSync có thể trễ đủ lâu để chặn luôn việc đọc
+    /// gói Pong kế tiếp trong CÙNG vòng lặp → watchdog heartbeat (chạy độc lập, xem
+    /// <see cref="RunHeartbeatWatchdogAsync"/>) tưởng mất kết nối và ngắt session dù đường
+    /// truyền vẫn ổn — verify thật trên ZCU kztek-ZCU2 (192.168.21.93/96): remote xem được
+    /// nhưng không điều khiển được + kết nối liên tục bị ngắt/nối lại ~15s/lần.
+    /// SingleReader/SingleWriter=true vì chỉ 1 producer (receive loop) và 1 consumer
+    /// (<see cref="RunInputInjectorLoopAsync"/>) mỗi bên — giữ đúng thứ tự sự kiện input.
+    /// </summary>
+    private readonly Channel<Action> _inputQueue = Channel.CreateUnbounded<Action>(
+        new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+
+    /// <summary>Ngưỡng cảnh báo (không phải hủy) khi 1 lệnh inject chạy lâu hơn mức này — xem log để biết X server đang chậm.</summary>
+    private const int InjectWarnMs = 2_000;
+
     public ClientSession(
         TcpClient tcp, string remoteIp,
         IScreenCapturer capturer, IFrameEncoder encoder,
@@ -87,11 +106,15 @@ internal sealed class ClientSession
             // capture loop it could never fire while that loop is blocked in WriteAsync on
             // a slow reader — the exact situation the timeout exists to detect.
             var watchdogTask = RunHeartbeatWatchdogAsync(sessionCts.Token);
+            // F25: inject chuột/bàn phím chạy trên task RIÊNG, không còn nằm trong receiveTask
+            // — xem giải thích tại _inputQueue.
+            var inputTask    = RunInputInjectorLoopAsync(sessionCts.Token);
 
             // Stop everything when any loop ends
-            await Task.WhenAny(captureTask, receiveTask, watchdogTask);
+            await Task.WhenAny(captureTask, receiveTask, watchdogTask, inputTask);
             await sessionCts.CancelAsync();
-            await Task.WhenAll(captureTask, receiveTask, watchdogTask);
+            _inputQueue.Writer.TryComplete();
+            await Task.WhenAll(captureTask, receiveTask, watchdogTask, inputTask);
         }
         catch (OperationCanceledException) { /* normal shutdown */ }
         catch (EndOfStreamException ex)
@@ -265,9 +288,12 @@ internal sealed class ClientSession
                 var (type, payload) = await MessageCodec.ReadMessageAsync(_stream!, ct);
                 switch (type)
                 {
+                    // F25: MouseMove/MouseButton/KeyEvent chỉ ENQUEUE (không chặn) — thực thi
+                    // thật nằm ở RunInputInjectorLoopAsync, tách khỏi vòng đọc để không làm
+                    // trễ việc nhận Pong khi XSync của injector bị X server làm chậm.
                     case MessageType.MouseMove:
                         var (mx, my) = MessageCodec.DecodeMouseMove(payload);
-                        _injector.Move(mx, my);
+                        _inputQueue.Writer.TryWrite(() => _injector.Move(mx, my));
                         break;
 
                     case MessageType.MouseButton:
@@ -279,8 +305,11 @@ internal sealed class ClientSession
                         var screen = _capturer.ScreenSize;
                         var sx = Math.Clamp(bx, 0, screen.Width  - 1);
                         var sy = Math.Clamp(by, 0, screen.Height - 1);
-                        _injector.Move(sx, sy);
-                        _injector.Button(btn, down);
+                        _inputQueue.Writer.TryWrite(() =>
+                        {
+                            _injector.Move(sx, sy);
+                            _injector.Button(btn, down);
+                        });
                         break;
 
                     case MessageType.Ping:
@@ -295,7 +324,7 @@ internal sealed class ClientSession
 
                     case MessageType.KeyEvent:
                         var (keysym, isDown) = MessageCodec.DecodeKeyEvent(payload);
-                        _keyboard.SendKey(keysym, isDown);
+                        _inputQueue.Writer.TryWrite(() => _keyboard.SendKey(keysym, isDown));
                         break;
                         
                     // ── Phase 6 Enterprise Features ───────────────────────────
@@ -356,6 +385,53 @@ internal sealed class ClientSession
         // intentionally propagates out of this loop — RunAsync catches it separately,
         // logs a Warning ("protocol error") and closes the session cleanly. It must NOT
         // be swallowed here nor fall into a generic Error log.
+    }
+
+    // ── F25: Input injector consumer (decoupled from receive loop) ────────
+
+    /// <summary>
+    /// Thực thi tuần tự các lệnh inject chuột/bàn phím đã enqueue từ <see cref="RunReceiveLoopAsync"/>.
+    /// Chạy trên task riêng để không chặn việc xử lý Pong (F25, xem giải thích ở _inputQueue).
+    /// <para>
+    /// F26 (đã verify thật trên ZCU kztek — 192.168.21.97): bản trước KHÔNG await task chậm mà
+    /// đọc luôn lệnh kế tiếp và bắn <c>Task.Run</c> MỚI — tưởng là "bỏ qua lệnh chậm, không bị
+    /// chặn", nhưng <see cref="Input.MouseInjector"/>/<see cref="Input.KeyboardInjector"/> dùng
+    /// CHUNG 1 <c>Display*</c> Xlib, và Xlib tự khoá nội bộ mỗi <c>Display*</c> (kể cả sau
+    /// <c>XInitThreads</c>) — mọi <c>Task.Run</c> mới chỉ NẰM CHỜ khoá đó, KHÔNG chạy song song
+    /// thật. Kết quả: mỗi task "bị bỏ qua" vẫn chiếm 1 thread pool thread bị block, và MỌI task
+    /// kế tiếp lại tự tính thêm 2000ms rồi cảnh báo — tạo hiệu ứng domino (verify thật: 1 lần X
+    /// server khựng sinh ra 66-118 dòng cảnh báo liên tiếp trong vài giây, y hệt triệu chứng
+    /// "remote lag/không ổn định" user báo). Fix: vẫn log cảnh báo sớm ở mốc InjectWarnMs (giữ
+    /// nguyên khả năng chẩn đoán), nhưng LUÔN <c>await task</c> tới khi xong thật trước khi đọc
+    /// lệnh kế tiếp — đảm bảo tại một thời điểm chỉ có ĐÚNG 1 lệnh Xlib đang chạy, không còn
+    /// pile-up thread bị khoá.
+    /// </para>
+    /// </summary>
+    private async Task RunInputInjectorLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var action in _inputQueue.Reader.ReadAllAsync(ct))
+            {
+                var sw = Stopwatch.StartNew();
+                var task = Task.Run(action, ct);
+                if (await Task.WhenAny(task, Task.Delay(InjectWarnMs, ct)) != task)
+                {
+                    _logger.LogWarning(
+                        "Session {IP}: lệnh inject chuột/bàn phím chạy quá {Ms}ms (X server có thể đang chậm) — " +
+                        "vẫn đợi lệnh này xong (F26: không bắn thêm task chồng lên, tránh domino)",
+                        _remoteIp, InjectWarnMs);
+                    // F26: PHẢI đợi task cũ xong thật trước khi lấy lệnh kế tiếp — xem giải
+                    // thích ở doc comment phía trên. Không đợi = domino block trên Xlib lock.
+                    await task;
+                }
+                else if (sw.ElapsedMilliseconds > InjectWarnMs / 2)
+                {
+                    _logger.LogDebug("Session {IP}: lệnh inject mất {Ms}ms", _remoteIp, sw.ElapsedMilliseconds);
+                }
+            }
+        }
+        catch (OperationCanceledException) { /* expected */ }
     }
 
     // ── Thread-safe write ─────────────────────────────────────────────────

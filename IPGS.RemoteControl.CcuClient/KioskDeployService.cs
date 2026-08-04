@@ -25,6 +25,15 @@ namespace IPGS.RemoteControl.CcuClient
         public string Password { get; set; } = string.Empty;
         public string SudoPassword { get; set; } = string.Empty;
 
+        /// <summary>
+        /// F28: false (mặc định) = máy đích Ubuntu Desktop/GNOME Shell, dùng
+        /// scripts/linux-kiosk/*.sh. true = máy đích Lubuntu (LXQt/Openbox/SDDM),
+        /// dùng scripts/lubuntu-kiosk/*.sh — tham số script + cơ chế lockdown khác
+        /// hẳn GNOME (không có gsettings/gnome-extensions), xem KioskDeployService.
+        /// DeployAsync để biết cách map từng checkbox sang tham số của bản OS tương ứng.
+        /// </summary>
+        public bool IsLubuntu { get; set; } = false;
+
         public string KioskUser { get; set; } = string.Empty;
         /// <summary>
         /// Lệnh autostart app kiosk. KHÔNG có giá trị mặc định — phải nạp danh sách
@@ -91,6 +100,13 @@ namespace IPGS.RemoteControl.CcuClient
         /// chạy 2 instance. false = gỡ service (app quay về autostart .desktop nếu bật).
         /// </summary>
         public bool EnableWatchdog { get; set; } = true;
+
+        /// <summary>
+        /// F27: Bật tường lửa ufw (cài nếu chưa có, luôn allow OpenSSH trước khi enable
+        /// để không tự khoá mất SSH). false = ufw disable (giữ nguyên rule để bật lại
+        /// nhanh, không xoá rule đã cấu hình).
+        /// </summary>
+        public bool EnableFirewall { get; set; } = true;
 
         /// <summary>F21: settable — cả 2 nút Deploy (Config máy tính / Config phần mềm) đều
         /// cần script này (2-configure-system.sh xử lý chung machine + software settings),
@@ -174,16 +190,19 @@ namespace IPGS.RemoteControl.CcuClient
             {
                 void Log(string msg) => onLog?.Invoke(msg);
 
+                // F28: ScriptsSourceDir do caller truyền tay (VD test) LUÔN ưu tiên, bất kể
+                // OS — chỉ tự resolve theo IsLubuntu khi không có override.
+                string kioskSubDir = options.IsLubuntu ? "lubuntu-kiosk" : "linux-kiosk";
                 string? scriptsDir = options.ScriptsSourceDir;
                 if (string.IsNullOrEmpty(scriptsDir) || !Directory.Exists(scriptsDir))
                 {
-                    scriptsDir = ResolveKioskScriptsDir();
+                    scriptsDir = ResolveKioskScriptsDir(kioskSubDir);
                 }
 
                 if (string.IsNullOrEmpty(scriptsDir))
                 {
                     throw new DirectoryNotFoundException(
-                        "Không tìm thấy thư mục scripts/linux-kiosk (1-install-software.sh / 2-configure-system.sh).");
+                        $"Không tìm thấy thư mục scripts/{kioskSubDir} (1-install-software.sh / 2-configure-system.sh).");
                 }
 
                 string script1 = Path.Combine(scriptsDir, "1-install-software.sh");
@@ -209,7 +228,9 @@ namespace IPGS.RemoteControl.CcuClient
                     // để 1-install-software.sh cài OFFLINE, không cần curl extensions.gnome.org.
                     // Không tìm thấy resource (build CcuUI cũ) → bỏ qua, script tự fallback
                     // về tải mạng như trước.
-                    if (options.RunInstallSoftware)
+                    // F28: gnome-extensions (Just Perfection/Block Caribou) CHỈ dùng trên
+                    // GNOME Shell — Lubuntu/LXQt không có gnome-extensions, bỏ qua upload.
+                    if (options.RunInstallSoftware && !options.IsLubuntu)
                     {
                         string? extDir = ResolveResourceDir("gnome-extensions");
                         if (!string.IsNullOrEmpty(extDir))
@@ -224,9 +245,13 @@ namespace IPGS.RemoteControl.CcuClient
                             }
                             Log($"📤 Đã tải {Directory.GetFiles(extDir, "*.zip").Length} zip extension GNOME Shell (offline) lên {remoteExtDirFull}");
                         }
+                    }
 
-                        // F17: gói .deb curl/unzip/unclutter (Ubuntu 22.04 amd64) nhúng sẵn —
-                        // 1-install-software.sh cài bằng dpkg -i thay vì apt install ra mạng.
+                    // F17: gói .deb curl/unzip/unclutter (Ubuntu 22.04 amd64) nhúng sẵn — dùng
+                    // được cho CẢ Ubuntu lẫn Lubuntu (cùng base Ubuntu, cùng kiến trúc amd64).
+                    // 1-install-software.sh (cả 2 bản OS) cài bằng dpkg -i thay vì apt ra mạng.
+                    if (options.RunInstallSoftware)
+                    {
                         string? debDir = ResolveResourceDir("kiosk-deb");
                         if (!string.IsNullOrEmpty(debDir))
                         {
@@ -276,7 +301,13 @@ namespace IPGS.RemoteControl.CcuClient
                 if (options.RunInstallSoftware)
                 {
                     Log("🔄 Đang chạy 1-install-software.sh (Config máy tính — phần extension/unclutter/bàn phím ảo)...");
-                    string args1 = $"{B(options.HideTopBar)} {B(options.HideActivities)} {B(options.HideWorkspaceSwitcher)} {B(options.HideDash)} {B(options.InstallUnclutter)} {B(options.HideVirtualKeyboard)}";
+                    // F28: Lubuntu (LXQt) chỉ có 3 tham số — không có khái niệm Activities/
+                    // Workspace/Dash/bàn phím ảo GNOME. Ánh xạ HideTopBar→hide_panel (cùng
+                    // ý nghĩa "ẩn thanh trên/panel"), DisableDesktopIcons→hide_desktop_icons
+                    // (tái dùng checkbox có sẵn, không cần thêm UI riêng).
+                    string args1 = options.IsLubuntu
+                        ? $"{B(options.HideTopBar)} {B(options.DisableDesktopIcons)} {B(options.InstallUnclutter)}"
+                        : $"{B(options.HideTopBar)} {B(options.HideActivities)} {B(options.HideWorkspaceSwitcher)} {B(options.HideDash)} {B(options.InstallUnclutter)} {B(options.HideVirtualKeyboard)}";
                     RunCommand(ssh, $"{envCmd} bash ~/1-install-software.sh {args1}", Log,
                         throwOnError: true, errorContext: "1-install-software.sh");
                 }
@@ -302,12 +333,22 @@ namespace IPGS.RemoteControl.CcuClient
                             "Chưa chọn lệnh autostart app (App exec) — cần thiết vì Autostart hoặc Watchdog đang bật. " +
                             "Bấm '🔄 Nạp DS' để nạp danh sách ứng dụng thật từ máy ZCU rồi chọn, hoặc nhập tay lệnh.");
 
-                    // Thứ tự phải khớp tham số trong 2-configure-system.sh ($3..$13):
-                    // $3=disable_hotcorner $4=disable_ubuntu_dock $5=disable_desktop_icons
-                    // $6=block_sleep $7=skip_initial_setup $8=enable_autologin
-                    // $9=disable_sw_update $10=enable_autostart $11=lock_single_workspace
-                    // $12=lockdown_shell $13=enable_watchdog
-                    string args2 = $"{B(options.DisableHotCorner)} {B(options.DisableUbuntuDock)} {B(options.DisableDesktopIcons)} {B(options.BlockSleep)} {B(options.SkipInitialSetup)} {B(options.EnableAutologin)} {B(options.DisableSoftwareUpdate)} {B(options.EnableAutostart)} {B(options.LockSingleWorkspace)} {B(options.LockdownShell)} {B(options.EnableWatchdog)}";
+                    // F28: 2 bản OS có SỐ THAM SỐ VÀ Ý NGHĨA KHÁC NHAU — không dùng chung
+                    // args2 được. Lubuntu (scripts/lubuntu-kiosk/2-configure-system.sh) chỉ
+                    // có 8 tham số kể từ $3 (không có hotcorner/ubuntu-dock/desktop-icons/
+                    // initial-setup riêng — LXQt không có các khái niệm này):
+                    //   $3=block_sleep $4=enable_autologin $5=disable_sw_update
+                    //   $6=enable_autostart $7=lock_single_desktop $8=lockdown_shell
+                    //   $9=enable_watchdog $10=enable_firewall
+                    // Ubuntu/GNOME (scripts/linux-kiosk/2-configure-system.sh) có 12 tham số
+                    // kể từ $3:
+                    //   $3=disable_hotcorner $4=disable_ubuntu_dock $5=disable_desktop_icons
+                    //   $6=block_sleep $7=skip_initial_setup $8=enable_autologin
+                    //   $9=disable_sw_update $10=enable_autostart $11=lock_single_workspace
+                    //   $12=lockdown_shell $13=enable_watchdog $14=enable_firewall (F27)
+                    string args2 = options.IsLubuntu
+                        ? $"{B(options.BlockSleep)} {B(options.EnableAutologin)} {B(options.DisableSoftwareUpdate)} {B(options.EnableAutostart)} {B(options.LockSingleWorkspace)} {B(options.LockdownShell)} {B(options.EnableWatchdog)} {B(options.EnableFirewall)}"
+                        : $"{B(options.DisableHotCorner)} {B(options.DisableUbuntuDock)} {B(options.DisableDesktopIcons)} {B(options.BlockSleep)} {B(options.SkipInitialSetup)} {B(options.EnableAutologin)} {B(options.DisableSoftwareUpdate)} {B(options.EnableAutostart)} {B(options.LockSingleWorkspace)} {B(options.LockdownShell)} {B(options.EnableWatchdog)} {B(options.EnableFirewall)}";
                     // S1: quote đúng chuẩn POSIX — bản cũ '{kioskUser}' không escape '
                     // bên trong nên giá trị chứa ' có thể break-out khỏi quote.
                     // F08: throwOnError — trước đây exit code của script bị bỏ qua hoàn toàn,
@@ -550,11 +591,16 @@ for name, exec_cmd in r:
             return Directory.Exists(candidate) ? candidate : null;
         }
 
-        private string? ResolveKioskScriptsDir()
+        /// <summary>
+        /// F28: subDirName = "linux-kiosk" (Ubuntu/GNOME, mặc định) hoặc "lubuntu-kiosk"
+        /// (Lubuntu/LXQt) — cùng cơ chế resolve (resource nhúng ưu tiên, fallback tìm
+        /// trong source repo), chỉ khác tên thư mục con.
+        /// </summary>
+        private string? ResolveKioskScriptsDir(string subDirName = "linux-kiosk")
         {
             // F16: ưu tiên scripts đã nhúng sẵn trong output CcuUI — không cần source repo
             // đi kèm khi build ra máy khác.
-            string? embedded = ResolveResourceDir(Path.Combine("scripts", "linux-kiosk"));
+            string? embedded = ResolveResourceDir(Path.Combine("scripts", subDirName));
             if (!string.IsNullOrEmpty(embedded) &&
                 File.Exists(Path.Combine(embedded, "1-install-software.sh")) &&
                 File.Exists(Path.Combine(embedded, "2-configure-system.sh")))
@@ -575,7 +621,7 @@ for name, exec_cmd in r:
                 string? dir = root;
                 for (int i = 0; i < 8 && dir != null; i++)
                 {
-                    string candidate = Path.Combine(dir, "scripts", "linux-kiosk");
+                    string candidate = Path.Combine(dir, "scripts", subDirName);
                     if (Directory.Exists(candidate) &&
                         File.Exists(Path.Combine(candidate, "1-install-software.sh")) &&
                         File.Exists(Path.Combine(candidate, "2-configure-system.sh")))

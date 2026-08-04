@@ -197,7 +197,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
         // ── Task B: Chọn tất cả / Bỏ chọn tất cả ─────────────────────────
 
         /// <summary>
-        /// Toggle tất cả 13 checkbox trong Tab "Config máy tính".
+        /// Toggle tất cả 14 checkbox trong Tab "Config máy tính".
         /// Ghi chú: "Cài unclutter" là 1 chiều về mặt hiệu ứng trên máy (bỏ tick không gỡ cài),
         /// nhưng checkbox vẫn bị đổi để tránh tái cài khi deploy lại.
         /// </summary>
@@ -219,6 +219,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             PART_ChkAutologin.IsChecked        = value;
             PART_ChkLockWorkspace.IsChecked    = value;
             PART_ChkLockdownShell.IsChecked    = value;
+            PART_ChkFirewall.IsChecked         = value;
         }
 
         // ── F22: Reset màu màn hình ─────────────────────────────────────────
@@ -334,6 +335,9 @@ namespace IPGS.RemoteControl.CcuUI.Views
             bool autologin       = PART_ChkAutologin.IsChecked == true;
             bool lockWorkspace   = PART_ChkLockWorkspace.IsChecked == true;
             bool lockdownShell   = PART_ChkLockdownShell.IsChecked == true;
+            bool firewall        = PART_ChkFirewall.IsChecked == true;
+            // F28: index 0 = Ubuntu/GNOME (mặc định), 1 = Lubuntu/LXQt.
+            bool isLubuntu       = PART_CmbOsFamily.SelectedIndex == 1;
 
             if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser))
             {
@@ -388,6 +392,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 DisableSoftwareUpdate = swUpdate,
                 EnableAutostart       = autostart,
                 EnableWatchdog        = watchdog,
+                EnableFirewall        = firewall,
+                IsLubuntu             = isLubuntu,
             };
 
             try

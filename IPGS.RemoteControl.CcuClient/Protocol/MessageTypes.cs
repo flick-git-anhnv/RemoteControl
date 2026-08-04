@@ -65,8 +65,24 @@ public static class RemoteControlConstants
     public const int  JpegQuality          = 70;
 
     public const int  PingIntervalMs       = 5_000;
-    public const int  PingTimeoutMs        = 15_000;
-    public const int  HandshakeTimeoutMs   = 5_000;
+
+    /// <summary>
+    /// F29: bump 15s → 30s (xác nhận thật trên ZCU 192.168.21.97, CPU Intel Atom/
+    /// Celeron J3xxx yếu + MIT-SHM bị X server từ chối BadAccess): đo trực tiếp 1 lần
+    /// chụp màn hình đầy đủ qua X11 (`xwd -root`, tương đương XGetImage code đang dùng)
+    /// tốn 0.55-0.75s MỖI LẦN, đều đặn — máy này không đạt nổi TargetFps=15 mặc định.
+    /// Khi TcpServer đang xử lý 1 session cũ có capture/cleanup bị kẹt trong lời gọi
+    /// X11 đồng bộ (không thể huỷ giữa chừng), session MỚI phải chờ tới khi đó mới được
+    /// accept — verify thật: idle test (KHÔNG gửi chuột/bàn phím) vẫn rớt kết nối đều
+    /// đặn ở mốc PingTimeoutMs cũ = 15000ms. Tăng lên 30s cho đủ dư địa với phần cứng
+    /// yếu, kèm giảm TargetFps/JpegQuality trong appsettings.json của máy đó.
+    /// </summary>
+    public const int  PingTimeoutMs        = 30_000;
+
+    /// <summary>F29: cùng lý do PingTimeoutMs — bump 5s → 10s vì AUTH đôi khi bị delay
+    /// do TcpServer's accept loop chờ session cũ (kẹt trong X11 cleanup) mới nhận session
+    /// mới.</summary>
+    public const int  HandshakeTimeoutMs   = 10_000;
 
     public const int  ReconnectDelayMs     = 3_000;
     public const int  ReconnectJitterMs    = 1_000;
