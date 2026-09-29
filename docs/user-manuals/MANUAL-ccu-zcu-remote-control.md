@@ -1,9 +1,11 @@
 # Hệ Thống Remote Control CCU–ZCU — Hướng Dẫn Sử Dụng
 
-**Phiên bản:** 1.0 — Bản chính thức
-**Ngày cập nhật:** 2026-07-26
+**Phiên bản:** 1.1 — Bổ sung tính năng remote mới (agent 1.2)
+**Ngày cập nhật:** 2026-09-29
 **Biên soạn:** KZTEK Documentation Team
 
+> Phiên bản 1.1 bổ sung các tính năng remote mới (cần **ZcuAgent 1.2 trở lên**): cuộn chuột, nút Ctrl+Alt+Del, phím vật lý, clipboard hai chiều tự động, chọn màn hình, truyền file, mã hóa TLS và tự điều chỉnh chất lượng hình. Các mục mới (5.1.7–5.1.10, 13.6) hiện mô tả bằng lời — ảnh minh họa sẽ được bổ sung sau khi kiểm thử trên máy thật.
+>
 > Tài liệu gồm 75 hình minh họa chụp trực tiếp từ phần mềm thật. Các giá trị IP, tên máy, Token xuất hiện trong ảnh chỉ mang tính minh họa — thay bằng thông tin thật của hệ thống bạn.
 
 ---
@@ -30,7 +32,7 @@
    - 4.2 Quét mạng tìm máy ZCU tự động
    - 4.3 Xóa máy khỏi danh sách
 5. [Điều khiển màn hình từ xa](#5-điều-khiển-màn-hình-từ-xa)
-   - 5.1 Kết nối và xem màn hình một máy
+   - 5.1 Kết nối và xem màn hình một máy (gồm 5.1.7 Phím tắt & phím vật lý, 5.1.8 Chọn màn hình, 5.1.9 Gửi/nhận file, 5.1.10 Chất lượng hình tự điều chỉnh)
    - 5.2 Điều khiển nhiều máy cùng lúc — Multi-Remote Dashboard
 6. [Quản lý file & thực thi lệnh từ xa](#6-quản-lý-file--thực-thi-lệnh-từ-xa)
    - 6.1 Trình quản lý file qua SFTP
@@ -73,6 +75,7 @@
     - 13.3 Sinh cặp khóa bản quyền bằng công cụ KeyGen ⚙️ nội bộ KZTEK
     - 13.4 Quy trình cấp & kích hoạt bản quyền
     - 13.5 Khuyến nghị bảo mật khi triển khai
+    - 13.6 Mã hóa kết nối (TLS)
 
 14. [Câu hỏi thường gặp (FAQ)](#14-câu-hỏi-thường-gặp-faq)
 15. [Liên hệ hỗ trợ](#15-liên-hệ-hỗ-trợ)
@@ -442,8 +445,11 @@ Khi kết nối thành công, màn hình máy ZCU hiện ra ở vùng giữa, ch
 
 Vùng giữa cửa sổ chính là màn hình máy ZCU truyền về theo thời gian thực:
 
-- **Di chuột, nhấp chuột, nhấp đúp, cuộn** trong vùng này → thao tác được thực hiện y hệt trên máy ZCU.
-- **Gõ bàn phím** khi cửa sổ đang được chọn → ký tự được gửi sang máy ZCU.
+- **Di chuột, nhấp chuột, nhấp đúp** trong vùng này → thao tác được thực hiện y hệt trên máy ZCU.
+- **Cuộn chuột** (con lăn hoặc hai ngón trên touchpad) → cuộn nội dung trên máy ZCU, cả chiều dọc lẫn chiều ngang. Cuộn trong vùng này không làm cuộn cửa sổ trên máy CCU.
+- **Gõ bàn phím** khi cửa sổ đang được chọn → ký tự được gửi sang máy ZCU. Nếu gõ ra sai ký tự (do hai máy khác kiểu bàn phím), xem mục 5.1.7.
+
+> **Lưu ý:** Nếu trước đây cuộn chuột không hoạt động trong phiên remote, hãy cập nhật phần mềm CCU lên bản mới — chức năng này nằm ở phía CCU, không cần cập nhật agent.
 
 *(Ảnh minh họa dùng chung với ảnh kết nối thành công ở mục 5.1.1.)*
 
@@ -462,7 +468,12 @@ Thanh **💬 Chat:** nằm ở cạnh dưới cửa sổ.
 
 #### 5.1.4 Đồng bộ clipboard hai chiều
 
-Nhấn **📋 Sync Clipboard** (cạnh dưới, bên phải) để đồng bộ nội dung đã sao chép giữa máy CCU và máy ZCU — sau đó có thể dán (Ctrl+V) ở máy bên kia.
+Clipboard đồng bộ theo hai chiều (văn bản):
+
+- **Từ CCU sang ZCU (thủ công):** sao chép văn bản trên máy CCU, nhấn **📋 Sync Clipboard** (cạnh dưới, bên phải), rồi dán (Ctrl+V) trên máy ZCU.
+- **Từ ZCU sang CCU (tự động):** khi bạn sao chép văn bản trên máy ZCU (Ctrl+C), trong vòng khoảng 1 giây nội dung tự xuất hiện trong clipboard của máy CCU — chỉ cần dán (Ctrl+V) trên CCU, không phải bấm nút. Cần agent 1.2 trở lên và `EnableDesktopIntegration` bật (mục 12.4).
+
+Giới hạn: chỉ văn bản, tối đa khoảng 260.000 ký tự mỗi lần. Để chuyển file, dùng mục 5.1.9.
 
 ![Nút Sync Clipboard trong phiên kết nối](screenshots/remote-screen-clipboard-sync.png)
 *Hình 20: Nút 📋 Sync Clipboard ở góc dưới bên phải trong phiên đang kết nối — thao tác đồng bộ chạy ngầm, giao diện không thay đổi*
@@ -490,6 +501,39 @@ Nhấn **📋 Sync Clipboard** (cạnh dưới, bên phải) để đồng bộ 
 *Hình 22: Toggle 🕶️ Privacy đang bật (nút chuyển màu xanh) — màn hình vật lý của máy ZCU bị che, bạn vẫn xem và điều khiển bình thường*
 
 > **Lưu ý:** Nút **📊 SysInfo** trên cùng thanh công cụ mở cửa sổ thông tin cấu hình máy — xem mục 7.2.
+
+#### 5.1.7 Phím tắt & phím vật lý
+
+**⌨ Ctrl+Alt+Del:** Windows trên máy CCU chặn tổ hợp Ctrl+Alt+Del nên không gửi được sang máy ZCU bằng bàn phím. Nhấn nút **⌨ Ctrl+Alt+Del** trên thanh công cụ để gửi tổ hợp này thẳng tới máy ZCU (ví dụ để mở hộp thoại đăng xuất/khóa trên môi trường Linux có gán phím này).
+
+**⌨ Phím vật lý:** Mặc định phần mềm gửi *ký tự* bạn gõ. Khi bộ gõ/kiểu bàn phím hai máy khác nhau (ví dụ CCU dùng bộ gõ tiếng Việt, ZCU dùng bố cục US), ký tự có thể ra sai. Bật nút **⌨ Phím vật lý** để gửi *vị trí phím* thay vì ký tự — ký tự cuối cùng do bố cục bàn phím của máy ZCU quyết định.
+
+- Bật/tắt bằng cách nhấn nút (nút sáng = đang bật). Chỉ dùng được với agent 1.2 trở lên; agent cũ sẽ hiện thông báo yêu cầu cập nhật.
+- Nếu bộ gõ tiếng Việt (Unikey, EVKey…) đang bật trên máy CCU, bộ gõ đó vẫn xử lý phím trước khi phần mềm nhận — nên tắt bộ gõ trên CCU khi dùng chế độ này và gõ tiếng Việt bằng bộ gõ của máy ZCU.
+- Nhấn nút lần nữa để quay lại chế độ gửi ký tự.
+
+#### 5.1.8 Chọn màn hình (máy ZCU nhiều màn hình)
+
+Khi máy ZCU có từ 2 màn hình trở lên, một danh sách chọn **🖥** xuất hiện trên thanh công cụ (không hiện nếu máy chỉ có 1 màn hình):
+
+- **🖥 Tất cả màn hình:** xem toàn bộ vùng làm việc ghép lại (mặc định).
+- **🖥 1: HDMI-1 (1920×1080), 🖥 2: …:** chỉ xem một màn hình. Hình rõ hơn và nhẹ băng thông hơn so với xem cả vùng ghép.
+
+Chuột được ánh xạ đúng theo màn hình đang chọn. Cần agent 1.2 trở lên và máy ZCU có lệnh `xrandr` (mặc định có trên Ubuntu/Lubuntu; nếu thiếu: `sudo apt install x11-xserver-utils`).
+
+#### 5.1.9 Gửi/nhận file
+
+Nhấn nút **📁 File** trên thanh công cụ để mở cửa sổ **Truyền file** — gửi/nhận file ngay trong phiên remote, **không cần SSH**.
+
+**Gửi file lên máy ZCU:** nhấn **⬆ Gửi file lên máy đích…**, chọn một hoặc nhiều file; thanh tiến độ hiển thị % hoàn thành. File nằm trong thư mục nhận `~/RemoteTransfer` của người dùng chạy agent trên máy ZCU. Nếu trùng tên, file mới tự đổi tên (ví dụ `bao-cao (1).xlsx`) — không ghi đè file cũ.
+
+**Tải file từ máy ZCU về:** chọn file trong danh sách (các file trong thư mục `~/RemoteTransfer`), nhấn **⬇ Tải file đã chọn về…**, chọn nơi lưu trên máy CCU. Nhấn **🔄 Làm mới** để cập nhật danh sách.
+
+> **Lưu ý:** Vì lý do bảo mật, chức năng này chỉ đọc/ghi trong thư mục nhận, không duyệt được thư mục khác. Để quản lý file toàn hệ thống dùng Trình quản lý file SFTP (mục 6.1). Dung lượng tối đa mỗi file mặc định 1 GB; có thể đổi hoặc tắt tính năng trong `appsettings.json` (mục 12.4). Cần agent 1.2 trở lên.
+
+#### 5.1.10 Chất lượng hình tự điều chỉnh
+
+Từ agent 1.2, khi mạng nghẽn hoặc máy CCU xử lý không kịp, agent **tự hạ tốc độ khung hình (tối thiểu 5 khung/giây) và chất lượng ảnh (tối thiểu 40)** để hình vẫn mượt và không rớt kết nối; khi mạng ổn định trở lại, chất lượng tự tăng dần về mức cấu hình (`TargetFps`, `JpegQuality` — mục 12.4). Bạn không cần thao tác gì. Có thể tắt bằng `AdaptiveQuality: false`.
 
 ### 5.2 Điều khiển nhiều máy cùng lúc — Multi-Remote Dashboard
 
@@ -1071,7 +1115,7 @@ echo $XDG_SESSION_TYPE
 ![Kiểm tra loại phiên bằng loginctl](screenshots/zcu-terminal-session-x11.png)
 *Hình 68: Kiểm tra qua SSH bằng `loginctl list-sessions` và `loginctl show-session <số> -p Type` — phiên đồ họa của người dùng trả về `Type=x11`, đạt yêu cầu*
 
-**Bước 2 (nếu đang là Wayland):** Đăng xuất khỏi phiên hiện tại. Tại màn hình đăng nhập, nhấp biểu tượng **bánh răng** (góc dưới bên phải, hiện sau khi chọn tên người dùng) và chọn **"Ubuntu on Xorg"**, rồi đăng nhập lại.
+**Bước 2 (nếu đang là Wayland):** Script `setup-zcu-agent.sh` trên Ubuntu dùng GDM sẽ **tự đặt `WaylandEnable=false`** trong `/etc/gdm3/custom.conf` — sau đó chỉ cần **khởi động lại máy ZCU** để vào phiên Xorg. Làm thủ công: đăng xuất khỏi phiên hiện tại. Tại màn hình đăng nhập, nhấp biểu tượng **bánh răng** (góc dưới bên phải, hiện sau khi chọn tên người dùng) và chọn **"Ubuntu on Xorg"**, rồi đăng nhập lại.
 
 **Bước 3:** Chạy lại lệnh ở Bước 1 để xác nhận kết quả đã là `x11`.
 
@@ -1199,7 +1243,10 @@ File `~/ipgs/remote-agent/appsettings.json` do trình cài đặt **tự sinh** 
     "AllowedClientIPs": [ "192.168.1.0/24" ],
     "TargetFps": 15,
     "JpegQuality": 70,
-    "MaxFrameBytes": 8388608
+    "MaxFrameBytes": 8388608,
+    "AdaptiveQuality": true,
+    "RequireTls": false,
+    "EnableFileTransfer": true
   }
 }
 ```
@@ -1213,6 +1260,12 @@ File `~/ipgs/remote-agent/appsettings.json` do trình cài đặt **tự sinh** 
 | `TargetFps` | Khung hình/giây (5–30) | Giảm nếu mạng yếu |
 | `JpegQuality` | Chất lượng nén (40–95) | Giảm nếu mạng yếu |
 | `MaxFrameBytes` | Giới hạn kích thước 1 khung hình | Giữ mặc định 8388608 (8 MB) |
+| `AdaptiveQuality` | Tự hạ/tăng FPS và chất lượng theo độ nghẽn (mục 5.1.10) | Mặc định `true`; `TargetFps`/`JpegQuality` là mức tối đa |
+| `RequireTls` | `true` = chỉ nhận kết nối mã hóa TLS, từ chối client cũ (mục 13.6) | Mặc định `false` để tương thích CCU đời cũ |
+| `TlsCertPath` | Đường dẫn file chứng chỉ TLS tự ký | Để trống = `agent-tls.pfx` cạnh agent, tự tạo lần đầu |
+| `EnableFileTransfer` | Bật truyền file trong phiên remote (mục 5.1.9) | Mặc định `true` |
+| `TransferDir` | Thư mục gửi/nhận file | Để trống = `~/RemoteTransfer` của người dùng chạy agent |
+| `MaxTransferBytes` | Dung lượng tối đa mỗi file (byte) | Mặc định 1073741824 (1 GB) |
 
 Xem nhanh cấu hình hiện tại trên máy:
 
@@ -1373,6 +1426,16 @@ Thao tác kích hoạt trên máy CCU đã mô tả tại **mục 10.1**. Quy tr
 | Token | Mỗi máy một Token ngẫu nhiên; đổi khi nghi lộ (mục 13.2) |
 | Mạng | Đặt các máy CCU/ZCU trong mạng LAN/VLAN nội bộ — **không** mở cổng agent ra Internet |
 | Cập nhật | Cập nhật bảo mật Ubuntu định kỳ (`sudo apt update && sudo apt upgrade`) theo lịch bảo trì |
+| Mã hóa | Sau khi mọi CCU đã lên bản mới, đặt `RequireTls: true` trên các máy ZCU (mục 13.6) |
+
+### 13.6 Mã hóa kết nối (TLS)
+
+Từ agent/CCU bản 1.2, kết nối giữa CCU và ZCU được mã hóa bằng TLS: Token, hình ảnh màn hình, phím gõ, clipboard và file đều không đọc được nếu bị nghe lén trên mạng LAN.
+
+- **Tự động:** CCU luôn thử TLS trước. Agent tự nhận biết client dùng TLS hay không — CCU mới nối agent cũ (và ngược lại) vẫn hoạt động, kết nối sẽ ở dạng không mã hóa.
+- **Chứng chỉ:** agent tự tạo chứng chỉ tự ký khi chạy lần đầu, lưu ở `agent-tls.pfx` cạnh agent (chỉ chủ sở hữu đọc được). Bạn không cần cấp chứng chỉ.
+- **Bắt buộc mã hóa:** khi tất cả CCU đã cập nhật, đặt `"RequireTls": true` trong `appsettings.json` rồi khởi động lại service (mục 12.5). Từ đó agent từ chối mọi kết nối không mã hóa.
+- **Giới hạn hiện tại:** chứng chỉ tự ký chưa được CCU kiểm tra/ghim, nên TLS bảo vệ chống nghe lén nhưng chưa chống kẻ giả mạo chủ động chen giữa đường truyền. Vẫn cần các biện pháp ở mục 13.5 (`AllowedClientIPs`, mạng nội bộ, Token riêng mỗi máy).
 
 ---
 
@@ -1415,6 +1478,15 @@ A: Lần lượt kiểm tra: (1) máy ZCU còn bật không, (2) IP trong hồ s
 **Q: Xem màn hình từ xa bị giật / chậm?**
 A: Chất lượng phụ thuộc băng thông mạng và cấu hình FPS/JPEG đặt lúc cài agent (mục 9.1). Kỹ thuật viên có thể giảm FPS hoặc chất lượng JPEG để mượt hơn trên mạng yếu. Khi xem nhiều máy cùng lúc ở Multi-Remote, mỗi phiên đều tốn băng thông — đóng bớt phiên không cần thiết.
 
+**Q: Cuộn chuột trong phiên remote không hoạt động?**
+A: Cập nhật phần mềm CCU lên bản mới nhất (từ phiên bản 1.1 của tài liệu này) — chức năng cuộn chuột đã được bổ sung phía CCU. Không cần cập nhật agent.
+
+**Q: Gõ tiếng Việt / ký tự đặc biệt bị sai trong phiên remote?**
+A: Bật nút **⌨ Phím vật lý** (mục 5.1.7) và tắt bộ gõ tiếng Việt trên máy CCU, gõ bằng bộ gõ của máy ZCU. Cần agent 1.2 trở lên.
+
+**Q: Nút 📁 File, ⌨ Phím vật lý hoặc danh sách chọn màn hình báo "Agent chưa hỗ trợ"?**
+A: Agent trên máy ZCU là bản cũ (dưới 1.2). Cập nhật qua nút **⚡ Cài remote** của máy đó (mục 9.1).
+
 **Q: Bấm ⚡ Bật nguồn nhưng máy không lên?**
 A: Kiểm tra: (1) máy đã điền đúng địa chỉ MAC chưa (mục 4.1), (2) tính năng Wake-on-LAN đã bật trong BIOS máy ZCU chưa (kỹ thuật viên thiết lập), (3) máy ZCU còn cắm điện và cắm dây mạng không — WoL không hoạt động khi rút điện.
 
@@ -1443,7 +1515,7 @@ VP HCM: 6B11 Đường số 9, Khu phố 4, Phường An Khánh, TP. HCM
 
 ## Phụ lục A — Ghi chú về ảnh minh họa
 
-Toàn bộ 75 hình trong tài liệu được chụp trực tiếp từ phần mềm và thiết bị thật. Riêng 4 thao tác dưới đây được mô tả bằng lời thay vì ảnh chụp, do việc thực hiện thật sẽ thay đổi cấu hình của máy đang vận hành:
+Toàn bộ 75 hình trong tài liệu được chụp trực tiếp từ phần mềm và thiết bị thật. Các mục bổ sung ở phiên bản 1.1 (5.1.7–5.1.10 và 13.6) hiện mô tả bằng lời, chưa có ảnh chụp. Riêng 4 thao tác dưới đây được mô tả bằng lời thay vì ảnh chụp, do việc thực hiện thật sẽ thay đổi cấu hình của máy đang vận hành:
 
 | Thao tác | Vị trí trong tài liệu |
 |---|---|
