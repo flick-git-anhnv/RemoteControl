@@ -15,6 +15,7 @@ if (!string.Equals(sessionType, "x11", StringComparison.OrdinalIgnoreCase))
     Console.Error.WriteLine(
         $"[ZcuAgent] ERROR: XDG_SESSION_TYPE='{sessionType}'. " +
         "This agent requires an X11 session (not Wayland or headless). " +
+        "Ubuntu/GDM: đặt WaylandEnable=false trong /etc/gdm3/custom.conf rồi khởi động lại (script setup-zcu-agent.sh tự làm việc này). " +
         "Set XDG_SESSION_TYPE=x11 or run under a compatible X11 display server.");
     return 1;
 }
