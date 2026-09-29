@@ -104,7 +104,7 @@ public partial class RemoteScreenControl : UserControl
     {
         if (DataContext is not RemoteScreenViewModel vm) return;
 
-        vm.HandleKeyDown(e.Key, e.KeySymbol, e.KeyModifiers);
+        vm.HandleKeyDown(e.Key, e.KeySymbol, e.KeyModifiers, e.PhysicalKey);
 
         // Mark handled so Avalonia does not additionally process Tab for
         // focus-navigation or trigger menu mnemonics (TDD §17.5).
@@ -115,7 +115,7 @@ public partial class RemoteScreenControl : UserControl
     {
         if (DataContext is not RemoteScreenViewModel vm) return;
 
-        vm.HandleKeyUp(e.Key, e.KeySymbol, e.KeyModifiers);
+        vm.HandleKeyUp(e.Key, e.KeySymbol, e.KeyModifiers, e.PhysicalKey);
         e.Handled = true;
     }
 

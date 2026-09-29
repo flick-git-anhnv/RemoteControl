@@ -415,6 +415,11 @@ internal sealed class ClientSession
                         _inputQueue.Writer.TryWrite(() => _keyboard.SendKey(keysym, isDown));
                         break;
                         
+                    case MessageType.KeyEventRaw:
+                        var (rawCode, rawDown) = MessageCodec.DecodeKeyEventRaw(payload);
+                        _inputQueue.Writer.TryWrite(() => _keyboard.SendRawKey(rawCode, rawDown));
+                        break;
+
                     // ── Phase 6 Enterprise Features ───────────────────────────
                     case MessageType.ChatText:
                         var chatMsg = MessageCodec.DecodeStringMessage(payload);

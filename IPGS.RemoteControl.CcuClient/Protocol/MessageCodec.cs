@@ -303,6 +303,15 @@ public static class MessageCodec
         return (keysym, isDown);
     }
 
+    public static byte[] EncodeKeyEventRaw(byte keycode, bool isDown)
+        => new[] { keycode, isDown ? (byte)1 : (byte)0 };
+
+    public static (byte Keycode, bool IsDown) DecodeKeyEventRaw(byte[] payload)
+    {
+        RequireMinLength(payload, 2, "KEY_EVENT_RAW");
+        return (payload[0], payload[1] != 0);
+    }
+
     // ── Phase 6 Enterprise Features ───────────────────────────────────────
 
     /// <summary>Decode UTF-8 string payload (ChatText, ClipboardData, SysInfoResp).</summary>

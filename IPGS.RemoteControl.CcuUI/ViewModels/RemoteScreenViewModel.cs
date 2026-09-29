@@ -62,6 +62,11 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     // LostFocus or Dispose without relying solely on ZCU-side ReleaseAllKeys().
     private readonly HashSet<uint> _downKeysyms = new();
 
+    // Chế độ phím vật lý (scan mode): keycode X11 đang giữ + cờ bật/tắt.
+    private readonly HashSet<byte> _downRawKeys = new();
+    /// <summary>true = gửi phím theo vị trí vật lý (cần agent ≥ 1.2); false = gửi theo ký tự/keysym.</summary>
+    public bool UseScanMode { get; set; }
+
     // ── Constructor ──────────────────────────────────────────────────────────
 
     public RemoteScreenViewModel()
@@ -197,9 +202,18 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     /// Windows-reported ASCII control code as a literal keysym.
     /// </param>
     public void HandleKeyDown(Avalonia.Input.Key key, string? keySymbol,
-        Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None)
+        Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None,
+        Avalonia.Input.PhysicalKey physicalKey = Avalonia.Input.PhysicalKey.None)
     {
         if (!IsStreaming) return;
+
+        // Chế độ phím vật lý: gửi keycode, layout/IME máy đích tự dịch ra ký tự.
+        if (UseScanMode && PhysicalKeyMapper.ToX11Keycode(physicalKey) is { } rawCode)
+        {
+            if (_downRawKeys.Add(rawCode))
+                _ = _client.SendRawKeyEventAsync(rawCode, isDown: true);
+            return;
+        }
 
         uint? keysym = KeyboardMapper.Resolve(key, keySymbol, modifiers);
         if (keysym is null) return;
@@ -215,9 +229,17 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     /// and sends KEY_EVENT release via CcuClient.
     /// </summary>
     public void HandleKeyUp(Avalonia.Input.Key key, string? keySymbol,
-        Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None)
+        Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None,
+        Avalonia.Input.PhysicalKey physicalKey = Avalonia.Input.PhysicalKey.None)
     {
         if (!IsStreaming) return;
+
+        // Nhả phím nào đang giữ ở chế độ vật lý thì nhả đúng phím đó (kể cả khi vừa tắt scan mode).
+        if (PhysicalKeyMapper.ToX11Keycode(physicalKey) is { } rawCode && _downRawKeys.Remove(rawCode))
+        {
+            _ = _client.SendRawKeyEventAsync(rawCode, isDown: false);
+            return;
+        }
 
         uint? keysym = KeyboardMapper.Resolve(key, keySymbol, modifiers);
         if (keysym is null) return;
@@ -233,6 +255,10 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     /// </summary>
     public void ReleaseAllDownKeys()
     {
+        foreach (var code in _downRawKeys.ToArray())
+            _ = _client.SendRawKeyEventAsync(code, isDown: false);
+        _downRawKeys.Clear();
+
         if (_downKeysyms.Count == 0) return;
 
         // Snapshot to avoid mutation-while-iterating issues.

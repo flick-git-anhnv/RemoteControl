@@ -236,6 +236,29 @@ public partial class RemoteScreenWindow : Window
         await c.SendKeyEventAsync(KeysymControlL, false);
     }
 
+    private void OnScanModeClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton btn) return;
+        var on = btn.IsChecked ?? false;
+
+        if (on && IsAgentOlderThan(_vm.Client.ServerName, new Version(1, 2)))
+        {
+            btn.IsChecked = false;
+            ShowInfoDialog("Agent chưa hỗ trợ",
+                "Chế độ phím vật lý cần ZcuAgent 1.2 trở lên. Cập nhật agent qua nút \"⚡ Cài remote\" của máy này.");
+            return;
+        }
+
+        _vm.ReleaseAllDownKeys();
+        _vm.UseScanMode = on;
+    }
+
+    private static bool IsAgentOlderThan(string serverName, Version min)
+    {
+        var idx = serverName.LastIndexOf('/');
+        return idx < 0 || !Version.TryParse(serverName[(idx + 1)..], out var v) || v < min;
+    }
+
     private async void OnPrivacyClick(object? sender, RoutedEventArgs e)
     {
         if (sender is ToggleButton btn)

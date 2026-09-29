@@ -56,6 +56,9 @@ public interface IRemoteControlClient : IDisposable
     /// </summary>
     Task SendKeyEventAsync(uint keysym, bool isDown);
 
+    /// <summary>Send a physical-key event (X11 keycode). Requires agent ≥ 1.2.</summary>
+    Task SendRawKeyEventAsync(byte keycode, bool isDown);
+
     // ── Phase 6 Methods ──
     Task SendChatMessageAsync(string message);
     Task SendClipboardTextAsync(string text);

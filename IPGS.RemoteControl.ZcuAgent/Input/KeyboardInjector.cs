@@ -35,6 +35,9 @@ internal sealed class KeyboardInjector : IKeyboardInjector
     /// </summary>
     private readonly HashSet<uint> _downKeys = new();
 
+    /// <summary>Keycode vật lý đang giữ (scan mode) — nhả hết khi kết thúc session.</summary>
+    private readonly HashSet<byte> _downRawKeys = new();
+
     public KeyboardInjector(ILogger<KeyboardInjector> logger) => _logger = logger;
 
     // ── IKeyboardInjector ─────────────────────────────────────────────────
@@ -86,6 +89,18 @@ internal sealed class KeyboardInjector : IKeyboardInjector
         X11.XSync(_display, false);
     }
 
+    /// <summary>Physical key injection (scan mode): keycode dùng thẳng, layout ZCU tự dịch ra ký tự.</summary>
+    public void SendRawKey(byte keycode, bool isDown)
+    {
+        if (!_initialized || _disposed || keycode < 8) return;
+
+        if (isDown) _downRawKeys.Add(keycode); else _downRawKeys.Remove(keycode);
+
+        XTest.XTestFakeKeyEvent(_display, keycode, isDown, 0);
+        X11.XFlush(_display);
+        X11.XSync(_display, false);
+    }
+
     /// <summary>
     /// Release every key that is currently tracked as pressed.
     /// Called on session end (disconnect / BYE / timeout / exception) to prevent
@@ -93,10 +108,15 @@ internal sealed class KeyboardInjector : IKeyboardInjector
     /// </summary>
     public void ReleaseAllKeys()
     {
-        if (!_initialized || _disposed || _downKeys.Count == 0) return;
+        if (!_initialized || _disposed || (_downKeys.Count == 0 && _downRawKeys.Count == 0)) return;
 
         _logger.LogInformation(
-            "KeyboardInjector: releasing {Count} stuck key(s) on session end", _downKeys.Count);
+            "KeyboardInjector: releasing {Count} stuck key(s) on session end",
+            _downKeys.Count + _downRawKeys.Count);
+
+        foreach (var kc in _downRawKeys.ToArray())
+            XTest.XTestFakeKeyEvent(_display, kc, isPress: false, delay: 0);
+        _downRawKeys.Clear();
 
         // Snapshot the set before iterating because SendKey modifies _downKeys.
         var stuck = _downKeys.ToArray();
@@ -123,7 +143,7 @@ internal sealed class KeyboardInjector : IKeyboardInjector
         _disposed = true;
 
         // Best-effort release before closing display (display still open here).
-        if (_initialized && _downKeys.Count > 0)
+        if (_initialized && (_downKeys.Count > 0 || _downRawKeys.Count > 0))
             ReleaseAllKeys();
 
         if (_display != IntPtr.Zero)

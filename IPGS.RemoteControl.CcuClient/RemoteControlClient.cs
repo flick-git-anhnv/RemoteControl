@@ -137,6 +137,14 @@ public sealed class RemoteControlClient : IRemoteControlClient
         return SendLockedAsync(MessageType.KeyEvent, payload, CancellationToken.None);
     }
 
+    /// <summary>Phím vật lý (X11 keycode = evdev + 8). Cần agent ≥ 1.2.</summary>
+    public Task SendRawKeyEventAsync(byte keycode, bool isDown)
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        return SendLockedAsync(MessageType.KeyEventRaw,
+            MessageCodec.EncodeKeyEventRaw(keycode, isDown), CancellationToken.None);
+    }
+
     // ── Phase 6 Methods ───────────────────────────────────────────────────
 
     public Task SendChatMessageAsync(string message)
