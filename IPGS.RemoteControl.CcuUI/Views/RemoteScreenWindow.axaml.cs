@@ -137,7 +137,6 @@ public partial class RemoteScreenWindow : Window
     {
         // F02: response đã tới → hủy timeout đang chờ (nếu có)
         _sysInfoTimeoutCts?.Cancel();
-        _fileWindow?.Close();
         Dispatcher.UIThread.Post(() =>
         {
             var win = new SystemInventoryWindow();
@@ -340,7 +339,6 @@ public partial class RemoteScreenWindow : Window
         // SysInfoResp trong SysInfoTimeoutMs (agent cũ bỏ qua âm thầm, hoặc nghẽn),
         // báo người dùng thay vì im lặng mãi mãi.
         _sysInfoTimeoutCts?.Cancel();
-        _fileWindow?.Close();
         var cts = new CancellationTokenSource();
         _sysInfoTimeoutCts = cts;
 
