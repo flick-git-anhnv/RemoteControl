@@ -34,6 +34,15 @@ public sealed class AgentOptions
     /// </summary>
     public bool EnableDesktopIntegration { get; set; } = true;
 
+    /// <summary>
+    /// true = chỉ nhận kết nối TLS, từ chối client cũ dùng TCP thường. Mặc định false để
+    /// tương thích client đời cũ; khi mọi CCU đã cập nhật nên bật true.
+    /// </summary>
+    public bool RequireTls { get; set; } = false;
+
+    /// <summary>Đường dẫn file PFX chứng chỉ TLS tự ký. Rỗng = <c>agent-tls.pfx</c> cạnh agent.</summary>
+    public string TlsCertPath { get; set; } = string.Empty;
+
     /// <summary>Target capture frame rate (5–30). Default: <see cref="RemoteControlConstants.TargetFps"/> (15).</summary>
     public int TargetFps { get; set; } = RemoteControlConstants.TargetFps;
 

@@ -92,9 +92,33 @@ public static class ZcuAgentDiscoveryService
             connectCts.CancelAfter(connectTimeoutMs);
             await tcp.ConnectAsync(host, port, connectCts.Token).ConfigureAwait(false);
 
-            await using var stream = tcp.GetStream();
             using var hsCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             hsCts.CancelAfter(handshakeTimeoutMs);
+
+            // Agent bản mới với RequireTls=true chỉ nhận TLS; bản cũ chỉ nhận TCP thường.
+            // Thử TLS trước, thất bại thì mở lại socket dùng TCP thường.
+            Stream stream;
+            try
+            {
+                var ssl = new System.Net.Security.SslStream(tcp.GetStream(), false, (_, _, _, _) => true);
+                await ssl.AuthenticateAsClientAsync(new System.Net.Security.SslClientAuthenticationOptions
+                {
+                    TargetHost = host,
+                    EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12
+                                        | System.Security.Authentication.SslProtocols.Tls13,
+                }, hsCts.Token).ConfigureAwait(false);
+                stream = ssl;
+            }
+            catch when (!cancellationToken.IsCancellationRequested)
+            {
+                tcp.Dispose();
+                var plain = new TcpClient();
+                using var reCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                reCts.CancelAfter(connectTimeoutMs);
+                await plain.ConnectAsync(host, port, reCts.Token).ConfigureAwait(false);
+                stream = new NetworkStream(plain.Client, ownsSocket: true);
+            }
+            await using var _ = stream;
 
             await MessageCodec.WriteMessageAsync(
                 stream, MessageType.Hello, MessageCodec.EncodeHello("IPGS-CCU-Scan"), hsCts.Token)

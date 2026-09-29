@@ -24,7 +24,8 @@ internal sealed class ClientSession
     private readonly AgentOptions      _options;
     private readonly ILogger           _logger;
 
-    private NetworkStream? _stream;
+    // Stream: NetworkStream (plain) hoặc SslStream (TLS) — tự nhận diện ở RunAsync.
+    private Stream? _stream;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     /// <summary>
@@ -101,9 +102,9 @@ internal sealed class ClientSession
     /// </summary>
     public async Task RunAsync(CancellationToken ct)
     {
-        _stream = _tcp.GetStream();
         try
         {
+            _stream = await OpenStreamAsync(ct);
             await DoHandshakeAsync(ct);
             await DoAuthAsync(ct);
             _logger.LogInformation("Session {IP}: streaming started", _remoteIp);
@@ -150,6 +151,43 @@ internal sealed class ClientSession
             try { _tcp.Close(); } catch { }
             _logger.LogInformation("Session {IP}: closed", _remoteIp);
         }
+    }
+
+    // ── TLS detection ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Nhìn trước (peek) byte đầu tiên: 0x16 = TLS ClientHello → bọc SslStream; 0x01 (HELLO của
+    /// giao thức) = TCP thường của client cũ. Không đọc/tiêu thụ byte nào của luồng dữ liệu.
+    /// </summary>
+    private async Task<Stream> OpenStreamAsync(CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(RemoteControlConstants.HandshakeTimeoutMs);
+
+        var first = new byte[1];
+        var n = await _tcp.Client.ReceiveAsync(first, System.Net.Sockets.SocketFlags.Peek, cts.Token);
+        if (n == 0) throw new EndOfStreamException("Client đóng kết nối trước khi gửi dữ liệu");
+
+        if (first[0] == 0x16)
+        {
+            var cert = TlsCertificateProvider.GetOrCreate(_options, _logger);
+            var ssl = new System.Net.Security.SslStream(_tcp.GetStream(), leaveInnerStreamOpen: false);
+            await ssl.AuthenticateAsServerAsync(new System.Net.Security.SslServerAuthenticationOptions
+            {
+                ServerCertificate = cert,
+                ClientCertificateRequired = false,
+                EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12
+                                    | System.Security.Authentication.SslProtocols.Tls13,
+            }, cts.Token);
+            _logger.LogInformation("Session {IP}: TLS established ({Proto})", _remoteIp, ssl.SslProtocol);
+            return ssl;
+        }
+
+        if (_options.RequireTls)
+            throw new ProtocolException("RequireTls=true nhưng client kết nối không mã hóa — từ chối");
+
+        _logger.LogWarning("Session {IP}: kết nối KHÔNG mã hóa (client cũ) — nên cập nhật CCU rồi bật RequireTls", _remoteIp);
+        return _tcp.GetStream();
     }
 
     // ── Handshake ─────────────────────────────────────────────────────────

@@ -42,8 +42,12 @@ public sealed class RemoteControlClient : IRemoteControlClient
 
     // ── Network ───────────────────────────────────────────────────────────
     private TcpClient?     _tcp;
-    private NetworkStream? _stream;
+    private Stream?        _stream;   // NetworkStream (plain) hoặc SslStream (TLS)
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+
+    // TLS: thử mã hóa trước; agent cũ không hiểu TLS → lùi về TCP thường và nhớ để khỏi thử lại.
+    private volatile bool _tlsUnsupported;
+    private volatile bool _isEncrypted;
 
     // ── PING / PONG keepalive tracking ────────────────────────────────────
     // Stored as UTC ticks (long) so Interlocked can be used for lock-free access.
@@ -84,6 +88,7 @@ public sealed class RemoteControlClient : IRemoteControlClient
         _token             = token;
         _authFailed        = false;
         _reconnectAttempts = 0;
+        _tlsUnsupported    = false;
 
         _globalCts?.Dispose();
         _globalCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -236,7 +241,7 @@ public sealed class RemoteControlClient : IRemoteControlClient
         try
         {
             await _tcp.ConnectAsync(_host, _port, sessionCt).ConfigureAwait(false);
-            _stream = _tcp.GetStream();
+            _stream = await NegotiateStreamAsync(sessionCt).ConfigureAwait(false);
 
             SetState(ConnectionState.Authenticating);
 
@@ -318,6 +323,49 @@ public sealed class RemoteControlClient : IRemoteControlClient
             await CloseConnectionAsync("Connection attempt failed").ConfigureAwait(false);
             throw;
         }
+    }
+
+    // ── TLS negotiation ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Thử bắt tay TLS trên <c>_tcp</c> vừa kết nối. Chứng chỉ agent là tự ký nên không kiểm chuỗi tin cậy
+    /// (mã hóa chống nghe lén thụ động; token nằm trong kênh đã mã hóa). Nếu agent là bản cũ không hiểu
+    /// TLS, agent đóng kết nối → mở lại socket và dùng TCP thường (kèm nhớ để lần sau bỏ qua bước thử).
+    /// </summary>
+    private async Task<Stream> NegotiateStreamAsync(CancellationToken sessionCt)
+    {
+        _isEncrypted = false;
+        if (!_tlsUnsupported)
+        {
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(sessionCt);
+                cts.CancelAfter(RemoteControlConstants.HandshakeTimeoutMs);
+
+                var ssl = new System.Net.Security.SslStream(
+                    _tcp!.GetStream(), leaveInnerStreamOpen: false,
+                    userCertificateValidationCallback: (_, _, _, _) => true);
+                await ssl.AuthenticateAsClientAsync(new System.Net.Security.SslClientAuthenticationOptions
+                {
+                    TargetHost = _host,
+                    EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12
+                                        | System.Security.Authentication.SslProtocols.Tls13,
+                }, cts.Token).ConfigureAwait(false);
+
+                _isEncrypted = true;
+                return ssl;
+            }
+            catch (Exception ex) when (!sessionCt.IsCancellationRequested)
+            {
+                _logger.LogInformation(ex, "TLS handshake với {Host} thất bại — agent có thể là bản cũ, lùi về TCP thường", _host);
+                _tlsUnsupported = true;
+                try { _tcp?.Dispose(); } catch { /* ignore */ }
+                _tcp = new TcpClient { NoDelay = true };
+                _tcp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                await _tcp.ConnectAsync(_host, _port, sessionCt).ConfigureAwait(false);
+            }
+        }
+        return _tcp!.GetStream();
     }
 
     // ── Receive loop ──────────────────────────────────────────────────────
@@ -533,6 +581,9 @@ public sealed class RemoteControlClient : IRemoteControlClient
     /// (agent cũ bỏ qua âm thầm SysInfo/Privacy/Chat/Clipboard, không có ACK trong protocol v1).
     /// </summary>
     public string ServerName => _serverName;
+
+    /// <summary>true nếu kết nối hiện tại được mã hóa TLS; false = TCP thường (agent bản cũ).</summary>
+    public bool IsEncrypted => _isEncrypted;
 
     // ── IDisposable ───────────────────────────────────────────────────────
 

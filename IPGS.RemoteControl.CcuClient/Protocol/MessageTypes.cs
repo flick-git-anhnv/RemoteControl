@@ -46,6 +46,8 @@ public enum MouseButton : byte
     Right     = 3,
     WheelUp   = 4,
     WheelDown = 5,
+    WheelLeft = 6,   // X11 button 6 — cuộn ngang
+    WheelRight = 7,  // X11 button 7 — cuộn ngang
 }
 
 /// <summary>
