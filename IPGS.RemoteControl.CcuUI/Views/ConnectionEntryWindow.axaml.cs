@@ -103,7 +103,8 @@ public partial class ConnectionEntryWindow : Window
 
         if (_showRecentOnly)
         {
-            query = query.Where(p => p.LastConnectedAt.HasValue);
+            query = query.Where(p => p.LastConnectedAt.HasValue)
+                         .OrderByDescending(p => p.LastConnectedAt);
         }
 
         if (!string.IsNullOrEmpty(filter))
@@ -365,6 +366,48 @@ public partial class ConnectionEntryWindow : Window
             if (bulkBar != null) bulkBar.IsVisible = count > 0;
             if (bulkText != null) bulkText.Text = $"Đã chọn {count} máy tính";
         }
+    }
+
+    private void OnSelectAllChanged(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not CheckBox cb) return;
+        bool value = cb.IsChecked == true;
+        if (this.FindControl<ListBox>("PART_ComputerListBox")?.ItemsSource is IEnumerable<ComputerProfile> items)
+        {
+            foreach (var p in items) p.IsSelected = value;
+        }
+        OnSelectionChanged(null, e);
+    }
+
+    public async void OnItemRestartAgentClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { Tag: ComputerProfile profile } ctl) return;
+        ctl.IsEnabled = false;
+        string title, text;
+        try
+        {
+            string status = await new ZcuRemoteInstallerService().RestartAgentAsync(new SshInstallerOptions
+            {
+                Host = profile.Host,
+                SshPort = profile.SshPort > 0 ? profile.SshPort : 22,
+                Username = profile.SshUsername ?? "",
+                Password = profile.SshPassword ?? ""
+            });
+            title = status == "active" ? "Thành công" : "Cảnh báo";
+            text = $"Đã restart Remote Agent trên {profile.DisplayName}.\nTrạng thái service: {status}";
+        }
+        catch (Exception ex)
+        {
+            title = "Lỗi restart";
+            text = $"Không restart được Remote Agent trên {profile.DisplayName}:\n{ex.Message}";
+        }
+        finally
+        {
+            ctl.IsEnabled = true;
+        }
+        var w = new Window { Title = title, Width = 420, Height = 160, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        w.Content = new TextBlock { Text = text, Margin = new Avalonia.Thickness(20), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+        await w.ShowDialog(this);
     }
 
     private void OnBulkActionClick(object? sender, RoutedEventArgs e)

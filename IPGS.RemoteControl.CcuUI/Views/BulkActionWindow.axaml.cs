@@ -286,54 +286,137 @@ namespace IPGS.RemoteControl.CcuUI.Views
             var options = new FilePickerOpenOptions
             {
                 Title = "Chọn file để Upload lên tất cả máy",
-                AllowMultiple = false
+                AllowMultiple = true
             };
 
             var files = await StorageProvider.OpenFilePickerAsync(options);
             if (files.Count == 0) return;
-            
-            string localPath = files[0].Path.LocalPath;
-            string fileName = Path.GetFileName(localPath);
-            string remoteDir = "/home"; // Default remote directory for bulk upload
 
-            // Ask user for remote path (Ideally we would have a dialog, but for simplicity we upload to /home)
-            // Can be expanded later.
+            var localPaths = files.Select(f => f.Path.LocalPath).ToList();
+            // Thư mục đích: người dùng nhập, bỏ trống → /home/<ssh user> của từng máy
+            // (trước đây cố định "/home" → user thường không có quyền ghi).
+            string customDir = (this.FindControl<TextBox>("PART_RemoteDir")?.Text ?? "").Trim().TrimEnd('/');
 
-            await ExecuteBulkActionAsync(async (taskInfo) => 
+            await ExecuteBulkActionAsync(async (taskInfo) =>
             {
                 var profile = taskInfo.Profile;
                 ValidateSshProfile(profile); // F05
                 int sshPort = profile.SshPort > 0 ? profile.SshPort : 22;
-                string remotePath = $"{remoteDir}/{fileName}";
+                string remoteDir = customDir.Length > 0 ? customDir : $"/home/{profile.SshUsername}";
 
                 using var sftp = new SftpClient(profile.Host, sshPort, profile.SshUsername ?? "", profile.SshPassword ?? "");
                 sftp.Connect();
 
-                using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read);
-                sftp.UploadFile(fs, remotePath, true);
-                
-                return $"Đã upload thành công tới: {remotePath}";
+                var sb = new StringBuilder();
+                foreach (var localPath in localPaths)
+                {
+                    string remotePath = $"{remoteDir}/{Path.GetFileName(localPath)}";
+                    using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read);
+                    sftp.UploadFile(fs, remotePath, true);
+                    sb.AppendLine($"Đã upload thành công tới: {remotePath}");
+                }
+                return await Task.FromResult(sb.ToString());
+            });
+        }
+
+        private async void OnInstallAppClick(object? sender, RoutedEventArgs e)
+        {
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Chọn file ứng dụng (.deb, .sh, .run) để cài lên tất cả máy",
+                AllowMultiple = false
+            });
+            if (files.Count == 0) return;
+            string installer = files[0].Path.LocalPath;
+
+            await ExecuteBulkActionAsync(async (taskInfo) =>
+            {
+                var profile = taskInfo.Profile;
+                ValidateSshProfile(profile);
+                var log = new StringBuilder();
+                await new RemoteAppInstallService().InstallAsync(new RemoteAppInstallOptions
+                {
+                    Host = profile.Host,
+                    SshPort = profile.SshPort > 0 ? profile.SshPort : 22,
+                    Username = profile.SshUsername ?? "",
+                    Password = profile.SshPassword ?? "",
+                    SudoPassword = profile.SshPassword ?? "",
+                    AppInstallerFile = installer
+                }, msg => { lock (log) log.AppendLine(msg); });
+                lock (log) return log.ToString();
+            });
+        }
+
+        private async void OnInstallAgentClick(object? sender, RoutedEventArgs e)
+        {
+            await ExecuteBulkActionAsync(async (taskInfo) =>
+            {
+                var profile = taskInfo.Profile;
+                ValidateSshProfile(profile);
+
+                // Giữ token cũ nếu máy đã có; chưa có thì sinh ngẫu nhiên và lưu lại vào hồ sơ.
+                string token = profile.Token;
+                if (string.IsNullOrWhiteSpace(token))
+                    token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+                int agentPort = profile.Port > 0 ? profile.Port : 17600;
+
+                var log = new StringBuilder();
+                await new ZcuRemoteInstallerService().InstallZcuAgentAsync(new SshInstallerOptions
+                {
+                    Host = profile.Host,
+                    SshPort = profile.SshPort > 0 ? profile.SshPort : 22,
+                    Username = profile.SshUsername ?? "",
+                    Password = profile.SshPassword ?? "",
+                    AgentPort = agentPort,
+                    AgentToken = token
+                }, (msg, _) => { lock (log) log.AppendLine(msg); });
+
+                profile.Token = token;
+                profile.Port = agentPort;
+                ComputerProfileStore.Instance.Save(profile);
+                lock (log) return log.ToString();
+            });
+        }
+
+        private async void OnRestartAgentClick(object? sender, RoutedEventArgs e)
+        {
+            await ExecuteBulkActionAsync(async (taskInfo) =>
+            {
+                var profile = taskInfo.Profile;
+                ValidateSshProfile(profile);
+                string status = await new ZcuRemoteInstallerService().RestartAgentAsync(new SshInstallerOptions
+                {
+                    Host = profile.Host,
+                    SshPort = profile.SshPort > 0 ? profile.SshPort : 22,
+                    Username = profile.SshUsername ?? "",
+                    Password = profile.SshPassword ?? ""
+                });
+                if (status != "active")
+                    throw new InvalidOperationException($"Restart xong nhưng service ở trạng thái '{status}'.");
+                return "Remote Agent đã restart, trạng thái: active";
             });
         }
 
         private async Task ExecuteBulkActionAsync(Func<BulkTaskResult, Task<string>> action)
         {
-            var btnRun = this.FindControl<Button>("PART_BtnRunCommand");
-            var btnUpload = this.FindControl<Button>("PART_BtnUploadFile");
+            var actionButtons = new[] { "PART_BtnRunCommand", "PART_BtnUploadFile", "PART_BtnInstallApp", "PART_BtnInstallAgent", "PART_BtnRestartAgent" }
+                .Select(n => this.FindControl<Button>(n)).Where(b => b != null).ToList();
             var panelProgress = this.FindControl<StackPanel>("PART_ProgressPanel");
             var pb = this.FindControl<ProgressBar>("PART_ProgressBar");
             var textProgress = this.FindControl<TextBlock>("PART_ProgressText");
 
-            if (btnRun != null) btnRun.IsEnabled = false;
-            if (btnUpload != null) btnUpload.IsEnabled = false;
-            
+            foreach (var b in actionButtons) b!.IsEnabled = false;
+            // Giới hạn số máy chạy song song để không nghẽn mạng khi cài/upload file lớn
+            using var gate = new System.Threading.SemaphoreSlim(8);
+
             if (panelProgress != null) panelProgress.IsVisible = true;
             if (pb != null) { pb.Value = 0; pb.Maximum = _results.Count; }
 
             int completed = 0;
 
-            var tasks = _results.Select(async result => 
+            var tasks = _results.Select(async result =>
             {
+                await gate.WaitAsync();
                 Dispatcher.UIThread.Post(() => result.SetRunning());
 
                 try
@@ -347,6 +430,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 }
                 finally
                 {
+                    gate.Release();
                     // Q15: nhiều task song song cùng tăng biến đếm — phải Interlocked, dùng giá trị trả về
                     int done = System.Threading.Interlocked.Increment(ref completed);
                     Dispatcher.UIThread.Post(() =>
@@ -359,8 +443,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             await Task.WhenAll(tasks);
 
-            if (btnRun != null) btnRun.IsEnabled = true;
-            if (btnUpload != null) btnUpload.IsEnabled = true;
+            foreach (var b in actionButtons) b!.IsEnabled = true;
         }
     }
 }

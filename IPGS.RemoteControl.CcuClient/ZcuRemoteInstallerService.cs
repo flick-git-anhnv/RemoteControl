@@ -64,6 +64,57 @@ namespace IPGS.RemoteControl.CcuClient
             }, cancellationToken);
         }
 
+        /// <summary>
+        /// Đọc lại Port/Token của ZcuAgent đã cài từ file appsettings.json trên máy đích qua SSH
+        /// (dùng khi quên token). Trả về null nếu không tìm thấy file/không parse được.
+        /// </summary>
+        public Task<(int Port, string Token)?> ReadAgentConfigAsync(SshInstallerOptions options, CancellationToken cancellationToken = default)
+        {
+            return Task.Run<(int Port, string Token)?>(() =>
+            {
+                string username = ShellQuote.ValidateUsername(options.Username, nameof(options.Username));
+                using var ssh = CreateSshClient(options);
+                ssh.Connect();
+                string json = ExecuteCommand(ssh, $"cat /home/{username}/ipgs/remote-agent/appsettings.json 2>/dev/null");
+                ssh.Disconnect();
+                if (string.IsNullOrWhiteSpace(json)) return null;
+
+                try
+                {
+                    using var doc = JsonDocument.Parse(json);
+                    if (!doc.RootElement.TryGetProperty("RemoteControl", out var rc)) return null;
+                    string token = rc.TryGetProperty("Token", out var t) ? t.GetString() ?? "" : "";
+                    int port = rc.TryGetProperty("Port", out var p) && p.TryGetInt32(out int pv) ? pv : 17600;
+                    return string.IsNullOrEmpty(token) ? null : (port, token);
+                }
+                catch (JsonException)
+                {
+                    return null;
+                }
+            }, cancellationToken);
+        }
+
+        /// <summary>
+        /// Khởi động lại ứng dụng Remote Agent (systemd user service) trên máy đích.
+        /// Trả về trạng thái service sau khi restart ("active" nếu thành công).
+        /// </summary>
+        public Task<string> RestartAgentAsync(SshInstallerOptions options, CancellationToken cancellationToken = default)
+        {
+            return Task.Run(() =>
+            {
+                ShellQuote.ValidateUsername(options.Username, nameof(options.Username));
+                using var ssh = CreateSshClient(options);
+                ssh.Connect();
+                // SSH exec không có XDG_RUNTIME_DIR → systemctl --user cần biến này.
+                const string env = "export XDG_RUNTIME_DIR=/run/user/$(id -u); ";
+                ExecuteCommand(ssh, env + "systemctl --user restart ipgs-remote-agent.service");
+                System.Threading.Thread.Sleep(2000);
+                string status = ExecuteCommand(ssh, env + "systemctl --user is-active ipgs-remote-agent.service").Trim();
+                ssh.Disconnect();
+                return status;
+            }, cancellationToken);
+        }
+
         public Task InstallZcuAgentAsync(SshInstallerOptions options, Action<string, double>? onProgress = null, CancellationToken cancellationToken = default)
         {
             return Task.Run(async () =>

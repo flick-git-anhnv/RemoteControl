@@ -18,6 +18,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
         // Thông tin SSH lấy từ hồ sơ máy tính đã lưu (nhập ở "Thêm/Sửa máy tính") —
         // không còn ô nhập SSH riêng trong wizard này để tránh trùng lặp dữ liệu.
+        private readonly string _prefillId;
         private readonly string _sshHost;
         private readonly int _sshPort;
         private readonly string _sshUser;
@@ -32,6 +33,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             InitializeComponent();
             _installerService = new ZcuRemoteInstallerService();
 
+            _prefillId = prefill.Id;
             _sshHost = prefill.Host;
             _sshPort = prefill.SshPort > 0 ? prefill.SshPort : 22;
             _sshUser = prefill.SshUsername ?? "";
@@ -140,17 +142,25 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 // Save to computer profile if checked
                 if (PART_CheckSaveProfile.IsChecked == true)
                 {
+                    // Cập nhật CHÍNH máy đang cài (giữ Id/Tên/Ghi chú/MAC) — không tạo bản sao mới.
+                    var existing = ComputerProfileStore.Instance.GetById(_prefillId)
+                        ?? ComputerProfileStore.Instance.GetAll().FirstOrDefault(p =>
+                            p.Host.Equals(_sshHost, StringComparison.OrdinalIgnoreCase));
                     var profile = new ComputerProfile
                     {
-                        Id = Guid.NewGuid().ToString("N"),
-                        Name = $"ZCU ({_sshHost})",
+                        Id = existing?.Id ?? Guid.NewGuid().ToString("N"),
+                        Name = !string.IsNullOrWhiteSpace(existing?.Name) ? existing!.Name : $"ZCU ({_sshHost})",
                         Host = _sshHost,
                         Port = agentPort,
                         Token = token,
                         SshPort = _sshPort,
                         SshUsername = _sshUser,
                         SshPassword = _sshPassword,
-                        Notes = "Tự động tạo bởi ZCU Setup Wizard",
+                        Notes = existing?.Notes ?? "Tự động tạo bởi ZCU Setup Wizard",
+                        MacAddress = existing?.MacAddress,
+                        LastAppInstallerPath = existing?.LastAppInstallerPath,
+                        LastUninstallPackage = existing?.LastUninstallPackage,
+                        CreatedAt = existing?.CreatedAt ?? DateTimeOffset.Now,
                         LastConnectedAt = DateTimeOffset.Now
                     };
                     ComputerProfileStore.Instance.Save(profile);

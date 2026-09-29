@@ -47,8 +47,10 @@ public sealed class ComputerProfileStore : IComputerProfileStore
     {
         lock (_lockObj)
         {
-            return _profiles.OrderByDescending(p => p.LastConnectedAt ?? DateTimeOffset.MinValue)
-                            .ThenBy(p => p.Name)
+            // Thứ tự ỔN ĐỊNH (theo tên rồi IP) — không đổi khi thao tác/kết nối máy,
+            // tránh máy vừa thao tác nhảy lên đầu danh sách. Tab "Lịch sử" tự sắp theo LastConnectedAt ở UI.
+            return _profiles.OrderBy(p => p.DisplayName, NaturalComparer.Instance)
+                            .ThenBy(p => p.Host, NaturalComparer.Instance)
                             .ToList();
         }
     }
@@ -66,6 +68,13 @@ public sealed class ComputerProfileStore : IComputerProfileStore
         lock (_lockObj)
         {
             var existing = _profiles.FirstOrDefault(p => p.Id.Equals(profile.Id, StringComparison.OrdinalIgnoreCase));
+            // Chống trùng: profile mới (Id chưa có) nhưng đã có máy cùng Host+Port → gộp vào máy cũ
+            // thay vì thêm bản sao (VD: wizard "Cài remote" rồi "Thêm máy tính").
+            if (existing == null && !string.IsNullOrWhiteSpace(profile.Host))
+            {
+                existing = _profiles.FirstOrDefault(p =>
+                    p.Host.Equals(profile.Host, StringComparison.OrdinalIgnoreCase) && p.Port == profile.Port);
+            }
             if (existing != null)
             {
                 existing.Name = profile.Name;
@@ -150,6 +159,38 @@ public sealed class ComputerProfileStore : IComputerProfileStore
                 Persist();
                 return newProfile;
             }
+        }
+    }
+
+    /// <summary>So sánh chuỗi có số theo giá trị (P2 &lt; P10, 192.168.0.9 &lt; 192.168.0.10).</summary>
+    private sealed class NaturalComparer : IComparer<string?>
+    {
+        public static readonly NaturalComparer Instance = new();
+
+        public int Compare(string? x, string? y)
+        {
+            x ??= ""; y ??= "";
+            int i = 0, j = 0;
+            while (i < x.Length && j < y.Length)
+            {
+                if (char.IsDigit(x[i]) && char.IsDigit(y[j]))
+                {
+                    int si = i, sj = j;
+                    while (i < x.Length && char.IsDigit(x[i])) i++;
+                    while (j < y.Length && char.IsDigit(y[j])) j++;
+                    string a = x[si..i].TrimStart('0'), b = y[sj..j].TrimStart('0');
+                    if (a.Length != b.Length) return a.Length.CompareTo(b.Length);
+                    int c = string.CompareOrdinal(a, b);
+                    if (c != 0) return c;
+                }
+                else
+                {
+                    int c = char.ToUpperInvariant(x[i]).CompareTo(char.ToUpperInvariant(y[j]));
+                    if (c != 0) return c;
+                    i++; j++;
+                }
+            }
+            return (x.Length - i).CompareTo(y.Length - j);
         }
     }
 

@@ -4,7 +4,7 @@
         xmlns:views="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
         x:Class="IPGS.RemoteControl.CcuUI.Views.BulkActionWindow"
         Title="Mass Deploy &amp; Thực thi hàng loạt"
-        Width="950" Height="650"
+        Width="950" Height="740"
         WindowStartupLocation="CenterOwner"
         Background="#F8FAFC">
 
@@ -30,6 +30,14 @@
               <kz:KzButton x:Name="PART_BtnUploadFile" Content="📤 Upload File" Classes="kz-success" Click="OnUploadFileClick" />
             </StackPanel>
           </Grid>
+
+          <TextBox x:Name="PART_RemoteDir" Watermark="Thư mục đích khi Upload (bỏ trống = thư mục home của từng máy, VD /home/user)" />
+
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <kz:KzButton x:Name="PART_BtnInstallApp" Content="📦 Cài App (.deb/.sh/.run)" Click="OnInstallAppClick" />
+            <kz:KzButton x:Name="PART_BtnInstallAgent" Content="⚡ Cài / Cập nhật Remote Agent" Click="OnInstallAgentClick" />
+            <kz:KzButton x:Name="PART_BtnRestartAgent" Content="🔁 Restart Remote Agent" Click="OnRestartAgentClick" />
+          </StackPanel>
           
           <!-- PROGRESS -->
           <StackPanel x:Name="PART_ProgressPanel" Spacing="4" IsVisible="False">

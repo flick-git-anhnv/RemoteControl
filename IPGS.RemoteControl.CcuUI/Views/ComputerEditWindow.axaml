@@ -3,7 +3,7 @@
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         x:Class="IPGS.RemoteControl.CcuUI.Views.ComputerEditWindow"
         Title="Thông tin máy tính"
-        Width="480" Height="560"
+        Width="480" Height="640"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
 
@@ -102,6 +102,11 @@
                             x:Name="PART_SshPort"
                             Text="22" />
             </Grid>
+
+            <kz:KzButton x:Name="PART_BtnFetchToken" Content="🔑 Lấy lại Token từ máy (qua SSH)" KzSize="Sm"
+                         HorizontalAlignment="Left"
+                         ToolTip.Tip="Đọc Token/Cổng của Remote Agent đã cài từ file cấu hình trên máy đích (cần IP + SSH user/password)" />
+            <TextBlock x:Name="PART_FetchTokenMsg" FontSize="12" TextWrapping="Wrap" IsVisible="False" />
           </StackPanel>
         </Border>
 
