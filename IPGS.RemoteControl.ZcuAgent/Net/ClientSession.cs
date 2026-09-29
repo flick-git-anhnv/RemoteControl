@@ -42,6 +42,16 @@ internal sealed class ClientSession
     /// <summary>Max accepted clipboard text length (chars) — audit S2.</summary>
     private const int MaxClipboardChars = 262_144;
 
+    /// <summary>Chu kỳ (ms) poll clipboard ZCU để đồng bộ ngược về CCU. 1s: mỗi lần poll spawn 1 tiến trình xclip, máy Atom/Celeron yếu không nên poll dày hơn.</summary>
+    private const int ClipboardPollMs = 1_000;
+
+    /// <summary>
+    /// Hash nội dung clipboard ZCU lần gần nhất đã biết (CCU vừa set, hoặc poll vừa gửi đi).
+    /// Chống echo: text CCU đẩy sang ZCU không bị gửi ngược lại CCU. Truy cập từ receive loop
+    /// và clipboard loop → dùng Volatile.
+    /// </summary>
+    private int _lastClipboardHash;
+
     /// <summary>
     /// Timestamp (Environment.TickCount64) of the last received PONG. Written by
     /// the receive loop, read by the capture loop for TDD §7 15s heartbeat timeout.
@@ -109,12 +119,14 @@ internal sealed class ClientSession
             // F25: inject chuột/bàn phím chạy trên task RIÊNG, không còn nằm trong receiveTask
             // — xem giải thích tại _inputQueue.
             var inputTask    = RunInputInjectorLoopAsync(sessionCts.Token);
+            // Đồng bộ clipboard ZCU→CCU (clipboard hai chiều).
+            var clipboardTask = RunClipboardWatchLoopAsync(sessionCts.Token);
 
             // Stop everything when any loop ends
-            await Task.WhenAny(captureTask, receiveTask, watchdogTask, inputTask);
+            await Task.WhenAny(captureTask, receiveTask, watchdogTask, inputTask, clipboardTask);
             await sessionCts.CancelAsync();
             _inputQueue.Writer.TryComplete();
-            await Task.WhenAll(captureTask, receiveTask, watchdogTask, inputTask);
+            await Task.WhenAll(captureTask, receiveTask, watchdogTask, inputTask, clipboardTask);
         }
         catch (OperationCanceledException) { /* normal shutdown */ }
         catch (EndOfStreamException ex)
@@ -353,7 +365,10 @@ internal sealed class ClientSession
                             break;
                         }
                         if (_options.EnableDesktopIntegration)
+                        {
+                            Volatile.Write(ref _lastClipboardHash, clipData.GetHashCode());
                             await SetClipboardAsync(clipData, ct);
+                        }
                         break;
 
                     case MessageType.PrivacyMode:
@@ -500,6 +515,81 @@ internal sealed class ClientSession
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Session {IP}: notify-send failed for chat message", _remoteIp);
+        }
+    }
+
+    /// <summary>
+    /// Poll clipboard ZCU (<c>xclip -o</c>) và đẩy <see cref="MessageType.ClipboardData"/> S→C khi nội dung
+    /// đổi. Nếu xclip không có/không đọc được thì bỏ qua êm, không làm chết session.
+    /// </summary>
+    private async Task RunClipboardWatchLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            if (!_options.EnableDesktopIntegration)
+            {
+                await Task.Delay(Timeout.Infinite, ct);
+                return;
+            }
+
+            // Mốc ban đầu: nội dung có sẵn trên ZCU không tự đẩy sang CCU.
+            var initial = await GetClipboardAsync(ct);
+            if (initial is not null) Volatile.Write(ref _lastClipboardHash, initial.GetHashCode());
+
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(ClipboardPollMs, ct);
+
+                var text = await GetClipboardAsync(ct);
+                if (string.IsNullOrEmpty(text) || text.Length > MaxClipboardChars) continue;
+
+                var hash = text.GetHashCode();
+                if (hash == Volatile.Read(ref _lastClipboardHash)) continue;
+
+                Volatile.Write(ref _lastClipboardHash, hash);
+                await WriteAsync(MessageType.ClipboardData, MessageCodec.EncodeStringMessage(text), ct);
+            }
+        }
+        catch (OperationCanceledException) { /* expected */ }
+    }
+
+    /// <summary>Đọc text clipboard ZCU qua <c>xclip -o</c>. Trả null nếu rỗng/không phải text/xclip lỗi.</summary>
+    private async Task<string?> GetClipboardAsync(CancellationToken ct)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("xclip")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+            };
+            psi.ArgumentList.Add("-selection");
+            psi.ArgumentList.Add("clipboard");
+            psi.ArgumentList.Add("-o");
+
+            using var proc = Process.Start(psi);
+            if (proc is null) return null;
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(2));
+            try
+            {
+                var text = await proc.StandardOutput.ReadToEndAsync(cts.Token);
+                await proc.WaitForExitAsync(cts.Token);
+                return proc.ExitCode == 0 ? text : null;
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { /* already exited */ }
+                return null;
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Session {IP}: xclip -o failed", _remoteIp);
+            return null;
         }
     }
 

@@ -63,6 +63,7 @@ public partial class RemoteScreenWindow : Window
         Title = $"Remote Control — {host}:{port}";
 
         _vm.Client.SysInfoReceived += OnSysInfoReceived;
+        _vm.Client.ClipboardDataReceived += OnClipboardDataReceived;
         _vm.Client.FrameReceived += OnFrameReceived;
         _vm.Client.StateChanged += OnClientStateChanged;
     }
@@ -86,7 +87,8 @@ public partial class RemoteScreenWindow : Window
         // trong khoảng đó và đập vào recorder đã dispose.
         _vm.Client.FrameReceived   -= OnFrameReceived;
         _vm.Client.SysInfoReceived -= OnSysInfoReceived;
-        _vm.Client.StateChanged    -= OnClientStateChanged;
+        _vm.Client.ClipboardDataReceived -= OnClipboardDataReceived;
+        _vm.Client.StateChanged   -= OnClientStateChanged;
         _sysInfoTimeoutCts?.Cancel();
 
         // Gracefully disconnect before the window is destroyed.
@@ -200,6 +202,38 @@ public partial class RemoteScreenWindow : Window
         btnOk.Click += (_, _) => dlg.Close();
         ((StackPanel)dlg.Content!).Children.Add(btnOk);
         dlg.ShowDialog(this);
+    }
+
+    /// <summary>Clipboard ZCU→CCU: agent đẩy text khi nội dung clipboard trên ZCU đổi → đặt vào clipboard máy này.</summary>
+    private void OnClipboardDataReceived(object? sender, string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        Dispatcher.UIThread.Post(async () =>
+        {
+            try
+            {
+                if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+                    await clipboard.SetTextAsync(text);
+            }
+            catch { /* clipboard máy này đang bị tiến trình khác giữ — bỏ qua lần này */ }
+        });
+    }
+
+    // X11 keysym: XK_Control_L, XK_Alt_L, XK_Delete
+    private const uint KeysymControlL = 0xFFE3;
+    private const uint KeysymAltL     = 0xFFE9;
+    private const uint KeysymDelete   = 0xFFFF;
+
+    /// <summary>Gửi tổ hợp Ctrl+Alt+Del qua giao thức (hệ điều hành máy này không bắt được vì không đi qua bàn phím vật lý).</summary>
+    private async void OnCtrlAltDelClick(object? sender, RoutedEventArgs e)
+    {
+        var c = _vm.Client;
+        await c.SendKeyEventAsync(KeysymControlL, true);
+        await c.SendKeyEventAsync(KeysymAltL, true);
+        await c.SendKeyEventAsync(KeysymDelete, true);
+        await c.SendKeyEventAsync(KeysymDelete, false);
+        await c.SendKeyEventAsync(KeysymAltL, false);
+        await c.SendKeyEventAsync(KeysymControlL, false);
     }
 
     private async void OnPrivacyClick(object? sender, RoutedEventArgs e)
