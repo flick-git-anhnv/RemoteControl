@@ -148,6 +148,38 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         _ = _client.SendMouseButtonAsync(button.Value, isDown, zx, zy);
     }
 
+    /// <summary>
+    /// Cuộn chuột: X11 mô phỏng con lăn bằng nút 4/5 (dọc) và 6/7 (ngang), mỗi "nấc" là một cặp
+    /// nhấn+nhả. Delta của Avalonia: Y &gt; 0 = cuộn lên; X &gt; 0 = cuộn sang phải.
+    /// Touchpad báo delta lẻ (&lt;1) nên làm tròn lên tối thiểu 1 nấc; giới hạn 10 nấc/sự kiện.
+    /// </summary>
+    public void HandleMouseWheel(double deltaX, double deltaY,
+                                 double controlX, double controlY,
+                                 double controlW,  double controlH)
+    {
+        if (!IsStreaming) return;
+
+        int sw = _screenWidth, sh = _screenHeight;
+        if (sw <= 0 || sh <= 0 || controlW <= 0 || controlH <= 0) return;
+
+        MapToZcuCoords(controlX, controlY, controlW, controlH, sw, sh, out int zx, out int zy);
+
+        SendWheel(deltaY, MouseButton.WheelUp,    MouseButton.WheelDown,  zx, zy);
+        SendWheel(deltaX, MouseButton.WheelRight, MouseButton.WheelLeft,  zx, zy);
+    }
+
+    private void SendWheel(double delta, MouseButton positive, MouseButton negative, int zx, int zy)
+    {
+        if (Math.Abs(delta) < 0.01) return;
+        var button = delta > 0 ? positive : negative;
+        int notches = Math.Clamp((int)Math.Ceiling(Math.Abs(delta)), 1, 10);
+        for (int i = 0; i < notches; i++)
+        {
+            _ = _client.SendMouseButtonAsync(button, true,  zx, zy);
+            _ = _client.SendMouseButtonAsync(button, false, zx, zy);
+        }
+    }
+
     // ── Keyboard event helpers (called from RemoteScreenControl code-behind) ──
 
     /// <summary>

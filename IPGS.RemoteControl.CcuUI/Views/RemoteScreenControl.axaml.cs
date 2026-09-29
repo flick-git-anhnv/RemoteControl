@@ -86,6 +86,18 @@ public partial class RemoteScreenControl : UserControl
         e.Handled = true;
     }
 
+    private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (DataContext is RemoteScreenViewModel vm)
+        {
+            var pos = e.GetPosition(this);
+            vm.HandleMouseWheel(e.Delta.X, e.Delta.Y, pos.X, pos.Y, Bounds.Width, Bounds.Height);
+        }
+
+        // Chặn cuộn cục bộ của cửa sổ cha — sự kiện thuộc về màn hình từ xa.
+        e.Handled = true;
+    }
+
     // ── Keyboard event handlers (Tunnel — registered in constructor) ─────────
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
