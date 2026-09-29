@@ -46,6 +46,12 @@ public sealed class AgentOptions
     /// <summary>Target capture frame rate (5–30). Default: <see cref="RemoteControlConstants.TargetFps"/> (15).</summary>
     public int TargetFps { get; set; } = RemoteControlConstants.TargetFps;
 
+    /// <summary>
+    /// true = tự hạ FPS/chất lượng JPEG khi mạng nghẽn hoặc CCU xử lý chậm, tăng lại khi ổn định
+    /// (TargetFps/JpegQuality là mức tối đa). false = giữ cố định như bản cũ.
+    /// </summary>
+    public bool AdaptiveQuality { get; set; } = true;
+
     /// <summary>JPEG quality (40–95). Default: <see cref="RemoteControlConstants.JpegQuality"/> (70).</summary>
     public int JpegQuality { get; set; } = RemoteControlConstants.JpegQuality;
 

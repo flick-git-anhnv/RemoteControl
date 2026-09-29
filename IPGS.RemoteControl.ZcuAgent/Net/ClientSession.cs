@@ -46,6 +46,11 @@ internal sealed class ClientSession
     /// <summary>Chu kỳ (ms) poll clipboard ZCU để đồng bộ ngược về CCU. 1s: mỗi lần poll spawn 1 tiến trình xclip, máy Atom/Celeron yếu không nên poll dày hơn.</summary>
     private const int ClipboardPollMs = 1_000;
 
+    /// <summary>Adaptive FPS: sàn FPS/chất lượng, và ngưỡng ghi 1 frame bị coi là chậm (ms).</summary>
+    private const int MinAdaptiveFps     = 5;
+    private const int MinAdaptiveQuality = 40;
+    private const int SlowWriteMs        = 120;
+
     /// <summary>
     /// Hash nội dung clipboard ZCU lần gần nhất đã biết (CCU vừa set, hoặc poll vừa gửi đi).
     /// Chống echo: text CCU đẩy sang ZCU không bị gửi ngược lại CCU. Truy cập từ receive loop
@@ -210,7 +215,7 @@ internal sealed class ClientSession
         // Chat/Clipboard). Client so sánh chuỗi này để cảnh báo agent phiên bản cũ
         // (agent 1.0 bỏ qua các message đó âm thầm — protocol v1 không có ACK).
         var ackPayload = MessageCodec.EncodeHelloAck(
-            (uint)screenSize.Width, (uint)screenSize.Height, "ZcuAgent/1.1");
+            (uint)screenSize.Width, (uint)screenSize.Height, "ZcuAgent/1.2");
         await WriteAsync(MessageType.HelloAck, ackPayload, hsCt);
     }
 
@@ -244,6 +249,15 @@ internal sealed class ClientSession
     private async Task RunCaptureSendLoopAsync(CancellationToken ct)
     {
         var frameId       = 0L;
+        // Adaptive FPS/quality: TargetFps/JpegQuality là TRẦN. Khi ghi frame chậm (TCP backpressure =
+        // mạng nghẽn hoặc CCU xử lý không kịp) hạ FPS + chất lượng; ổn định một lúc thì tăng lại.
+        var maxFps      = Math.Max(1, _options.TargetFps);
+        var minFps      = Math.Min(maxFps, MinAdaptiveFps);
+        var curFps      = (double)maxFps;
+        var curQuality  = _options.JpegQuality;
+        var minQuality  = Math.Min(curQuality, MinAdaptiveQuality);
+        var badStreak   = 0;
+        var goodStreak  = 0;
         var frameInterval = 1000 / Math.Max(1, _options.TargetFps);
         var sw            = Stopwatch.StartNew();
         var nextPing      = Environment.TickCount64 + RemoteControlConstants.PingIntervalMs;
@@ -272,7 +286,7 @@ internal sealed class ClientSession
                 {
                     // NOTE: jpeg is backed by the encoder's reused buffer (audit Q3) —
                     // consumed synchronously below, before the next EncodeJpeg call.
-                    var jpeg = _encoder.EncodeJpeg(frame, _options.JpegQuality);
+                    var jpeg = _encoder.EncodeJpeg(frame, curQuality);
                     if (jpeg.Length > 0 && jpeg.Length <= _options.MaxFrameBytes)
                     {
                         var tsMs = (uint)(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() & 0xFFFF_FFFF);
@@ -280,7 +294,31 @@ internal sealed class ClientSession
                             frameId++, tsMs,
                             frame.Width, frame.Height,
                             jpeg.Span);
+                        var writeStart = Stopwatch.GetTimestamp();
                         await WriteAsync(MessageType.FrameJpeg, payload, ct);
+                        var writeMs = Stopwatch.GetElapsedTime(writeStart).TotalMilliseconds;
+
+                        if (_options.AdaptiveQuality)
+                        {
+                            if (writeMs > SlowWriteMs) { badStreak++; goodStreak = 0; }
+                            else if (writeMs < SlowWriteMs / 4) { goodStreak++; badStreak = 0; }
+
+                            if (badStreak >= 3)
+                            {
+                                curFps     = Math.Max(minFps, curFps * 0.75);
+                                curQuality = Math.Max(minQuality, curQuality - 10);
+                                badStreak  = 0;
+                                _logger.LogDebug("Session {IP}: nghẽn (write {Ms:F0}ms) → {Fps:F1}fps, q={Q}",
+                                    _remoteIp, writeMs, curFps, curQuality);
+                            }
+                            else if (goodStreak >= 30)
+                            {
+                                curFps     = Math.Min(maxFps, curFps + 1);
+                                curQuality = Math.Min(_options.JpegQuality, curQuality + 5);
+                                goodStreak = 0;
+                            }
+                            frameInterval = (int)(1000 / curFps);
+                        }
                     }
                     else if (jpeg.Length > _options.MaxFrameBytes)
                     {
