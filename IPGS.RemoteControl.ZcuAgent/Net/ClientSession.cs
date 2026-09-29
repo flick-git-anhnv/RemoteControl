@@ -49,6 +49,7 @@ internal sealed class ClientSession
 
     /// <summary>Màn hình đang được chọn (null = toàn desktop). Ghi từ receive loop, đọc từ capture loop và khi enqueue chuột.</summary>
     private volatile MonitorInfo? _monitor;
+    private FileTransferHandler? _files;
     private List<MonitorInfo> _monitors = [];
     private byte[] _cropBuffer = [];
 
@@ -120,6 +121,7 @@ internal sealed class ClientSession
             await DoAuthAsync(ct);
             _logger.LogInformation("Session {IP}: streaming started", _remoteIp);
             Interlocked.Exchange(ref _lastPongTicks, Environment.TickCount64);
+            _files = new FileTransferHandler(_options, _logger, WriteAsync);
 
             using var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var captureTask  = RunCaptureSendLoopAsync(sessionCts.Token);
@@ -158,6 +160,7 @@ internal sealed class ClientSession
             // Release any stuck keys before closing so the ZCU desktop does not
             // see permanently-pressed modifiers (Shift, Ctrl, Alt, …). TDD §17.4.
             _keyboard.ReleaseAllKeys();
+            _files?.Dispose();
             _writeLock.Dispose();
             try { _tcp.Close(); } catch { }
             _logger.LogInformation("Session {IP}: closed", _remoteIp);
@@ -464,6 +467,29 @@ internal sealed class ClientSession
                         _inputQueue.Writer.TryWrite(() => _keyboard.SendKey(keysym, isDown));
                         break;
                         
+                    // ── File transfer (chỉ trong TransferDir) ─────────────────
+                    case MessageType.FileBegin:
+                    case MessageType.FileChunk:
+                    case MessageType.FileEnd:
+                    case MessageType.FileListReq:
+                    case MessageType.FileGet:
+                        if (_files is not { Enabled: true })
+                        {
+                            if (type == MessageType.FileBegin)
+                                await WriteAsync(MessageType.FileAck,
+                                    [payload.Length > 0 ? payload[0] : (byte)0, 2, ..System.Text.Encoding.UTF8.GetBytes("Máy đích tắt tính năng truyền file")], ct);
+                            break;
+                        }
+                        switch (type)
+                        {
+                            case MessageType.FileBegin:   await _files.OnBeginAsync(payload, ct); break;
+                            case MessageType.FileChunk:   await _files.OnChunkAsync(payload, ct); break;
+                            case MessageType.FileEnd:     await _files.OnEndAsync(payload, ct);   break;
+                            case MessageType.FileListReq: await _files.OnListAsync(ct);           break;
+                            case MessageType.FileGet:     await _files.OnGetAsync(payload, ct);   break;
+                        }
+                        break;
+
                     case MessageType.MonitorListReq:
                         _monitors = await MonitorLister.ListAsync(ct);
                         await WriteAsync(MessageType.MonitorList,

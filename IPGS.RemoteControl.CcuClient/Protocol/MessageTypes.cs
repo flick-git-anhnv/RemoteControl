@@ -32,6 +32,15 @@ public enum MessageType : byte
     MonitorList    = 0x54, // S→C  JSON [{index,name,x,y,w,h}]
     MonitorSelect  = 0x55, // C→S  u8 index; 0xFF = toàn bộ desktop
 
+    // v1.2 — file transfer (chunked, hai chiều). Chỉ đọc/ghi trong thư mục TransferDir của agent.
+    FileBegin   = 0x70, // ↔  u8 id + u64 size BE + utf8 name (tên file, không có đường dẫn)
+    FileChunk   = 0x71, // ↔  u8 id + data
+    FileEnd     = 0x72, // ↔  u8 id
+    FileAck     = 0x73, // S→C u8 id + u8 status(0=sẵn sàng,1=hoàn tất,2=lỗi) + utf8 message
+    FileListReq = 0x74, // C→S  liệt kê file trong TransferDir
+    FileList    = 0x75, // S→C  JSON [{name,size}]
+    FileGet     = 0x76, // C→S  utf8 name — yêu cầu agent gửi file về
+
     // v2.0 — Phase 6 Enterprise Features
     ChatText    = 0x41,  // C↔S  UTF-8 text message
     PrivacyMode = 0x42,  // C→S  Boolean: true=blank screen, false=normal

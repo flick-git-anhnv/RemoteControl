@@ -43,6 +43,15 @@ public sealed class AgentOptions
     /// <summary>Đường dẫn file PFX chứng chỉ TLS tự ký. Rỗng = <c>agent-tls.pfx</c> cạnh agent.</summary>
     public string TlsCertPath { get; set; } = string.Empty;
 
+    /// <summary>Cho phép truyền file qua giao thức remote (chỉ trong <see cref="TransferDir"/>).</summary>
+    public bool EnableFileTransfer { get; set; } = true;
+
+    /// <summary>Thư mục nhận/gửi file. Rỗng = <c>~/RemoteTransfer</c> của user chạy agent.</summary>
+    public string TransferDir { get; set; } = string.Empty;
+
+    /// <summary>Dung lượng tối đa mỗi file (byte). Mặc định 1 GB.</summary>
+    public long MaxTransferBytes { get; set; } = 1L * 1024 * 1024 * 1024;
+
     /// <summary>Target capture frame rate (5–30). Default: <see cref="RemoteControlConstants.TargetFps"/> (15).</summary>
     public int TargetFps { get; set; } = RemoteControlConstants.TargetFps;
 

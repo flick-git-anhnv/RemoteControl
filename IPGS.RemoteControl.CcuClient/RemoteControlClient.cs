@@ -159,6 +159,190 @@ public sealed class RemoteControlClient : IRemoteControlClient
         return SendLockedAsync(MessageType.MonitorSelect, new[] { index }, CancellationToken.None);
     }
 
+    // ── File transfer (chunked, hai chiều; agent ≥ 1.2) ───────────────────
+
+    private const int FileChunkSize = 64 * 1024;
+
+    private sealed class UploadState
+    {
+        public readonly TaskCompletionSource<string> Ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly TaskCompletionSource<string> Done  = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private sealed class DownloadState
+    {
+        public required string LocalPath { get; init; }
+        public IProgress<(long Done, long Total)>? Progress { get; init; }
+        public readonly TaskCompletionSource Completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public FileStream? Stream;
+        public int  Id = -1;
+        public long Size;
+        public long Received;
+    }
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<byte, UploadState> _uploads = new();
+    private DownloadState? _download;
+    private int _nextUploadId;
+
+    /// <summary>JSON danh sách file trên máy đích: [{"name":"a.txt","size":123}, …]</summary>
+    public event EventHandler<string>? FileListReceived;
+
+    public Task RequestFileListAsync()
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        return SendLockedAsync(MessageType.FileListReq, Array.Empty<byte>(), CancellationToken.None);
+    }
+
+    /// <summary>Gửi 1 file lên thư mục nhận của máy đích. Ném <see cref="IOException"/> nếu agent từ chối/lỗi.</summary>
+    public async Task UploadFileAsync(string localPath, IProgress<(long Done, long Total)>? progress = null,
+        CancellationToken ct = default)
+    {
+        if (_state != ConnectionState.Streaming) throw new InvalidOperationException("Chưa kết nối");
+
+        var id = (byte)(1 + (Interlocked.Increment(ref _nextUploadId) % 0x7F)); // 1..0x7F
+        var st = new UploadState();
+        _uploads[id] = st;
+
+        try
+        {
+            await using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
+            var name = System.Text.Encoding.UTF8.GetBytes(Path.GetFileName(localPath));
+            var begin = new byte[9 + name.Length];
+            begin[0] = id;
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt64BigEndian(begin.AsSpan(1), (ulong)fs.Length);
+            name.CopyTo(begin, 9);
+            await SendLockedAsync(MessageType.FileBegin, begin, ct).ConfigureAwait(false);
+
+            await WaitAckAsync(st.Ready.Task, 15_000, ct).ConfigureAwait(false);
+
+            var buf = new byte[1 + FileChunkSize];
+            buf[0] = id;
+            long sent = 0;
+            int n;
+            try
+            {
+                while ((n = await fs.ReadAsync(buf.AsMemory(1, FileChunkSize), ct).ConfigureAwait(false)) > 0)
+                {
+                    await SendLockedAsync(MessageType.FileChunk, buf.AsSpan(0, 1 + n).ToArray(), ct).ConfigureAwait(false);
+                    sent += n;
+                    progress?.Report((sent, fs.Length));
+                    if (st.Done.Task.IsFaulted) break; // agent báo lỗi giữa chừng
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Kết thúc sớm → agent thấy thiếu dữ liệu và xoá file .part.
+                try { await SendLockedAsync(MessageType.FileEnd, new[] { id }, CancellationToken.None).ConfigureAwait(false); } catch { }
+                throw;
+            }
+
+            await SendLockedAsync(MessageType.FileEnd, new[] { id }, ct).ConfigureAwait(false);
+            await WaitAckAsync(st.Done.Task, 60_000, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _uploads.TryRemove(id, out _);
+        }
+    }
+
+    /// <summary>Tải file (theo tên trong thư mục nhận của máy đích) về <paramref name="localPath"/>.</summary>
+    public async Task DownloadFileAsync(string remoteName, string localPath,
+        IProgress<(long Done, long Total)>? progress = null, CancellationToken ct = default)
+    {
+        if (_state != ConnectionState.Streaming) throw new InvalidOperationException("Chưa kết nối");
+
+        var st = new DownloadState { LocalPath = localPath, Progress = progress };
+        if (Interlocked.CompareExchange(ref _download, st, null) is not null)
+            throw new InvalidOperationException("Đang có một file được tải");
+
+        try
+        {
+            await SendLockedAsync(MessageType.FileGet, System.Text.Encoding.UTF8.GetBytes(remoteName), ct).ConfigureAwait(false);
+            using var reg = ct.Register(() => st.Completed.TrySetCanceled(ct));
+            await st.Completed.Task.ConfigureAwait(false);
+        }
+        catch
+        {
+            try { st.Stream?.Dispose(); File.Delete(localPath); } catch { /* ignore */ }
+            throw;
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _download, null, st);
+        }
+    }
+
+    private static async Task WaitAckAsync(Task<string> ack, int timeoutMs, CancellationToken ct)
+    {
+        var done = await Task.WhenAny(ack, Task.Delay(timeoutMs, ct)).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
+        if (done != ack) throw new TimeoutException("Máy đích không phản hồi (agent có thể là bản cũ < 1.2)");
+        await ack.ConfigureAwait(false); // ném IOException nếu agent báo lỗi
+    }
+
+    private void HandleFileAck(byte[] payload)
+    {
+        if (payload.Length < 2) return;
+        byte id = payload[0], status = payload[1];
+        var msg = System.Text.Encoding.UTF8.GetString(payload.AsSpan(2));
+
+        if (_uploads.TryGetValue(id, out var up))
+        {
+            switch (status)
+            {
+                case 0: up.Ready.TrySetResult(msg); break;
+                case 1: up.Ready.TrySetResult(msg); up.Done.TrySetResult(msg); break;
+                default:
+                    var ex = new IOException(msg);
+                    up.Ready.TrySetException(ex); up.Done.TrySetException(ex);
+                    break;
+            }
+        }
+        else if (status == 2 && _download is { } dl && (id == 0 || id == dl.Id))
+        {
+            dl.Completed.TrySetException(new IOException(msg));
+        }
+    }
+
+    private async Task HandleFileBeginFromServerAsync(byte[] payload)
+    {
+        if (payload.Length < 10 || _download is not { } dl) return;
+        dl.Id   = payload[0];
+        dl.Size = (long)System.Buffers.Binary.BinaryPrimitives.ReadUInt64BigEndian(payload.AsSpan(1));
+        try
+        {
+            dl.Stream = new FileStream(dl.LocalPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+        }
+        catch (Exception ex) { dl.Completed.TrySetException(ex); }
+        await Task.CompletedTask.ConfigureAwait(false);
+    }
+
+    private async Task HandleFileChunkFromServerAsync(byte[] payload)
+    {
+        if (payload.Length < 1 || _download is not { } dl || dl.Id != payload[0] || dl.Stream is null) return;
+        try
+        {
+            await dl.Stream.WriteAsync(payload.AsMemory(1)).ConfigureAwait(false);
+            dl.Received += payload.Length - 1;
+            dl.Progress?.Report((dl.Received, dl.Size));
+        }
+        catch (Exception ex) { dl.Completed.TrySetException(ex); }
+    }
+
+    private async Task HandleFileEndFromServerAsync(byte[] payload)
+    {
+        if (payload.Length < 1 || _download is not { } dl || dl.Id != payload[0] || dl.Stream is null) return;
+        try
+        {
+            await dl.Stream.FlushAsync().ConfigureAwait(false);
+            await dl.Stream.DisposeAsync().ConfigureAwait(false);
+            dl.Stream = null;
+            if (dl.Received == dl.Size) dl.Completed.TrySetResult();
+            else dl.Completed.TrySetException(new IOException($"Thiếu dữ liệu ({dl.Received}/{dl.Size} B)"));
+        }
+        catch (Exception ex) { dl.Completed.TrySetException(ex); }
+    }
+
     /// <summary>JSON danh sách màn hình: [{"index":0,"name":"HDMI-1","x":0,"y":0,"w":1920,"h":1080}, …]</summary>
     public event EventHandler<string>? MonitorListReceived;
 
@@ -433,6 +617,14 @@ public sealed class RemoteControlClient : IRemoteControlClient
                     ClipboardDataReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
                     break;
 
+                case MessageType.FileAck:   HandleFileAck(payload); break;
+                case MessageType.FileBegin: await HandleFileBeginFromServerAsync(payload).ConfigureAwait(false); break;
+                case MessageType.FileChunk: await HandleFileChunkFromServerAsync(payload).ConfigureAwait(false); break;
+                case MessageType.FileEnd:   await HandleFileEndFromServerAsync(payload).ConfigureAwait(false); break;
+                case MessageType.FileList:
+                    FileListReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
+                    break;
+
                 case MessageType.MonitorList:
                     MonitorListReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
                     break;
@@ -556,6 +748,11 @@ public sealed class RemoteControlClient : IRemoteControlClient
         // Exchange nulls atomically to prevent double-close.
         var stream = Interlocked.Exchange(ref _stream, null);
         var tcp    = Interlocked.Exchange(ref _tcp, null);
+
+        // Đang upload/download dở thì rớt kết nối → báo lỗi thay vì treo chờ.
+        var lost = new IOException("Mất kết nối trong lúc truyền file");
+        foreach (var up in _uploads.Values) { up.Ready.TrySetException(lost); up.Done.TrySetException(lost); }
+        _download?.Completed.TrySetException(lost);
 
         if (stream is not null)
         {

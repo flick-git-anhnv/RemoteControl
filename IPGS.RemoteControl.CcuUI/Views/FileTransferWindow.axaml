@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.FileTransferWindow"
+        Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png"
+        Title="Truyền file"
+        Width="560" Height="460" MinWidth="440" MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        Background="White">
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16">
+
+    <TextBlock Grid.Row="0" Foreground="#251C53" FontSize="16" FontWeight="SemiBold"
+               Text="Truyền file với máy đích" />
+
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12,0,8">
+      <Button Name="BtnUpload" Content="⬆ Gửi file lên máy đích…" Click="OnUploadClick"
+              Background="#F05922" Foreground="White" Padding="12,6" />
+      <Button Name="BtnDownload" Content="⬇ Tải file đã chọn về…" Click="OnDownloadClick"
+              Background="#251C53" Foreground="White" Padding="12,6" />
+      <Button Name="BtnRefresh" Content="🔄 Làm mới" Click="OnRefreshClick"
+              Background="#B8B3D6" Foreground="#251C53" Padding="12,6" />
+    </StackPanel>
+
+    <ListBox Grid.Row="2" Name="FileList" BorderBrush="#CBCBCB" BorderThickness="1" />
+
+    <StackPanel Grid.Row="3" Spacing="6" Margin="0,12,0,0">
+      <ProgressBar Name="TransferProgress" Minimum="0" Maximum="100" Height="8" Foreground="#F05922" />
+      <TextBlock Name="StatusText" Foreground="#4A3F8C" TextWrapping="Wrap"
+                 Text="File chỉ được gửi/nhận trong thư mục ~/RemoteTransfer của máy đích." />
+    </StackPanel>
+  </Grid>
+</Window>

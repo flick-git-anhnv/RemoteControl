@@ -92,6 +92,7 @@ public partial class RemoteScreenWindow : Window
         _vm.Client.MonitorListReceived -= OnMonitorListReceived;
         _vm.Client.StateChanged  -= OnClientStateChanged;
         _sysInfoTimeoutCts?.Cancel();
+        _fileWindow?.Close();
 
         // Gracefully disconnect before the window is destroyed.
         await _vm.DisconnectAsync();
@@ -136,6 +137,7 @@ public partial class RemoteScreenWindow : Window
     {
         // F02: response đã tới → hủy timeout đang chờ (nếu có)
         _sysInfoTimeoutCts?.Cancel();
+        _fileWindow?.Close();
         Dispatcher.UIThread.Post(() =>
         {
             var win = new SystemInventoryWindow();
@@ -284,6 +286,23 @@ public partial class RemoteScreenWindow : Window
         await c.SendKeyEventAsync(KeysymControlL, false);
     }
 
+    private FileTransferWindow? _fileWindow;
+
+    private void OnFilesClick(object? sender, RoutedEventArgs e)
+    {
+        if (IsAgentOlderThan(_vm.Client.ServerName, new Version(1, 2)))
+        {
+            ShowInfoDialog("Agent chưa hỗ trợ",
+                "Truyền file cần ZcuAgent 1.2 trở lên. Cập nhật agent qua nút \"⚡ Cài remote\" của máy này.");
+            return;
+        }
+        if (_fileWindow is { IsVisible: true }) { _fileWindow.Activate(); return; }
+
+        _fileWindow = new FileTransferWindow(_vm.Client);
+        _fileWindow.Closed += (_, _) => _fileWindow = null;
+        _fileWindow.Show(this);
+    }
+
     private void OnScanModeClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not ToggleButton btn) return;
@@ -321,6 +340,7 @@ public partial class RemoteScreenWindow : Window
         // SysInfoResp trong SysInfoTimeoutMs (agent cũ bỏ qua âm thầm, hoặc nghẽn),
         // báo người dùng thay vì im lặng mãi mãi.
         _sysInfoTimeoutCts?.Cancel();
+        _fileWindow?.Close();
         var cts = new CancellationTokenSource();
         _sysInfoTimeoutCts = cts;
 
