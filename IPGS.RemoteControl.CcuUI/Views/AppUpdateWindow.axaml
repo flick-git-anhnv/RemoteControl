@@ -1,0 +1,89 @@
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        xmlns:views="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.AppUpdateWindow"
+        Title="Update ứng dụng hàng loạt"
+        Width="950" Height="760"
+        WindowStartupLocation="CenterOwner"
+        Background="#F8FAFC">
+
+  <Grid RowDefinitions="Auto,*" Margin="16">
+
+    <StackPanel Grid.Row="0" Spacing="16" Margin="0,0,0,16">
+      <TextBlock Text="🔄 Update ứng dụng (thư mục DLL)" FontSize="22" FontWeight="Bold" Foreground="#251C53"/>
+
+      <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#E2E8F0" BorderThickness="1">
+        <StackPanel Spacing="12">
+
+          <TextBlock Text="1. Thư mục chứa file update (DLL, exe...) trên máy này" FontSize="13" Foreground="#64748B"/>
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBox x:Name="PART_FolderPath" Grid.Column="0" Margin="0,0,8,0" Watermark="Chọn thư mục publish chứa các file cần ghi đè..." />
+            <kz:KzButton x:Name="PART_BtnBrowse" Grid.Column="1" Content="📁 Chọn thư mục" Click="OnBrowseFolderClick" />
+          </Grid>
+
+          <TextBlock Text="2. Ứng dụng cần update (thư mục cài trên máy đích) và service" FontSize="13" Foreground="#64748B"/>
+          <Grid ColumnDefinitions="*,*,Auto" >
+            <AutoCompleteBox x:Name="PART_AppDir" Grid.Column="0" Margin="0,0,8,0" FilterMode="Contains" MinimumPrefixLength="0"
+                             PlaceholderText="VD /opt/kztek/ipgsusecam hoặc ~/ipgs/remote-agent" Tapped="OnComboTapped" />
+            <AutoCompleteBox x:Name="PART_Service" Grid.Column="1" Margin="0,0,8,0" FilterMode="Contains" MinimumPrefixLength="0"
+                             PlaceholderText="Service (user:ten.service / system:ten.service) — bỏ trống nếu không có" Tapped="OnComboTapped" />
+            <kz:KzButton x:Name="PART_BtnScan" Grid.Column="2" Content="🔍 Quét từ máy đầu tiên" Click="OnScanClick" />
+          </Grid>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Số bản backup giữ lại:" VerticalAlignment="Center" Foreground="#64748B"/>
+            <NumericUpDown x:Name="PART_Keep" Minimum="0" Maximum="20" Value="3" Width="110" FormatString="0"/>
+            <TextBlock Text="(0 = không tự xoá)" VerticalAlignment="Center" Foreground="#94A3B8" FontSize="12"/>
+          </StackPanel>
+
+          <TextBlock Text="3. Thực hiện" FontSize="13" Foreground="#64748B"/>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <kz:KzButton x:Name="PART_BtnUpdate" Content="🔄 Update" Classes="kz-primary" Click="OnUpdateClick" />
+            <kz:KzButton x:Name="PART_BtnRestart" Content="🔁 Restart service" Click="OnRestartClick" />
+          </StackPanel>
+
+          <TextBlock Text="Khôi phục phiên bản cũ" FontSize="13" Foreground="#64748B" Margin="0,8,0,0"/>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <ComboBox x:Name="PART_BackupCombo" Width="300" SelectedIndex="0"/>
+            <kz:KzButton x:Name="PART_BtnLoadBackups" Content="📜 Tải DS backup (máy đầu tiên)" Click="OnLoadBackupsClick" />
+            <kz:KzButton x:Name="PART_BtnRestore" Content="⏪ Khôi phục" Classes="kz-success" Click="OnRestoreClick" />
+          </StackPanel>
+
+          <StackPanel x:Name="PART_ProgressPanel" Spacing="4" IsVisible="False">
+            <TextBlock x:Name="PART_ProgressText" Text="Đang xử lý: 0/0" FontSize="12" Foreground="#64748B" HorizontalAlignment="Right" />
+            <ProgressBar x:Name="PART_ProgressBar" Minimum="0" Maximum="100" Value="0" Height="8" Foreground="#F05922" />
+          </StackPanel>
+
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <Border Grid.Row="1" Background="White" CornerRadius="8" BorderBrush="#E2E8F0" BorderThickness="1">
+      <ListBox x:Name="PART_ResultListBox" Background="Transparent" Padding="8">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="views:BulkTaskResult">
+            <Border BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="8,12">
+              <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18" Background="{Binding StatusColor}" Margin="0,0,12,0" VerticalAlignment="Top">
+                  <TextBlock Text="{Binding StatusIcon}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16"/>
+                </Border>
+                <StackPanel Grid.Column="1" Grid.Row="0" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding ComputerName}" FontWeight="SemiBold" FontSize="15" Foreground="#251C53"/>
+                  <TextBlock Text="{Binding HostAddress}" FontSize="12" Foreground="#64748B"/>
+                </StackPanel>
+                <TextBlock Grid.Column="2" Grid.Row="0" Text="{Binding StatusText}" Foreground="{Binding StatusColor}" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1" Grid.ColumnSpan="2" Grid.Row="1"
+                         Text="{Binding Output}"
+                         IsVisible="{Binding Output, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                         IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                         Margin="0,8,0,0" Height="110"
+                         Background="#F1F5F9" Foreground="#334155" FontSize="12" FontFamily="Consolas, monospace" />
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+  </Grid>
+</Window>

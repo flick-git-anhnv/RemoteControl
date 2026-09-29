@@ -273,3 +273,6 @@ temp/
 *.7z
 *.deb
 dist/
+
+# Gói .deb offline cho tính năng Mount folder share (Ubuntu 22.04, ~2MB) — cần đóng gói cùng CcuUI
+!IPGS.RemoteControl.CcuUI/Resources/mount-deb/**/*.deb

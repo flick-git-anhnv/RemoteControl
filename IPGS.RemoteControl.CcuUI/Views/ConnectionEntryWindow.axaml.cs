@@ -379,6 +379,12 @@ public partial class ConnectionEntryWindow : Window
         OnSelectionChanged(null, e);
     }
 
+    public void OnItemMountFolderClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { Tag: ComputerProfile profile }) return;
+        new MountFolderWindow(new List<ComputerProfile> { profile }).Show();
+    }
+
     public async void OnItemRestartAgentClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control { Tag: ComputerProfile profile } ctl) return;

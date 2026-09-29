@@ -347,6 +347,11 @@ namespace IPGS.RemoteControl.CcuUI.Views
             });
         }
 
+        private void OnUpdateAppClick(object? sender, RoutedEventArgs e)
+        {
+            new AppUpdateWindow(_targets).Show();
+        }
+
         private async void OnInstallAgentClick(object? sender, RoutedEventArgs e)
         {
             await ExecuteBulkActionAsync(async (taskInfo) =>
@@ -376,6 +381,11 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 ComputerProfileStore.Instance.Save(profile);
                 lock (log) return log.ToString();
             });
+        }
+
+        private void OnMountFolderClick(object? sender, RoutedEventArgs e)
+        {
+            new MountFolderWindow(_targets).Show();
         }
 
         private async void OnRestartAgentClick(object? sender, RoutedEventArgs e)

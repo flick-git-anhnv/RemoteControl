@@ -149,14 +149,14 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     var profile = new ComputerProfile
                     {
                         Id = existing?.Id ?? Guid.NewGuid().ToString("N"),
-                        Name = !string.IsNullOrWhiteSpace(existing?.Name) ? existing!.Name : $"ZCU ({_sshHost})",
+                        Name = !string.IsNullOrWhiteSpace(existing?.Name) ? existing!.Name : $"Client ({_sshHost})",
                         Host = _sshHost,
                         Port = agentPort,
                         Token = token,
                         SshPort = _sshPort,
                         SshUsername = _sshUser,
                         SshPassword = _sshPassword,
-                        Notes = existing?.Notes ?? "Tự động tạo bởi ZCU Setup Wizard",
+                        Notes = existing?.Notes ?? "Tự động tạo bởi Setup Wizard",
                         MacAddress = existing?.MacAddress,
                         LastAppInstallerPath = existing?.LastAppInstallerPath,
                         LastUninstallPackage = existing?.LastUninstallPackage,

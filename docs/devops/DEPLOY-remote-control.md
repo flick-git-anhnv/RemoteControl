@@ -25,6 +25,7 @@ Kể từ bản này, `IPGS.RemoteControl.CcuUI` **nhúng sẵn** mọi thứ c�
 | `zcu-agent/linux-x64/` | Binary ZcuAgent đã publish (framework-dependent) | ~11 MB |
 | `dotnet-runtime/dotnet-runtime-8.0-linux-x64.tar.gz` | .NET 8 Runtime — giải nén thẳng vào `$HOME/.dotnet` trên ZCU | ~30 MB |
 | `x11-deb/*.deb` | `libx11-6`, `libxext6`, `libxtst6` (Ubuntu 22.04 amd64) — cài bằng `dpkg -i` | ~700 KB |
+| `mount-deb/{cifs-utils,nfs-common,nfs-kernel-server}/*.deb` | Gói cho tính năng **Mount thư mục share** (Ubuntu 22.04 amd64, đã gồm thư viện phụ thuộc) — cài bằng `dpkg -i`, máy khác 22.04 tự fallback `apt-get` | ~2 MB |
 | `scripts/setup-zcu-agent.sh` | Bản tham khảo của script cài tay (không bắt buộc dùng qua wizard) | 8 KB |
 | `scripts/linux-kiosk/*.sh` | 4 script Kiosk Deploy (1-install-software, 2-configure-system, 3-toggle-topbar, kiosk-setup-gui) | 84 KB |
 | `gnome-extensions/*.zip` | Extension GNOME Shell 42: Just Perfection + Block Caribou 36 | ~164 KB |
@@ -577,3 +578,18 @@ Tính năng Remote ZCU là project độc lập được tích hợp chỉ qua `
 ---
 
 *Tài liệu này là hướng dẫn kỹ thuật — phiên bản 1.0, tương ứng với ZcuAgent v1 (JPEG, shared-secret, TCP plaintext). Khi nâng cấp lên v2 (TLS, HMAC, H.264), cập nhật tài liệu này tương ứng.*
+
+---
+
+## 📂 Mount thư mục share (nút "📂 Mount" từng máy / "Mount thư mục share…" trong Thao tác hàng loạt)
+
+Cài gói cần thiết, ghi `/etc/fstab` (systemd automount + `nofail` — máy vẫn boot nếu máy chủ share tắt) và kiểm tra đã gắn thành công, trên 1 hoặc nhiều máy Ubuntu cùng lúc.
+
+| Máy chủ share | Giao thức | Ghi chú |
+|---|---|---|
+| Windows share (hoặc Ubuntu chạy Samba) | **CIFS/SMB** | Guest hoặc user/mật khẩu. Mật khẩu lưu ở `/etc/ipgs-cifs/*.cred` (quyền 600), không nằm trong fstab. Tương đương dòng fstab thủ công `//IP/Share /mnt/X cifs username=Guest,...` |
+| Ubuntu ↔ Ubuntu | **NFS** (khuyến nghị) | Không cần mật khẩu, phân quyền theo dải IP. Khung "Thiết lập máy chủ NFS" cài `nfs-kernel-server` và export thư mục (`all_squash`, map về user SSH của máy chủ). Máy chủ phải có trong danh sách với IP trùng và đã nhập SSH. |
+
+- Cấu hình chạy lại nhiều lần không bị trùng: mỗi mục fstab/exports được đánh dấu `# ipgs-mount:<mountpoint>` / `# ipgs-export:<path>`; bản gốc `/etc/fstab` được sao lưu một lần ở `/etc/fstab.ipgs.bak`.
+- "⏏ Gỡ mount" umount, xóa mục fstab và file credentials.
+- Thư mục mount phải nằm dưới `/mnt`, `/media`, `/srv`, `/home`, `/opt`, `/data` (chặn ghi đè thư mục hệ thống); tên share/đường dẫn không chứa dấu cách.

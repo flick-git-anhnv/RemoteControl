@@ -1,0 +1,71 @@
+<Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        x:Class="IPGS.RemoteControl.CcuUI.Views.MountFolderWindow"
+        Title="Mount thư mục share"
+        Width="760" Height="720"
+        WindowStartupLocation="CenterOwner">
+
+  <Grid RowDefinitions="Auto,Auto,*">
+
+    <Border Grid.Row="0" Background="#251C53" Padding="20,14">
+      <StackPanel Spacing="2">
+        <TextBlock Text="📂 Mount thư mục share" Foreground="White" FontSize="15" FontWeight="SemiBold" />
+        <TextBlock x:Name="PART_TargetText" Foreground="#D1C4E9" FontSize="12" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer Grid.Row="1" MaxHeight="430">
+      <StackPanel Margin="24,16,24,8" Spacing="12">
+
+        <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+          <TextBlock Grid.Row="0" Text="Loại máy chủ share:" VerticalAlignment="Center" />
+          <ComboBox Grid.Row="0" Grid.Column="1" x:Name="PART_Protocol" HorizontalAlignment="Stretch" SelectedIndex="0">
+            <ComboBoxItem Content="Windows share / Ubuntu Samba (CIFS/SMB)" />
+            <ComboBoxItem Content="Ubuntu ↔ Ubuntu (NFS) — khuyến nghị" />
+          </ComboBox>
+
+          <TextBlock Grid.Row="1" Text="IP máy chủ share:" VerticalAlignment="Center" />
+          <kz:KzTextBox Grid.Row="1" Grid.Column="1" x:Name="PART_ServerHost" Watermark="192.168.80.6" />
+
+          <TextBlock Grid.Row="2" x:Name="PART_ShareLabel" Text="Tên share:" VerticalAlignment="Center" />
+          <kz:KzTextBox Grid.Row="2" Grid.Column="1" x:Name="PART_SharePath" Watermark="Images" />
+
+          <TextBlock Grid.Row="3" Text="Thư mục gắn (mount):" VerticalAlignment="Center" />
+          <kz:KzTextBox Grid.Row="3" Grid.Column="1" x:Name="PART_MountPoint" Watermark="/mnt/Images" Text="/mnt/Images" />
+
+          <TextBlock Grid.Row="4" x:Name="PART_UserLabel" Text="User share:" VerticalAlignment="Center" />
+          <kz:KzTextBox Grid.Row="4" Grid.Column="1" x:Name="PART_ShareUser" Watermark="Bỏ trống = Guest (không cần mật khẩu)" />
+
+          <TextBlock Grid.Row="5" x:Name="PART_PassLabel" Text="Mật khẩu share:" VerticalAlignment="Center" />
+          <kz:KzTextBox Grid.Row="5" Grid.Column="1" x:Name="PART_SharePass" PasswordChar="•" Watermark="Bỏ trống nếu Guest" />
+        </Grid>
+
+        <CheckBox x:Name="PART_ReadOnly" Content="Chỉ đọc (read-only)" />
+
+        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12">
+          <TextBlock x:Name="PART_Hint" FontSize="12" Foreground="#475569" TextWrapping="Wrap" />
+        </Border>
+
+        <Border x:Name="PART_NfsServerBox" Background="#FFFBEB" BorderBrush="#FDE68A" BorderThickness="1" CornerRadius="8" Padding="12" IsVisible="False">
+          <StackPanel Spacing="8">
+            <TextBlock Text="🖥️ Thiết lập máy chủ NFS (chạy trên máy Ubuntu CHỨA thư mục)" FontWeight="SemiBold" FontSize="12" Foreground="#92400E" />
+            <TextBlock FontSize="12" Foreground="#92400E" TextWrapping="Wrap"
+                       Text="Máy chủ phải có trong danh sách với IP trùng ô 'IP máy chủ share' và đã nhập SSH user/password. Cài nfs-kernel-server và export thư mục ở ô 'Đường dẫn export' cho các dải IP bên dưới." />
+            <kz:KzTextBox x:Name="PART_AllowedClients" Text="192.168.0.0/16,10.0.0.0/8,172.16.0.0/12" Watermark="Dải IP máy khách được phép" />
+            <kz:KzButton x:Name="PART_BtnSetupServer" Content="🖥️ Thiết lập máy chủ NFS" KzSize="Sm" HorizontalAlignment="Left" />
+          </StackPanel>
+        </Border>
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <kz:KzButton x:Name="PART_BtnMount" Content="📂 Cài &amp; Mount" Classes="kz-primary" />
+          <kz:KzButton x:Name="PART_BtnUnmount" Content="⏏ Gỡ mount" />
+        </StackPanel>
+
+      </StackPanel>
+    </ScrollViewer>
+
+    <TextBox Grid.Row="2" x:Name="PART_Log" Margin="24,4,24,16" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+             Background="#0F172A" Foreground="#E2E8F0" FontFamily="Consolas, monospace" FontSize="12" />
+  </Grid>
+</Window>

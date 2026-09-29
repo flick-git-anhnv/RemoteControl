@@ -37,6 +37,8 @@
             <kz:KzButton x:Name="PART_BtnInstallApp" Content="📦 Cài App (.deb/.sh/.run)" Click="OnInstallAppClick" />
             <kz:KzButton x:Name="PART_BtnInstallAgent" Content="⚡ Cài / Cập nhật Remote Agent" Click="OnInstallAgentClick" />
             <kz:KzButton x:Name="PART_BtnRestartAgent" Content="🔁 Restart Remote Agent" Click="OnRestartAgentClick" />
+            <kz:KzButton x:Name="PART_BtnUpdateApp" Content="🔄 Update App (thư mục DLL) / Khôi phục" Classes="kz-primary" Click="OnUpdateAppClick" />
+            <kz:KzButton x:Name="PART_BtnMountFolder" Content="📂 Mount thư mục share..." Click="OnMountFolderClick" />
           </StackPanel>
           
           <!-- PROGRESS -->
