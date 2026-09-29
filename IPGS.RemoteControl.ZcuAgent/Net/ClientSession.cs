@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Threading.Channels;
 using IPGS.RemoteControl.Protocol;
 using IPGS.RemoteControl.ZcuAgent.Auth;
+using IPGS.RemoteControl.ZcuAgent.Capture;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -45,6 +46,11 @@ internal sealed class ClientSession
 
     /// <summary>Chu kỳ (ms) poll clipboard ZCU để đồng bộ ngược về CCU. 1s: mỗi lần poll spawn 1 tiến trình xclip, máy Atom/Celeron yếu không nên poll dày hơn.</summary>
     private const int ClipboardPollMs = 1_000;
+
+    /// <summary>Màn hình đang được chọn (null = toàn desktop). Ghi từ receive loop, đọc từ capture loop và khi enqueue chuột.</summary>
+    private volatile MonitorInfo? _monitor;
+    private List<MonitorInfo> _monitors = [];
+    private byte[] _cropBuffer = [];
 
     /// <summary>Adaptive FPS: sàn FPS/chất lượng, và ngưỡng ghi 1 frame bị coi là chậm (ms).</summary>
     private const int MinAdaptiveFps     = 5;
@@ -282,6 +288,7 @@ internal sealed class ClientSession
 
                 // Capture frame
                 var frame = _capturer.Capture();
+                if (frame is not null) frame = CropToMonitor(frame);
                 if (frame is not null)
                 {
                     // NOTE: jpeg is backed by the encoder's reused buffer (audit Q3) —
@@ -337,6 +344,44 @@ internal sealed class ClientSession
         catch (OperationCanceledException) { /* expected */ }
     }
 
+    // ── Multi-monitor helpers ─────────────────────────────────────────────
+
+    private static string MonitorsToJson(List<MonitorInfo> list)
+        => System.Text.Json.JsonSerializer.Serialize(list.Select(m => new
+        {
+            index = m.Index, name = m.Name, x = m.X, y = m.Y, w = m.W, h = m.H,
+        }));
+
+    /// <summary>
+    /// Cắt vùng màn hình đã chọn ra khỏi khung toàn desktop (BGRA, 4 byte/pixel) vào buffer tái sử dụng.
+    /// Vùng nằm ngoài khung (đổi độ phân giải/cắm rút màn hình) → trả nguyên khung toàn desktop.
+    /// </summary>
+    private CapturedFrame CropToMonitor(CapturedFrame frame)
+    {
+        var m = _monitor;
+        if (m is null) return frame;
+
+        if (m.X < 0 || m.Y < 0 || m.W <= 0 || m.H <= 0 ||
+            m.X + m.W > frame.Width || m.Y + m.H > frame.Height)
+            return frame;
+
+        var rowBytes = m.W * 4;
+        var need = rowBytes * m.H;
+        if (_cropBuffer.Length < need) _cropBuffer = new byte[need];
+
+        for (var row = 0; row < m.H; row++)
+            Buffer.BlockCopy(frame.PixelData, (m.Y + row) * frame.BytesPerRow + m.X * 4,
+                             _cropBuffer, row * rowBytes, rowBytes);
+
+        return new CapturedFrame
+        {
+            PixelData   = _cropBuffer,
+            Width       = m.W,
+            Height      = m.H,
+            BytesPerRow = rowBytes,
+        };
+    }
+
     // ── Heartbeat watchdog (audit L3) ─────────────────────────────────────
 
     /// <summary>
@@ -381,6 +426,8 @@ internal sealed class ClientSession
                     // trễ việc nhận Pong khi XSync của injector bị X server làm chậm.
                     case MessageType.MouseMove:
                         var (mx, my) = MessageCodec.DecodeMouseMove(payload);
+                        // Toạ độ client gửi là trong khung hình đang xem → cộng offset màn hình đã chọn.
+                        if (_monitor is { } mm) { mx += mm.X; my += mm.Y; }
                         _inputQueue.Writer.TryWrite(() => _injector.Move(mx, my));
                         break;
 
@@ -391,8 +438,10 @@ internal sealed class ClientSession
                         // republished atomically by the capture thread on resolution change;
                         // two separate reads could observe new-W paired with old-H.
                         var screen = _capturer.ScreenSize;
-                        var sx = Math.Clamp(bx, 0, screen.Width  - 1);
-                        var sy = Math.Clamp(by, 0, screen.Height - 1);
+                        int offX = 0, offY = 0, areaW = screen.Width, areaH = screen.Height;
+                        if (_monitor is { } sel) { offX = sel.X; offY = sel.Y; areaW = sel.W; areaH = sel.H; }
+                        var sx = offX + Math.Clamp(bx, 0, areaW - 1);
+                        var sy = offY + Math.Clamp(by, 0, areaH - 1);
                         _inputQueue.Writer.TryWrite(() =>
                         {
                             _injector.Move(sx, sy);
@@ -415,6 +464,22 @@ internal sealed class ClientSession
                         _inputQueue.Writer.TryWrite(() => _keyboard.SendKey(keysym, isDown));
                         break;
                         
+                    case MessageType.MonitorListReq:
+                        _monitors = await MonitorLister.ListAsync(ct);
+                        await WriteAsync(MessageType.MonitorList,
+                            MessageCodec.EncodeStringMessage(MonitorsToJson(_monitors)), ct);
+                        break;
+
+                    case MessageType.MonitorSelect:
+                        if (payload.Length >= 1)
+                        {
+                            var idx = payload[0];
+                            _monitor = _monitors.FirstOrDefault(m => m.Index == idx); // 0xFF/không có → null = toàn desktop
+                            _logger.LogInformation("Session {IP}: chọn màn hình {Idx} → {Mon}", _remoteIp, idx,
+                                _monitor is null ? "toàn desktop" : $"{_monitor.Name} {_monitor.W}x{_monitor.H}+{_monitor.X}+{_monitor.Y}");
+                        }
+                        break;
+
                     case MessageType.KeyEventRaw:
                         var (rawCode, rawDown) = MessageCodec.DecodeKeyEventRaw(payload);
                         _inputQueue.Writer.TryWrite(() => _keyboard.SendRawKey(rawCode, rawDown));

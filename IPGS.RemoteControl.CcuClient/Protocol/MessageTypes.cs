@@ -27,6 +27,11 @@ public enum MessageType : byte
     // v1.2 — keyboard "scan mode": phím vật lý (X11 keycode), không phụ thuộc layout máy đích
     KeyEventRaw = 0x43,  // C→S  u8 x11Keycode + u8 down
 
+    // v1.2 — multi-monitor
+    MonitorListReq = 0x53, // C→S  yêu cầu danh sách màn hình
+    MonitorList    = 0x54, // S→C  JSON [{index,name,x,y,w,h}]
+    MonitorSelect  = 0x55, // C→S  u8 index; 0xFF = toàn bộ desktop
+
     // v2.0 — Phase 6 Enterprise Features
     ChatText    = 0x41,  // C↔S  UTF-8 text message
     PrivacyMode = 0x42,  // C→S  Boolean: true=blank screen, false=normal

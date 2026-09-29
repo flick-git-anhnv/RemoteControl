@@ -35,6 +35,7 @@
 
         <!-- Tools - enabled only while streaming -->
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <ComboBox Name="CmbMonitor" IsVisible="False" MinWidth="160" VerticalAlignment="Center" IsEnabled="{Binding IsStreaming}" SelectionChanged="OnMonitorChanged" ToolTip.Tip="Chọn màn hình của máy đích" />
             <kz:KzButton Name="BtnCad" Content="⌨ Ctrl+Alt+Del" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnCtrlAltDelClick" ToolTip.Tip="Gửi Ctrl+Alt+Del tới máy đích (không bị hệ điều hành máy này chặn)" />
             <ToggleButton Name="BtnScan" Content="⌨ Phím vật lý" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnScanModeClick" ToolTip.Tip="Gửi vị trí phím thay vì ký tự — gõ đúng khi layout hai máy khác nhau (cần agent 1.2+)" />
             <ToggleButton Name="BtnPrivacy" Content="🕶️ Privacy" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnPrivacyClick" ToolTip.Tip="Blank remote screen" />

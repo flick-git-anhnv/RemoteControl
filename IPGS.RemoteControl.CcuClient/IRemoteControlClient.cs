@@ -56,6 +56,12 @@ public interface IRemoteControlClient : IDisposable
     /// </summary>
     Task SendKeyEventAsync(uint keysym, bool isDown);
 
+    /// <summary>Request the list of ZCU monitors; result arrives via MonitorListReceived on the concrete client. Agent ≥ 1.2.</summary>
+    Task RequestMonitorsAsync();
+
+    /// <summary>Select a monitor by index (0xFF = whole desktop). Agent ≥ 1.2.</summary>
+    Task SelectMonitorAsync(byte index);
+
     /// <summary>Send a physical-key event (X11 keycode). Requires agent ≥ 1.2.</summary>
     Task SendRawKeyEventAsync(byte keycode, bool isDown);
 

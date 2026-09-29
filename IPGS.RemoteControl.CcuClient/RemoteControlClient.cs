@@ -145,6 +145,23 @@ public sealed class RemoteControlClient : IRemoteControlClient
             MessageCodec.EncodeKeyEventRaw(keycode, isDown), CancellationToken.None);
     }
 
+    /// <summary>Hỏi agent danh sách màn hình (kết quả qua <see cref="MonitorListReceived"/>). Cần agent ≥ 1.2.</summary>
+    public Task RequestMonitorsAsync()
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        return SendLockedAsync(MessageType.MonitorListReq, Array.Empty<byte>(), CancellationToken.None);
+    }
+
+    /// <summary>Chọn màn hình theo index; 0xFF = toàn bộ desktop.</summary>
+    public Task SelectMonitorAsync(byte index)
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        return SendLockedAsync(MessageType.MonitorSelect, new[] { index }, CancellationToken.None);
+    }
+
+    /// <summary>JSON danh sách màn hình: [{"index":0,"name":"HDMI-1","x":0,"y":0,"w":1920,"h":1080}, …]</summary>
+    public event EventHandler<string>? MonitorListReceived;
+
     // ── Phase 6 Methods ───────────────────────────────────────────────────
 
     public Task SendChatMessageAsync(string message)
@@ -414,6 +431,10 @@ public sealed class RemoteControlClient : IRemoteControlClient
                 
                 case MessageType.ClipboardData:
                     ClipboardDataReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
+                    break;
+
+                case MessageType.MonitorList:
+                    MonitorListReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
                     break;
 
                 case MessageType.SysInfoResp:

@@ -64,6 +64,7 @@ public partial class RemoteScreenWindow : Window
 
         _vm.Client.SysInfoReceived += OnSysInfoReceived;
         _vm.Client.ClipboardDataReceived += OnClipboardDataReceived;
+        _vm.Client.MonitorListReceived += OnMonitorListReceived;
         _vm.Client.FrameReceived += OnFrameReceived;
         _vm.Client.StateChanged += OnClientStateChanged;
     }
@@ -88,7 +89,8 @@ public partial class RemoteScreenWindow : Window
         _vm.Client.FrameReceived   -= OnFrameReceived;
         _vm.Client.SysInfoReceived -= OnSysInfoReceived;
         _vm.Client.ClipboardDataReceived -= OnClipboardDataReceived;
-        _vm.Client.StateChanged   -= OnClientStateChanged;
+        _vm.Client.MonitorListReceived -= OnMonitorListReceived;
+        _vm.Client.StateChanged  -= OnClientStateChanged;
         _sysInfoTimeoutCts?.Cancel();
 
         // Gracefully disconnect before the window is destroyed.
@@ -144,8 +146,54 @@ public partial class RemoteScreenWindow : Window
 
     // ── F02: cảnh báo agent phiên bản cũ (fail âm thầm SysInfo/Privacy/Chat/Clipboard) ──
 
+    // ── Multi-monitor ────────────────────────────────────────────────────────
+
+    private bool _suppressMonitorChange;
+
+    private void OnMonitorListReceived(object? sender, string json)
+    {
+        List<(int Index, string Name, int W, int H)> monitors = [];
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            foreach (var el in doc.RootElement.EnumerateArray())
+                monitors.Add((el.GetProperty("index").GetInt32(), el.GetProperty("name").GetString() ?? "?",
+                              el.GetProperty("w").GetInt32(), el.GetProperty("h").GetInt32()));
+        }
+        catch { return; }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            var cmb = this.FindControl<ComboBox>("CmbMonitor");
+            if (cmb is null) return;
+
+            _suppressMonitorChange = true;
+            cmb.Items.Clear();
+            if (monitors.Count >= 2)
+            {
+                cmb.Items.Add(new ComboBoxItem { Content = "🖥 Tất cả màn hình", Tag = (byte)0xFF });
+                foreach (var m in monitors)
+                    cmb.Items.Add(new ComboBoxItem { Content = $"🖥 {m.Index + 1}: {m.Name} ({m.W}×{m.H})", Tag = (byte)m.Index });
+                cmb.SelectedIndex = 0;
+            }
+            cmb.IsVisible = monitors.Count >= 2;
+            _suppressMonitorChange = false;
+        });
+    }
+
+    private async void OnMonitorChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressMonitorChange) return;
+        if (sender is ComboBox { SelectedItem: ComboBoxItem { Tag: byte idx } })
+            await _vm.Client.SelectMonitorAsync(idx);
+    }
+
     private void OnClientStateChanged(object? sender, ConnectionStateChangedEventArgs e)
     {
+        // Mỗi lần (tái) kết nối: hỏi danh sách màn hình — chỉ agent ≥ 1.2 mới trả lời.
+        if (e.Current == ConnectionState.Streaming && !IsAgentOlderThan(_vm.Client.ServerName, new Version(1, 2)))
+            _ = _vm.Client.RequestMonitorsAsync();
+
         if (e.Current != ConnectionState.Streaming || _agentVersionWarned) return;
 
         var serverName = _vm.Client.ServerName;
