@@ -173,7 +173,32 @@ namespace IPGS.RemoteControl.CcuClient
                 // xclip: bắt buộc cho đồng bộ clipboard hai chiều (agent gọi xclip). Best-effort — cần mạng/apt
                 // trên máy đích; thiếu xclip thì remote vẫn chạy, chỉ riêng clipboard không đồng bộ.
                 Report("📋 Kiểm tra xclip (đồng bộ clipboard)...", 45);
-                ExecuteSudoCommand(ssh, "command -v xclip >/dev/null 2>&1 || (apt-get update -qq; apt-get install -y -qq xclip) || true", options.Password);
+                if (string.IsNullOrWhiteSpace(ExecuteCommand(ssh, "command -v xclip || true")))
+                {
+                    // Ưu tiên cài OFFLINE từ gói .deb nhúng sẵn (Resources/xclip-deb, build cho Ubuntu 22.04 jammy
+                    // amd64); khác bản/kiến trúc hoặc cài lỗi → fallback apt-get (cần mạng).
+                    string? xclipDebDir = ResolveResourceDir("xclip-deb");
+                    string codename = ExecuteCommand(ssh, ". /etc/os-release 2>/dev/null; echo $VERSION_CODENAME").Trim();
+                    string arch = ExecuteCommand(ssh, "dpkg --print-architecture 2>/dev/null").Trim();
+                    if (!string.IsNullOrEmpty(xclipDebDir) && codename == "jammy" && arch == "amd64")
+                    {
+                        using (var sftpX = CreateSftpClient(options))
+                        {
+                            sftpX.Connect();
+                            string remoteX = $"{remoteOfflineDir}/xclip-deb";
+                            if (!sftpX.Exists(remoteX)) sftpX.CreateDirectory(remoteX);
+                            foreach (var debFile in Directory.GetFiles(xclipDebDir, "*.deb"))
+                            {
+                                using var fs = File.OpenRead(debFile);
+                                sftpX.UploadFile(fs, $"{remoteX}/{Path.GetFileName(debFile)}", true);
+                            }
+                            sftpX.Disconnect();
+                        }
+                        ExecuteSudoCommand(ssh, $"dpkg -i --skip-same-version {remoteOfflineDir}/xclip-deb/*.deb >/dev/null 2>&1 || true", options.Password);
+                    }
+                    if (string.IsNullOrWhiteSpace(ExecuteCommand(ssh, "command -v xclip || true")))
+                        ExecuteSudoCommand(ssh, "apt-get update -qq; apt-get install -y -qq xclip || true", options.Password);
+                }
                 if (string.IsNullOrWhiteSpace(ExecuteCommand(ssh, "command -v xclip || true")))
                     Report("⚠️ Máy đích chưa có xclip (không cài được qua apt) — clipboard sẽ không đồng bộ. Cài thủ công: sudo apt install xclip", 46);
 
