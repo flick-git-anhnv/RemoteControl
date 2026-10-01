@@ -194,8 +194,8 @@ public sealed class RemoteControlClient : IRemoteControlClient
     }
 
     /// <summary>Gửi 1 file lên thư mục nhận của máy đích; trả về TÊN file thực tế trên máy đích (có thể đã đổi nếu trùng). Ném <see cref="IOException"/> nếu agent từ chối/lỗi.</summary>
-    public async Task<string> UploadFileAsync(string localPath, IProgress<(long Done, long Total)>? progress = null,
-        CancellationToken ct = default)
+    public async Task<string> UploadFileAsync(string localPath, IProgress<(long Done, long Total)>? progress = null, string? remoteName = null,
+        CancellationToken ct = default, bool overwrite = false)
     {
         if (_state != ConnectionState.Streaming) throw new InvalidOperationException("Chưa kết nối");
 
@@ -206,7 +206,8 @@ public sealed class RemoteControlClient : IRemoteControlClient
         try
         {
             await using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
-            var name = System.Text.Encoding.UTF8.GetBytes(Path.GetFileName(localPath));
+            // Tiền tố \u0001 báo agent: người dùng đã đồng ý ghi đè file trùng tên (nếu không, agent tự đổi tên).
+            var name = System.Text.Encoding.UTF8.GetBytes((overwrite ? "\u0001" : "") + (remoteName ?? Path.GetFileName(localPath)));
             var begin = new byte[9 + name.Length];
             begin[0] = id;
             System.Buffers.Binary.BinaryPrimitives.WriteUInt64BigEndian(begin.AsSpan(1), (ulong)fs.Length);
@@ -243,6 +244,29 @@ public sealed class RemoteControlClient : IRemoteControlClient
         {
             _uploads.TryRemove(id, out _);
         }
+    }
+
+    /// <summary>
+    /// Tạo thư mục (đường dẫn tương đối, vd ".paste-ab12/Báo cáo/2026") trong thư mục nhận của máy đích — dùng cho
+    /// thư mục rỗng khi dán cả thư mục. Trả về đường dẫn tương đối thực tế.
+    /// </summary>
+    public async Task<string> CreateRemoteDirectoryAsync(string relativeDir, CancellationToken ct = default)
+    {
+        if (_state != ConnectionState.Streaming) throw new InvalidOperationException("Chưa kết nối");
+
+        var id = (byte)(1 + (Interlocked.Increment(ref _nextUploadId) % 0x7F));
+        var st = new UploadState();
+        _uploads[id] = st;
+        try
+        {
+            var name = System.Text.Encoding.UTF8.GetBytes(relativeDir.TrimEnd('/') + "/");
+            var begin = new byte[9 + name.Length];
+            begin[0] = id; // size = 0
+            name.CopyTo(begin, 9);
+            await SendLockedAsync(MessageType.FileBegin, begin, ct).ConfigureAwait(false);
+            return await WaitAckAsync(st.Done.Task, 15_000, ct).ConfigureAwait(false);
+        }
+        finally { _uploads.TryRemove(id, out _); }
     }
 
     /// <summary>Tải file (theo tên trong thư mục nhận của máy đích) về <paramref name="localPath"/>.</summary>

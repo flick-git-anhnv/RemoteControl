@@ -744,13 +744,11 @@ internal sealed class ClientSession
             if (!force && key == Volatile.Read(ref _lastClipboardHash)) return;
             Volatile.Write(ref _lastClipboardHash, key);
 
-            var infos = files.Select(p => new FileInfo(p))
-                             .Where(i => i.Exists && i.Length <= _options.MaxTransferBytes)
-                             .Select(i => new { path = i.FullName, name = i.Name, size = i.Length }).ToList();
+            var infos = ExpandClipboardEntries(files);
             if (infos.Count == 0 || _files is not { Enabled: true }) return;
 
-            _files.SetAdvertised(infos.Select(i => i.path));
-            _logger.LogInformation("CLIPBOARD files to CCU ({Count} file)", infos.Count);
+            _files.SetAdvertised(infos.Where(i => !i.dir).Select(i => i.path));
+            _logger.LogInformation("CLIPBOARD files to CCU ({Count} mục)", infos.Count);
             await WriteAsync(MessageType.ClipboardFileList,
                 MessageCodec.EncodeStringMessage(System.Text.Json.JsonSerializer.Serialize(infos)), ct);
             return;
@@ -767,6 +765,62 @@ internal sealed class ClientSession
         Volatile.Write(ref _lastClipboardHash, hash);
         _logger.LogInformation("CLIPBOARD to CCU (len: {Len})", text.Length);
         await WriteAsync(MessageType.ClipboardData, MessageCodec.EncodeStringMessage(text), ct);
+    }
+
+    private const int MaxClipboardEntries = 5_000;
+
+    private sealed record ClipEntry(string path, string name, long size, bool dir);
+
+    /// <summary>
+    /// Mở rộng các mục vừa Copy trên ZCU thành danh sách phẳng: file → 1 mục; thư mục → chính nó (dir=true, để giữ
+    /// cả thư mục rỗng) rồi mọi mục con. <c>name</c> là đường dẫn tương đối từ mục gốc, phân tách bằng '/' (vd
+    /// "Báo cáo/2026/a.xlsx"). Không đi theo liên kết tượng trưng; bỏ file vượt giới hạn; tối đa
+    /// <see cref="MaxClipboardEntries"/> mục.
+    /// </summary>
+    private List<ClipEntry> ExpandClipboardEntries(List<string> tops)
+    {
+        var result = new List<ClipEntry>();
+        var opts = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            AttributesToSkip      = FileAttributes.ReparsePoint, // không theo symlink
+            IgnoreInaccessible    = true,
+        };
+
+        foreach (var top in tops)
+        {
+            if (result.Count >= MaxClipboardEntries) break;
+            try
+            {
+                if (File.Exists(top))
+                {
+                    var fi = new FileInfo(top);
+                    if (fi.Length <= _options.MaxTransferBytes)
+                        result.Add(new ClipEntry(fi.FullName, fi.Name, fi.Length, false));
+                }
+                else if (Directory.Exists(top))
+                {
+                    var root = new DirectoryInfo(top.TrimEnd('/'));
+                    result.Add(new ClipEntry(root.FullName, root.Name, 0, true));
+                    foreach (var fsi in root.EnumerateFileSystemInfos("*", opts))
+                    {
+                        if (result.Count >= MaxClipboardEntries) break;
+                        var rel = root.Name + "/" + Path.GetRelativePath(root.FullName, fsi.FullName).Replace('\\', '/');
+                        if (fsi is FileInfo f)
+                        {
+                            if (f.Length <= _options.MaxTransferBytes)
+                                result.Add(new ClipEntry(f.FullName, rel, f.Length, false));
+                        }
+                        else result.Add(new ClipEntry(fsi.FullName, rel, 0, true));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Session {IP}: không đọc được {Path}", _remoteIp, top);
+            }
+        }
+        return result;
     }
 
     // Poll và ClipboardGet không được chạy chồng nhau (nếu không có thể gửi trùng một nội dung).

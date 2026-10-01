@@ -19,6 +19,7 @@ public partial class FileTransferWindow : Window
 
     private readonly RemoteControlClient _client;
     private bool _busy;
+    private HashSet<string> _remoteNames = new(StringComparer.Ordinal);
 
     // XAML loader cần constructor không tham số (Avalonia designer/runtime loader).
     public FileTransferWindow() : this(new RemoteControlClient()) { }
@@ -58,6 +59,7 @@ public partial class FileTransferWindow : Window
         Dispatcher.UIThread.Post(() =>
         {
             FileList.ItemsSource = files;
+            _remoteNames = new HashSet<string>(files.Select(x => x.Name), StringComparer.Ordinal);
             SetStatus(files.Count == 0
                 ? "Thư mục nhận trên máy đích đang trống."
                 : $"{files.Count} file trong thư mục nhận của máy đích.");
@@ -84,14 +86,81 @@ public partial class FileTransferWindow : Window
             foreach (var f in files)
             {
                 if (f.TryGetLocalPath() is not { } path) continue;
-                SetStatus($"Đang gửi {Path.GetFileName(path)}…");
-                await _client.UploadFileAsync(path, new Progress<(long Done, long Total)>(ReportProgress));
+                var name = Path.GetFileName(path);
+
+                // Máy đích đã có file cùng tên → hỏi, không tự đổi tên âm thầm.
+                var overwrite = false;
+                if (_remoteNames.Contains(name))
+                {
+                    switch (await AskConflictAsync(name))
+                    {
+                        case ConflictChoice.Skip: continue;
+                        case ConflictChoice.Overwrite: overwrite = true; break;
+                        // KeepBoth: để agent tự đổi tên (vd "a (1).txt")
+                    }
+                }
+
+                SetStatus($"Đang gửi {name}…");
+                await _client.UploadFileAsync(path, new Progress<(long Done, long Total)>(ReportProgress), overwrite: overwrite);
             }
             SetStatus($"Đã gửi xong {files.Count} file.");
             await _client.RequestFileListAsync();
         }
         catch (Exception ex) { SetStatus("Lỗi: " + ex.Message); }
         finally { SetBusy(false); }
+    }
+
+    private enum ConflictChoice { Overwrite, KeepBoth, Skip }
+
+    /// <summary>Hộp thoại khi file đã tồn tại trên máy đích: Ghi đè / Giữ cả hai (đổi tên) / Bỏ qua.</summary>
+    private async Task<ConflictChoice> AskConflictAsync(string name)
+    {
+        var result = ConflictChoice.Skip; // đóng hộp thoại = bỏ qua (an toàn)
+        var dlg = new Window
+        {
+            Title = "File đã tồn tại",
+            Width = 460,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+
+        Button Make(string text, string bg, ConflictChoice choice)
+        {
+            var b = new Button
+            {
+                Content = text, Padding = new Avalonia.Thickness(14, 6),
+                Background = Avalonia.Media.Brush.Parse(bg), Foreground = Avalonia.Media.Brushes.White,
+            };
+            b.Click += (_, _) => { result = choice; dlg.Close(); };
+            return b;
+        }
+
+        dlg.Content = new StackPanel
+        {
+            Margin = new Avalonia.Thickness(20), Spacing = 16,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = $"Máy đích đã có file “{name}”.\nBạn muốn làm gì?",
+                    TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 14,
+                },
+                new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    Children =
+                    {
+                        Make("Ghi đè", "#F05922", ConflictChoice.Overwrite),
+                        Make("Giữ cả hai", "#251C53", ConflictChoice.KeepBoth),
+                        Make("Bỏ qua", "#4A3F8C", ConflictChoice.Skip),
+                    },
+                },
+            },
+        };
+        await dlg.ShowDialog(this);
+        return result;
     }
 
     // ── Download ─────────────────────────────────────────────────────────────

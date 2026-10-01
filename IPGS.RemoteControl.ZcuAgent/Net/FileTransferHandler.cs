@@ -43,6 +43,8 @@ internal sealed class FileTransferHandler : IDisposable
         _dir = !string.IsNullOrWhiteSpace(options.TransferDir)
             ? options.TransferDir
             : Path.Combine(string.IsNullOrEmpty(home) ? Path.GetTempPath() : home, "RemoteTransfer");
+
+        if (options.EnableFileTransfer) CleanOldPasteDirs();
     }
 
     public bool Enabled => _options.EnableFileTransfer;
@@ -54,9 +56,14 @@ internal sealed class FileTransferHandler : IDisposable
         if (payload.Length < 10) { await AckAsync(0, 2, "FileBegin không hợp lệ", ct); return; }
         var id   = payload[0];
         var size = (long)BinaryPrimitives.ReadUInt64BigEndian(payload.AsSpan(1));
-        var name = SanitizeName(Encoding.UTF8.GetString(payload.AsSpan(9)));
+        var rawName = Encoding.UTF8.GetString(payload.AsSpan(9));
+        // Tiền tố 0001 = client đã được người dùng đồng ý GHI ĐÈ file trùng tên (hộp thoại "📁 File").
+        var overwrite = rawName.StartsWith('\u0001');
+        if (overwrite) rawName = rawName[1..];
+        var isDir   = rawName.EndsWith('/') || rawName.EndsWith('\\');
+        var segments = SanitizePath(rawName);
 
-        if (name is null)                     { await AckAsync(id, 2, "Tên file không hợp lệ", ct); return; }
+        if (segments is null)                 { await AckAsync(id, 2, "Tên file không hợp lệ", ct); return; }
         if (size < 0 || size > _options.MaxTransferBytes)
                                               { await AckAsync(id, 2, $"File vượt giới hạn {_options.MaxTransferBytes / 1024 / 1024} MB", ct); return; }
         if (_uploads.ContainsKey(id))         { await AckAsync(id, 2, "Đang có luồng cùng id", ct); return; }
@@ -64,16 +71,29 @@ internal sealed class FileTransferHandler : IDisposable
         try
         {
             Directory.CreateDirectory(_dir);
-            var finalPath = UniquePath(name);
+            var target = Path.Combine(_dir, Path.Combine(segments.ToArray()));
+
+            // Thư mục (kể cả thư mục rỗng): chỉ tạo, báo xong ngay — không có chunk/end.
+            if (isDir)
+            {
+                Directory.CreateDirectory(target);
+                await AckAsync(id, 1, string.Join('/', segments), ct);
+                return;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            // File lẻ ở gốc (hộp thoại "📁 File") → tự đổi tên nếu trùng, không ghi đè. File thuộc một lần dán
+            // (nằm trong thư mục .paste-xxxx) giữ nguyên tên gốc để trình quản lý file tự hỏi ghi đè khi dán.
+            var finalPath = segments.Count == 1 && !overwrite ? UniquePath(segments[0]) : target;
             var partPath  = finalPath + ".part";
-            var fs = new FileStream(partPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+            var fs = new FileStream(partPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
             _uploads[id] = new Upload { Stream = fs, PartPath = partPath, FinalPath = finalPath, Size = size };
-            _logger.LogInformation("File upload bắt đầu: {Name} ({Size} B) → {Path}", name, size, finalPath);
-            await AckAsync(id, 0, Path.GetFileName(finalPath), ct);
+            _logger.LogInformation("File upload bắt đầu: {Name} ({Size} B) → {Path}", rawName, size, finalPath);
+            await AckAsync(id, 0, RelativeToRoot(finalPath), ct);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Không tạo được file nhận {Name}", name);
+            _logger.LogWarning(ex, "Không tạo được file nhận {Name}", rawName);
             await AckAsync(id, 2, "Không tạo được file trên máy đích: " + ex.Message, ct);
         }
     }
@@ -115,9 +135,9 @@ internal sealed class FileTransferHandler : IDisposable
                 await AckAsync(id, 2, $"Thiếu dữ liệu ({up.Received}/{up.Size} B)", ct);
                 return;
             }
-            File.Move(up.PartPath, up.FinalPath);
+            File.Move(up.PartPath, up.FinalPath, overwrite: true);
             _logger.LogInformation("File upload xong: {Path}", up.FinalPath);
-            await AckAsync(id, 1, Path.GetFileName(up.FinalPath), ct);
+            await AckAsync(id, 1, RelativeToRoot(up.FinalPath), ct);
         }
         catch (Exception ex)
         {
@@ -227,8 +247,11 @@ internal sealed class FileTransferHandler : IDisposable
         try
         {
             var names = System.Text.Json.JsonSerializer.Deserialize<string[]>(MessageCodec.DecodeStringMessage(payload)) ?? [];
-            var paths = names.Select(SanitizeName).Where(n => n is not null)
-                             .Select(n => Path.Combine(_dir, n!)).Where(File.Exists).ToList();
+            // Mỗi tên là đường dẫn tương đối trong TransferDir (vd ".paste-ab12cd34/Thư mục" hoặc ".paste-ab12cd34/a.txt");
+            // có thể là file hoặc thư mục.
+            var paths = names.Select(SanitizePath).Where(s => s is not null)
+                             .Select(s => Path.Combine(_dir, Path.Combine(s!.ToArray())))
+                             .Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (paths.Count == 0) return null;
 
             _owner ??= new Interop.X11ClipboardOwner(_logger);
@@ -265,18 +288,52 @@ internal sealed class FileTransferHandler : IDisposable
         return name.Length > 200 ? null : name;
     }
 
+    /// <summary>
+    /// Tách đường dẫn tương đối thành các đoạn đã kiểm tra (không rỗng, không "."/"..", không ký tự cấm, đoạn cuối
+    /// không đuôi ".part", tối đa 32 cấp, mỗi đoạn ≤ 200 ký tự). Trả null nếu có đoạn không hợp lệ — chặn thoát
+    /// khỏi TransferDir bằng "../" hay đường dẫn tuyệt đối.
+    /// </summary>
+    internal static List<string>? SanitizePath(string raw)
+    {
+        var parts = raw.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0 || parts.Length > 32) return null;
+
+        foreach (var p in parts)
+        {
+            if (string.IsNullOrWhiteSpace(p) || p is "." or ".." || p.Length > 200) return null;
+            if (p.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || p.Contains('\0')) return null;
+        }
+        if (parts[^1].EndsWith(".part", StringComparison.OrdinalIgnoreCase)) return null;
+        return parts.ToList();
+    }
+
+    private string RelativeToRoot(string fullPath)
+        => Path.GetRelativePath(_dir, fullPath).Replace('\\', '/');
+
     private string UniquePath(string name)
     {
         var path = Path.Combine(_dir, name);
-        if (!File.Exists(path) && !File.Exists(path + ".part")) return path;
+        if (!File.Exists(path) && !Directory.Exists(path) && !File.Exists(path + ".part")) return path;
 
         var stem = Path.GetFileNameWithoutExtension(name);
         var ext  = Path.GetExtension(name);
         for (var i = 1; ; i++)
         {
             path = Path.Combine(_dir, $"{stem} ({i}){ext}");
-            if (!File.Exists(path) && !File.Exists(path + ".part")) return path;
+            if (!File.Exists(path) && !Directory.Exists(path) && !File.Exists(path + ".part")) return path;
         }
+    }
+
+    /// <summary>Xoá các thư mục tạm ".paste-*" của những lần dán cũ hơn 1 ngày (giữ ổ đĩa gọn).</summary>
+    private void CleanOldPasteDirs()
+    {
+        try
+        {
+            if (!Directory.Exists(_dir)) return;
+            foreach (var d in Directory.GetDirectories(_dir, ".paste-*"))
+                if (Directory.GetCreationTimeUtc(d) < DateTime.UtcNow.AddDays(-1)) Directory.Delete(d, true);
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "Không dọn được thư mục .paste-*"); }
     }
 
     private void Abort(byte id)

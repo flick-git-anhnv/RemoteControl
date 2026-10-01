@@ -163,6 +163,9 @@ public partial class RemoteScreenWindow : Window
     /// Người dùng vừa Copy file trong trình quản lý file của ZCU → tải các file về thư mục tạm rồi đặt vào
     /// clipboard Windows, để Ctrl+V trong Explorer dán ra được. Mỗi danh sách chỉ tải một lần.
     /// </summary>
+    /// <summary>Giới hạn tổng dung lượng tự tải khi Copy trên ZCU — vượt thì bỏ qua (dùng nút 📁 File / nén .zip).</summary>
+    private const long AutoCopyLimitBytes = 200L * 1024 * 1024;
+
     private async void OnClipboardFileListReceived(object? sender, string json)
     {
         if (json == _lastClipFileJson) return;
@@ -172,35 +175,62 @@ public partial class RemoteScreenWindow : Window
         {
             using var doc = System.Text.Json.JsonDocument.Parse(json);
             var items = doc.RootElement.EnumerateArray()
-                .Select(e => (Path: e.GetProperty("path").GetString()!, Name: e.GetProperty("name").GetString()!))
+                .Select(e => (Path: e.GetProperty("path").GetString()!,
+                              Name: e.GetProperty("name").GetString()!,           // đường dẫn tương đối, phân tách '/'
+                              Size: e.GetProperty("size").GetInt64(),
+                              IsDir: e.TryGetProperty("dir", out var d) && d.GetBoolean()))
                 .ToList();
             if (items.Count == 0) return;
             _lastClipFileJson = json;
+
+            var total = items.Where(i => !i.IsDir).Sum(i => i.Size);
+            if (total > AutoCopyLimitBytes)
+            {
+                SetStatusTitle($"Mục vừa Copy trên máy đích quá lớn ({total / 1024 / 1024} MB > {AutoCopyLimitBytes / 1024 / 1024} MB) — không tự chép vào clipboard. Hãy dùng nút “📁 File” hoặc nén .zip");
+                return;
+            }
 
             var root = Path.Combine(Path.GetTempPath(), "IPGS-Remote", "clip");
             CleanOldTempDirs(root);
             var dir = Path.Combine(root, Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(dir);
 
-            var local = new List<string>();
-            for (var i = 0; i < items.Count; i++)
+            var topNames = new List<string>();   // mục gốc (file hoặc thư mục) sẽ đặt lên clipboard Windows
+            var files = items.Where(i => !i.IsDir).ToList();
+            var done = 0;
+            foreach (var item in items)
             {
-                var dest = Path.Combine(dir, Path.GetFileName(items[i].Name));
-                var idx = i;
+                var segs = item.Name.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                // Chặn đường dẫn lạ từ máy đích: không ".." / không ký tự cấm / không tuyệt đối.
+                if (segs.Length == 0 || segs.Any(s => s is "." or ".." || s.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0))
+                    throw new InvalidOperationException("Tên mục không hợp lệ: " + item.Name);
+
+                var dest = Path.Combine(dir, Path.Combine(segs));
+                if (segs.Length == 1 && !topNames.Contains(segs[0])) topNames.Add(segs[0]);
+
+                if (item.IsDir) { Directory.CreateDirectory(dest); continue; }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                var n = ++done;
                 var progress = new Progress<(long Done, long Total)>(p => SetStatusTitle(
-                    $"Đang tải {items[idx].Name} từ máy đích ({idx + 1}/{items.Count}) — {(p.Total <= 0 ? 0 : p.Done * 100 / p.Total)}%"));
-                await _vm.Client.DownloadRemotePathAsync(items[i].Path, dest, progress);
-                local.Add(dest);
+                    $"Đang tải {segs[^1]} từ máy đích ({n}/{files.Count}) — {(p.Total <= 0 ? 0 : p.Done * 100 / p.Total)}%"));
+                await _vm.Client.DownloadRemotePathAsync(item.Path, dest, progress);
             }
 
             var top = TopLevel.GetTopLevel(this);
             if (top?.Clipboard is { } clipboard)
             {
                 var storage = new List<IStorageItem>();
-                foreach (var p in local)
-                    if (await top.StorageProvider.TryGetFileFromPathAsync(p) is { } f) storage.Add(f);
+                foreach (var name in topNames)
+                {
+                    var p = Path.Combine(dir, name);
+                    IStorageItem? si = Directory.Exists(p)
+                        ? await top.StorageProvider.TryGetFolderFromPathAsync(p)
+                        : await top.StorageProvider.TryGetFileFromPathAsync(p);
+                    if (si is not null) storage.Add(si);
+                }
                 await clipboard.SetFilesAsync(storage);
-                SetStatusTitle($"Đã chép {storage.Count} file từ máy đích vào clipboard — dán (Ctrl+V) trong Explorer");
+                SetStatusTitle($"Đã chép {storage.Count} mục từ máy đích vào clipboard — dán (Ctrl+V) trong Explorer");
             }
         }
         catch (Exception ex)

@@ -527,13 +527,15 @@ Chuột được ánh xạ đúng theo màn hình đang chọn. Cần agent 1.2 
 
 Nhấn nút **📁 File** trên thanh công cụ để mở cửa sổ **Truyền file** — gửi/nhận file ngay trong phiên remote, **không cần SSH**.
 
-**Gửi file lên máy ZCU:** nhấn **⬆ Gửi file lên máy đích…**, chọn một hoặc nhiều file; thanh tiến độ hiển thị % hoàn thành. File nằm trong thư mục nhận `~/RemoteTransfer` của người dùng chạy agent trên máy ZCU. Nếu trùng tên, file mới tự đổi tên (ví dụ `bao-cao (1).xlsx`) — không ghi đè file cũ.
+**Gửi file lên máy ZCU:** nhấn **⬆ Gửi file lên máy đích…**, chọn một hoặc nhiều file; thanh tiến độ hiển thị % hoàn thành. File nằm trong thư mục nhận `~/RemoteTransfer` của người dùng chạy agent trên máy ZCU. Nếu máy ZCU đã có file cùng tên, phần mềm **hỏi bạn**: **Ghi đè**, **Giữ cả hai** (file mới tự đổi tên, ví dụ `bao-cao (1).xlsx`) hoặc **Bỏ qua** (đóng hộp thoại cũng là bỏ qua).
 
 **Tải file từ máy ZCU về:** chọn file trong danh sách (các file trong thư mục `~/RemoteTransfer`), nhấn **⬇ Tải file đã chọn về…**, chọn nơi lưu trên máy CCU. Nhấn **🔄 Làm mới** để cập nhật danh sách.
 
-**Dán file trực tiếp (Windows → máy ZCU):** trong Windows Explorer chọn file, nhấn **Ctrl+C**; nhấp vào cửa sổ remote, mở thư mục đích trong trình quản lý file của máy ZCU rồi nhấn **Ctrl+V**. Phần mềm gửi file sang máy ZCU (thanh tiêu đề hiện % tiến độ), rồi tự dán vào thư mục đang mở. Chỉ hỗ trợ file (thư mục con bị bỏ qua), tối đa 50 file mỗi lần. Các bản sao cũng nằm trong `~/RemoteTransfer` của máy ZCU.
+**Dán file/thư mục trực tiếp (Windows → máy ZCU):** trong Windows Explorer chọn file và/hoặc **thư mục**, nhấn **Ctrl+C**; nhấp vào cửa sổ remote, mở thư mục đích trong trình quản lý file của máy ZCU rồi nhấn **Ctrl+V**. Phần mềm gửi sang máy ZCU (thanh tiêu đề hiện tiến độ), giữ nguyên cấu trúc thư mục con và thư mục rỗng, rồi tự dán vào thư mục đang mở. Tối đa 5.000 mục mỗi lần (vượt thì nén .zip). Mỗi lần dán đặt vào một thư mục tạm riêng `~/RemoteTransfer/.paste-xxxx` (tự xoá sau 1 ngày) nên **giữ nguyên tên gốc**; nếu nơi dán đã có tên trùng, trình quản lý file của máy ZCU sẽ tự hỏi **Ghi đè / Bỏ qua**.
 
-**Copy file trực tiếp (máy ZCU → Windows):** trên máy ZCU, chọn file trong trình quản lý file và nhấn **Ctrl+C**. Phần mềm tự tải file về thư mục tạm trên máy CCU rồi đưa vào clipboard Windows (thanh tiêu đề báo "Đã chép … vào clipboard"); mở Explorer và nhấn **Ctrl+V** để dán. Chỉ tải được file bạn vừa Copy trên ZCU — không đọc được file khác.
+**Copy file/thư mục trực tiếp (máy ZCU → Windows):** trên máy ZCU, chọn file hoặc thư mục trong trình quản lý file và nhấn **Ctrl+C**. Phần mềm tự tải về thư mục tạm trên máy CCU (giữ cấu trúc thư mục con) rồi đưa vào clipboard Windows (thanh tiêu đề báo "Đã chép … vào clipboard"); mở Explorer và nhấn **Ctrl+V** để dán — Explorer tự hỏi ghi đè nếu trùng tên. Chỉ tải được đúng mục bạn vừa Copy trên ZCU, không đọc được file khác, không đi theo liên kết tượng trưng (symlink).
+
+> **Giới hạn tự tải:** để tránh vô tình kéo dữ liệu lớn khi bạn bấm Ctrl+C, chỉ tự tải khi tổng dung lượng ≤ **200 MB**. Lớn hơn thì thanh tiêu đề báo và bạn dùng nút **📁 File** hoặc nén thành .zip.
 
 > **Lưu ý:** Vì lý do bảo mật, nút **📁 File** chỉ đọc/ghi trong thư mục nhận, không duyệt được thư mục khác. Để quản lý file toàn hệ thống dùng Trình quản lý file SFTP (mục 6.1). Dung lượng tối đa mỗi file mặc định 1 GB; có thể đổi hoặc tắt tính năng trong `appsettings.json` (mục 12.4). Cần agent 1.2 trở lên.
 

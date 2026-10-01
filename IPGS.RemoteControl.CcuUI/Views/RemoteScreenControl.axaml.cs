@@ -183,19 +183,22 @@ public partial class RemoteScreenControl : UserControl
     /// <summary>Trạng thái dán file (tiến độ/kết quả) — cửa sổ cha hiển thị trên thanh tiêu đề. null = xoá.</summary>
     public event Action<string?>? PasteStatus;
 
-    private const int MaxPasteFiles = 50;
+    private const int MaxPasteEntries = 5_000;
+
+    private sealed record PasteOp(string Local, string Remote, bool IsDir);
 
     /// <summary>
-    /// Clipboard Windows có file? → upload từng file lên thư mục nhận của ZCU, rồi đặt chúng lên clipboard
-    /// ZCU như vừa "Copy". Trả null = clipboard không có file; true = đã chuẩn bị xong (gửi phím V); false = lỗi (không gửi V).
-    /// Thư mục bị bỏ qua (chỉ hỗ trợ file).
+    /// Clipboard Windows có file/thư mục? → upload lên ZCU (giữ cấu trúc thư mục), rồi đặt lên clipboard ZCU như vừa
+    /// "Copy". Mỗi lần dán nằm trong một thư mục tạm riêng ".paste-xxxx" trong thư mục nhận, nên giữ NGUYÊN tên gốc
+    /// và trình quản lý file ZCU tự hỏi ghi đè khi nơi dán đã có tên trùng.
+    /// Trả null = clipboard không có file; true = đã chuẩn bị xong (gửi phím V); false = lỗi (không gửi V).
     /// </summary>
     private async Task<bool?> TryPasteFilesAsync(RemoteScreenViewModel vm, IClipboard clipboard)
     {
         var items = await clipboard.TryGetFilesAsync();
-        var paths = items?.Select(i => i.TryGetLocalPath()).Where(p => p is not null && File.Exists(p))
-                          .Cast<string>().Take(MaxPasteFiles).ToList();
-        if (paths is null || paths.Count == 0) return null;
+        var locals = items?.Select(i => i.TryGetLocalPath()).Where(p => p is not null && (File.Exists(p) || Directory.Exists(p)))
+                           .Cast<string>().ToList();
+        if (locals is null || locals.Count == 0) return null;
 
         if (vm.Client.ServerName is { } sn && !AgentSupportsFiles(sn))
         {
@@ -203,20 +206,63 @@ public partial class RemoteScreenControl : UserControl
             return false;
         }
 
-        var uploaded = new List<string>();
         try
         {
-            for (var i = 0; i < paths.Count; i++)
+            var batch = ".paste-" + Guid.NewGuid().ToString("N")[..8];
+            var ops   = new List<PasteOp>();
+            var tops  = new List<string>();
+            var enumOpts = new EnumerationOptions
             {
-                var name = Path.GetFileName(paths[i]);
-                var idx = i;
-                var progress = new Progress<(long Done, long Total)>(p =>
-                    PasteStatus?.Invoke($"Đang gửi {name} ({idx + 1}/{paths.Count}) — {(p.Total <= 0 ? 0 : p.Done * 100 / p.Total)}%"));
-                uploaded.Add(await vm.Client.UploadFileAsync(paths[i], progress));
+                RecurseSubdirectories = true,
+                AttributesToSkip      = FileAttributes.ReparsePoint, // không theo liên kết
+                IgnoreInaccessible    = true,
+            };
+
+            foreach (var local in locals)
+            {
+                if (File.Exists(local))
+                {
+                    var remote = $"{batch}/{Path.GetFileName(local)}";
+                    ops.Add(new PasteOp(local, remote, false));
+                    tops.Add(remote);
+                    continue;
+                }
+
+                var root = new DirectoryInfo(local.TrimEnd('\\', '/'));
+                if (root.Parent is null) continue; // ổ đĩa gốc (C:\) — không hỗ trợ
+                var topRemote = $"{batch}/{root.Name}";
+                ops.Add(new PasteOp(root.FullName, topRemote, true));
+                tops.Add(topRemote);
+                foreach (var fsi in root.EnumerateFileSystemInfos("*", enumOpts))
+                {
+                    var rel = Path.GetRelativePath(root.FullName, fsi.FullName).Replace('\\', '/');
+                    ops.Add(new PasteOp(fsi.FullName, $"{topRemote}/{rel}", fsi is DirectoryInfo));
+                    if (ops.Count > MaxPasteEntries)
+                        throw new InvalidOperationException($"Quá nhiều mục (> {MaxPasteEntries}) — hãy nén thành .zip rồi gửi bằng nút 📁 File");
+                }
             }
-            await vm.Client.SetRemoteClipboardFilesAsync(uploaded);
+            if (tops.Count == 0) return null;
+
+            for (var i = 0; i < ops.Count; i++)
+            {
+                var op = ops[i];
+                var idx = i;
+                var label = Path.GetFileName(op.Local.TrimEnd('\\', '/'));
+                if (op.IsDir)
+                {
+                    PasteStatus?.Invoke($"Đang tạo thư mục {label} ({idx + 1}/{ops.Count})");
+                    await vm.Client.CreateRemoteDirectoryAsync(op.Remote);
+                }
+                else
+                {
+                    var progress = new Progress<(long Done, long Total)>(p =>
+                        PasteStatus?.Invoke($"Đang gửi {label} ({idx + 1}/{ops.Count}) — {(p.Total <= 0 ? 0 : p.Done * 100 / p.Total)}%"));
+                    await vm.Client.UploadFileAsync(op.Local, progress, op.Remote);
+                }
+            }
+            await vm.Client.SetRemoteClipboardFilesAsync(tops);
             await Task.Delay(300); // chờ agent chiếm xong clipboard
-            PasteStatus?.Invoke($"Đã gửi {uploaded.Count} file — đang dán trên máy đích");
+            PasteStatus?.Invoke($"Đã gửi {tops.Count} mục — đang dán trên máy đích");
         }
         catch (Exception ex)
         {
@@ -228,7 +274,6 @@ public partial class RemoteScreenControl : UserControl
             _ = Task.Delay(6000).ContinueWith(_ => PasteStatus?.Invoke(null));
         }
 
-        // Gửi phím V (Ctrl đang giữ) → trình quản lý file ZCU dán các file vừa đặt lên clipboard.
         return true;  // thành công → PasteAsync gửi phím V để ZCU dán
     }
 
