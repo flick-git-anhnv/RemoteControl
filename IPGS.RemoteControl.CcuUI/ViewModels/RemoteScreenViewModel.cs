@@ -67,6 +67,11 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     /// <summary>true = gửi phím theo vị trí vật lý (cần agent ≥ 1.2); false = gửi theo ký tự/keysym.</summary>
     public bool UseScanMode { get; set; }
 
+    // Ctrl/Shift đang được giữ (theo dõi cả hai chế độ gửi phím) — dùng khi dán chậm để biết có cần bấm bù.
+    // keycode X11: ControlLeft=37, ControlRight=105, ShiftLeft=50, ShiftRight=62.
+    public bool IsCtrlHeld  => _downKeysyms.Contains(0xFFE3) || _downKeysyms.Contains(0xFFE4) || _downRawKeys.Contains(37) || _downRawKeys.Contains(105);
+    public bool IsShiftHeld => _downKeysyms.Contains(0xFFE1) || _downKeysyms.Contains(0xFFE2) || _downRawKeys.Contains(50) || _downRawKeys.Contains(62);
+
     // ── Constructor ──────────────────────────────────────────────────────────
 
     public RemoteScreenViewModel()

@@ -163,8 +163,19 @@ public partial class RemoteScreenControl : UserControl
         {
             if (sendKey)
             {
+                // Việc đồng bộ/gửi file có thể mất vài giây — lúc đó người dùng thường đã nhả Ctrl (Shift) và lệnh
+                // nhả đã tới ZCU, khiến phím V bị hiểu là gõ chữ "v" (Nautilus mở ô tìm kiếm). Nếu Ctrl/Shift không
+                // còn giữ, bấm bù chúng quanh phím V rồi nhả ngay.
+                var needCtrl  = !vm.IsCtrlHeld;
+                var needShift = mods.HasFlag(KeyModifiers.Shift) && !vm.IsShiftHeld;
+                if (needCtrl)  await vm.Client.SendKeyEventAsync(0xFFE3, true);
+                if (needShift) await vm.Client.SendKeyEventAsync(0xFFE1, true);
+
                 vm.HandleKeyDown(key, symbol, mods, physical);
                 vm.HandleKeyUp(key, symbol, mods, physical);
+
+                if (needShift) await vm.Client.SendKeyEventAsync(0xFFE1, false);
+                if (needCtrl)  await vm.Client.SendKeyEventAsync(0xFFE3, false);
             }
         }
     }
