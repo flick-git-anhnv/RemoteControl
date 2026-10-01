@@ -470,10 +470,12 @@ Thanh **💬 Chat:** nằm ở cạnh dưới cửa sổ.
 
 Clipboard đồng bộ theo hai chiều (văn bản):
 
-- **Từ CCU sang ZCU (thủ công):** sao chép văn bản trên máy CCU, nhấn **📋 Sync Clipboard** (cạnh dưới, bên phải), rồi dán (Ctrl+V) trên máy ZCU.
-- **Từ ZCU sang CCU (tự động):** khi bạn sao chép văn bản trên máy ZCU (Ctrl+C), trong vòng khoảng 1 giây nội dung tự xuất hiện trong clipboard của máy CCU — chỉ cần dán (Ctrl+V) trên CCU, không phải bấm nút. Cần agent 1.2 trở lên và `EnableDesktopIntegration` bật (mục 12.4).
+- **Từ CCU sang ZCU (tự động khi dán):** sao chép văn bản trên máy CCU (Ctrl+C), nhấp vào cửa sổ remote rồi nhấn **Ctrl+V** — phần mềm tự gửi nội dung sang máy ZCU trước khi dán. Không cần bấm nút. (Nút **📋 Sync Clipboard** vẫn dùng được để gửi thủ công, ví dụ khi dán bằng chuột phải.)
+- **Từ ZCU sang CCU (tự động):** nhấn **Ctrl+C** trên màn hình ZCU, khoảng nửa giây sau nội dung nằm trong clipboard của máy CCU — dán (Ctrl+V) trên CCU. Nếu copy bằng chuột phải/menu, hệ thống đồng bộ trong vòng khoảng 2 giây. Cần agent 1.2 trở lên và `EnableDesktopIntegration` bật (mục 12.4).
 
-Giới hạn: chỉ văn bản, tối đa khoảng 260.000 ký tự mỗi lần. Để chuyển file, dùng mục 5.1.9.
+> **Lưu ý — Terminal:** trong cửa sổ Terminal (dòng lệnh) của máy ZCU, Ctrl+V **không** phải lệnh dán. Hãy dùng **Ctrl+Shift+V** để dán và **Ctrl+Shift+C** để sao chép — phần mềm đồng bộ clipboard cho cả hai tổ hợp này.
+
+Giới hạn: văn bản tối đa khoảng 260.000 ký tự mỗi lần. Sao chép/dán **file** xem mục 5.1.9.
 
 ![Nút Sync Clipboard trong phiên kết nối](screenshots/remote-screen-clipboard-sync.png)
 *Hình 20: Nút 📋 Sync Clipboard ở góc dưới bên phải trong phiên đang kết nối — thao tác đồng bộ chạy ngầm, giao diện không thay đổi*
@@ -529,7 +531,11 @@ Nhấn nút **📁 File** trên thanh công cụ để mở cửa sổ **Truyề
 
 **Tải file từ máy ZCU về:** chọn file trong danh sách (các file trong thư mục `~/RemoteTransfer`), nhấn **⬇ Tải file đã chọn về…**, chọn nơi lưu trên máy CCU. Nhấn **🔄 Làm mới** để cập nhật danh sách.
 
-> **Lưu ý:** Vì lý do bảo mật, chức năng này chỉ đọc/ghi trong thư mục nhận, không duyệt được thư mục khác. Để quản lý file toàn hệ thống dùng Trình quản lý file SFTP (mục 6.1). Dung lượng tối đa mỗi file mặc định 1 GB; có thể đổi hoặc tắt tính năng trong `appsettings.json` (mục 12.4). Cần agent 1.2 trở lên.
+**Dán file trực tiếp (Windows → máy ZCU):** trong Windows Explorer chọn file, nhấn **Ctrl+C**; nhấp vào cửa sổ remote, mở thư mục đích trong trình quản lý file của máy ZCU rồi nhấn **Ctrl+V**. Phần mềm gửi file sang máy ZCU (thanh tiêu đề hiện % tiến độ), rồi tự dán vào thư mục đang mở. Chỉ hỗ trợ file (thư mục con bị bỏ qua), tối đa 50 file mỗi lần. Các bản sao cũng nằm trong `~/RemoteTransfer` của máy ZCU.
+
+**Copy file trực tiếp (máy ZCU → Windows):** trên máy ZCU, chọn file trong trình quản lý file và nhấn **Ctrl+C**. Phần mềm tự tải file về thư mục tạm trên máy CCU rồi đưa vào clipboard Windows (thanh tiêu đề báo "Đã chép … vào clipboard"); mở Explorer và nhấn **Ctrl+V** để dán. Chỉ tải được file bạn vừa Copy trên ZCU — không đọc được file khác.
+
+> **Lưu ý:** Vì lý do bảo mật, nút **📁 File** chỉ đọc/ghi trong thư mục nhận, không duyệt được thư mục khác. Để quản lý file toàn hệ thống dùng Trình quản lý file SFTP (mục 6.1). Dung lượng tối đa mỗi file mặc định 1 GB; có thể đổi hoặc tắt tính năng trong `appsettings.json` (mục 12.4). Cần agent 1.2 trở lên.
 
 #### 5.1.10 Chất lượng hình tự điều chỉnh
 
