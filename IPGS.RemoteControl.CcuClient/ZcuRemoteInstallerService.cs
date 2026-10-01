@@ -170,6 +170,13 @@ namespace IPGS.RemoteControl.CcuClient
                     ExecuteSudoCommand(ssh, "dpkg -l libx11-6 libxext6 libxtst6 wget >/dev/null 2>&1 || (systemctl stop unattended-upgrades.service 2>/dev/null || true; apt-get update -qq && apt-get install -y -qq libx11-6 libxext6 libxtst6 wget)", options.Password);
                 }
 
+                // xclip: bắt buộc cho đồng bộ clipboard hai chiều (agent gọi xclip). Best-effort — cần mạng/apt
+                // trên máy đích; thiếu xclip thì remote vẫn chạy, chỉ riêng clipboard không đồng bộ.
+                Report("📋 Kiểm tra xclip (đồng bộ clipboard)...", 45);
+                ExecuteSudoCommand(ssh, "command -v xclip >/dev/null 2>&1 || (apt-get update -qq; apt-get install -y -qq xclip) || true", options.Password);
+                if (string.IsNullOrWhiteSpace(ExecuteCommand(ssh, "command -v xclip || true")))
+                    Report("⚠️ Máy đích chưa có xclip (không cài được qua apt) — clipboard sẽ không đồng bộ. Cài thủ công: sudo apt install xclip", 46);
+
                 Report("💻 [4/7] Kiểm tra & cài đặt .NET 8 Runtime...", 50);
                 // F20: dùng --list-runtimes thay --version — máy chỉ cài .NET RUNTIME
                 // (framework-dependent, không có SDK) khiến `dotnet --version` luôn lỗi
@@ -215,6 +222,9 @@ namespace IPGS.RemoteControl.CcuClient
                 {
                     Report("📤 [5/7] Đang tải các tệp thực thi ZcuAgent lên ZCU qua SFTP...", 75);
                     ExecuteCommand(ssh, "systemctl --user stop ipgs-remote-agent.service 2>/dev/null || true");
+                    // Dọn file cũ (giữ appsettings.json): bản cài trước có thể là self-contained, file runtime
+                    // sót lại (libhostfxr.so...) làm host bỏ qua .NET hệ thống → "No frameworks were found".
+                    ExecuteCommand(ssh, $"find {remoteInstallDir} -mindepth 1 -maxdepth 1 ! -name appsettings.json -exec rm -rf {{}} + 2>/dev/null || true");
                     using var sftp = CreateSftpClient(options);
                     sftp.Connect();
                     UploadDirectory(sftp, publishDir, remoteInstallDir);
