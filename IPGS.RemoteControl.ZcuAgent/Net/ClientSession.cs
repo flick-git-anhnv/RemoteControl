@@ -543,6 +543,19 @@ internal sealed class ClientSession
                         }
                         break;
 
+                    case MessageType.ClipboardGet:
+                        if (_options.EnableDesktopIntegration)
+                        {
+                            var cur = await GetClipboardAsync(ct);
+                            if (!string.IsNullOrEmpty(cur) && cur.Length <= MaxClipboardChars)
+                            {
+                                Volatile.Write(ref _lastClipboardHash, cur.GetHashCode());
+                                _logger.LogInformation("CLIPBOARD to CCU on request (len: {Len})", cur.Length);
+                                await WriteAsync(MessageType.ClipboardData, MessageCodec.EncodeStringMessage(cur), ct);
+                            }
+                        }
+                        break;
+
                     case MessageType.PrivacyMode:
                         var privacyEnabled = MessageCodec.DecodeBooleanMessage(payload);
                         _logger.LogWarning("PRIVACY MODE: {State}", privacyEnabled ? "ON" : "OFF");
@@ -719,6 +732,7 @@ internal sealed class ClientSession
                 if (hash == Volatile.Read(ref _lastClipboardHash)) continue;
 
                 Volatile.Write(ref _lastClipboardHash, hash);
+                _logger.LogInformation("CLIPBOARD to CCU (len: {Len})", text.Length);
                 await WriteAsync(MessageType.ClipboardData, MessageCodec.EncodeStringMessage(text), ct);
             }
         }

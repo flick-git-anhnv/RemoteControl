@@ -362,6 +362,13 @@ public sealed class RemoteControlClient : IRemoteControlClient
         return SendLockedAsync(MessageType.ClipboardData, payload, CancellationToken.None);
     }
 
+    /// <summary>Yêu cầu agent gửi ngay clipboard hiện tại của ZCU (kết quả qua ClipboardDataReceived). Agent ≥ 1.2.</summary>
+    public Task RequestClipboardAsync()
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        return SendLockedAsync(MessageType.ClipboardGet, Array.Empty<byte>(), CancellationToken.None);
+    }
+
     public Task SetPrivacyModeAsync(bool enabled)
     {
         if (_state != ConnectionState.Streaming) return Task.CompletedTask;

@@ -45,6 +45,7 @@ public enum MessageType : byte
     ChatText    = 0x41,  // C↔S  UTF-8 text message
     PrivacyMode = 0x42,  // C→S  Boolean: true=blank screen, false=normal
     ClipboardData = 0x50, // C↔S  UTF-8 text for clipboard sync
+    ClipboardGet = 0x56, // C→S  yêu cầu agent gửi ngay clipboard hiện tại của ZCU (sau Ctrl+C trong phiên remote)
     SysInfoReq  = 0x51,  // C→S  Request system info
     SysInfoResp = 0x52,  // S→C  JSON payload with system info
 

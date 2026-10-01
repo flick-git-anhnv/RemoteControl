@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using IPGS.RemoteControl.CcuUI.ViewModels;
 
@@ -100,9 +101,32 @@ public partial class RemoteScreenControl : UserControl
 
     // ── Keyboard event handlers (Tunnel — registered in constructor) ─────────
 
+    // Ctrl+V: nội dung clipboard máy này phải sang ZCU TRƯỚC khi phím V tới nơi, nên giữ phím V lại, đồng bộ
+    // clipboard xong mới gửi cặp nhấn+nhả V. _swallowVUp nuốt sự kiện nhả V thật của người dùng (đã gửi bù).
+    private bool _swallowVUp;
+    private const int ClipboardApplyDelayMs = 200;  // chờ agent đặt xong clipboard (xclip)
+    private const int ClipboardPullDelayMs  = 350;  // chờ ứng dụng trên ZCU copy xong rồi mới kéo về
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not RemoteScreenViewModel vm) return;
+
+        var ctrlOnly = e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+
+        if (ctrlOnly && e.Key == Key.V && vm.IsStreaming)
+        {
+            e.Handled = true;
+            if (!_swallowVUp) // bỏ qua auto-repeat khi giữ phím
+            {
+                _swallowVUp = true;
+                _ = PasteAsync(vm, e.Key, e.KeySymbol, e.KeyModifiers, e.PhysicalKey);
+            }
+            return;
+        }
+
+        // Ctrl+C / Ctrl+X: sau khi ZCU copy xong, kéo clipboard của ZCU về máy này ngay (không đợi chu kỳ poll).
+        if (ctrlOnly && (e.Key == Key.C || e.Key == Key.X) && vm.IsStreaming)
+            _ = PullClipboardLaterAsync(vm);
 
         vm.HandleKeyDown(e.Key, e.KeySymbol, e.KeyModifiers, e.PhysicalKey);
 
@@ -111,9 +135,45 @@ public partial class RemoteScreenControl : UserControl
         e.Handled = true;
     }
 
+    private async Task PasteAsync(RemoteScreenViewModel vm, Key key, string? symbol, KeyModifiers mods, PhysicalKey physical)
+    {
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is not null)
+            {
+                var text = await clipboard.TryGetTextAsync();
+                if (!string.IsNullOrEmpty(text))
+                {
+                    await vm.Client.SendClipboardTextAsync(text);
+                    await Task.Delay(ClipboardApplyDelayMs);
+                }
+            }
+        }
+        catch { /* clipboard Windows đang bị tiến trình khác giữ — vẫn gửi phím V */ }
+        finally
+        {
+            vm.HandleKeyDown(key, symbol, mods, physical);
+            vm.HandleKeyUp(key, symbol, mods, physical);
+        }
+    }
+
+    private async Task PullClipboardLaterAsync(RemoteScreenViewModel vm)
+    {
+        await Task.Delay(ClipboardPullDelayMs);
+        await vm.Client.RequestClipboardAsync();
+    }
+
     private void OnKeyUp(object? sender, KeyEventArgs e)
     {
         if (DataContext is not RemoteScreenViewModel vm) return;
+
+        if (e.Key == Key.V && _swallowVUp)
+        {
+            _swallowVUp = false;
+            e.Handled = true;
+            return;
+        }
 
         vm.HandleKeyUp(e.Key, e.KeySymbol, e.KeyModifiers, e.PhysicalKey);
         e.Handled = true;
@@ -123,6 +183,7 @@ public partial class RemoteScreenControl : UserControl
 
     private void OnLostFocus(object? sender, RoutedEventArgs e)
     {
+        _swallowVUp = false;
         // Release all held keys so ZCU does not get stuck keys when the user
         // alt-tabs away or clicks outside the remote screen area.
         if (DataContext is RemoteScreenViewModel vm)
