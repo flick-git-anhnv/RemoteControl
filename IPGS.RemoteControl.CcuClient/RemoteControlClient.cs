@@ -193,8 +193,8 @@ public sealed class RemoteControlClient : IRemoteControlClient
         return SendLockedAsync(MessageType.FileListReq, Array.Empty<byte>(), CancellationToken.None);
     }
 
-    /// <summary>Gửi 1 file lên thư mục nhận của máy đích. Ném <see cref="IOException"/> nếu agent từ chối/lỗi.</summary>
-    public async Task UploadFileAsync(string localPath, IProgress<(long Done, long Total)>? progress = null,
+    /// <summary>Gửi 1 file lên thư mục nhận của máy đích; trả về TÊN file thực tế trên máy đích (có thể đã đổi nếu trùng). Ném <see cref="IOException"/> nếu agent từ chối/lỗi.</summary>
+    public async Task<string> UploadFileAsync(string localPath, IProgress<(long Done, long Total)>? progress = null,
         CancellationToken ct = default)
     {
         if (_state != ConnectionState.Streaming) throw new InvalidOperationException("Chưa kết nối");
@@ -237,7 +237,7 @@ public sealed class RemoteControlClient : IRemoteControlClient
             }
 
             await SendLockedAsync(MessageType.FileEnd, new[] { id }, ct).ConfigureAwait(false);
-            await WaitAckAsync(st.Done.Task, 60_000, ct).ConfigureAwait(false);
+            return await WaitAckAsync(st.Done.Task, 60_000, ct).ConfigureAwait(false);
         }
         finally
         {
@@ -246,8 +246,31 @@ public sealed class RemoteControlClient : IRemoteControlClient
     }
 
     /// <summary>Tải file (theo tên trong thư mục nhận của máy đích) về <paramref name="localPath"/>.</summary>
-    public async Task DownloadFileAsync(string remoteName, string localPath,
+    public Task DownloadFileAsync(string remoteName, string localPath,
         IProgress<(long Done, long Total)>? progress = null, CancellationToken ct = default)
+        => DownloadCoreAsync(MessageType.FileGet, remoteName, localPath, progress, ct);
+
+    /// <summary>
+    /// Tải file theo đường dẫn tuyệt đối trên ZCU. Agent chỉ chấp nhận đường dẫn thuộc danh sách file
+    /// người dùng vừa Copy trên ZCU (<see cref="ClipboardFileListReceived"/>) — không đọc file tuỳ ý.
+    /// </summary>
+    public Task DownloadRemotePathAsync(string remotePath, string localPath,
+        IProgress<(long Done, long Total)>? progress = null, CancellationToken ct = default)
+        => DownloadCoreAsync(MessageType.FileGetPath, remotePath, localPath, progress, ct);
+
+    /// <summary>Đặt các file (đã upload, theo tên trả về từ UploadFileAsync) lên clipboard ZCU như vừa Copy trong trình quản lý file.</summary>
+    public Task SetRemoteClipboardFilesAsync(IEnumerable<string> uploadedNames)
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        var json = System.Text.Json.JsonSerializer.Serialize(uploadedNames);
+        return SendLockedAsync(MessageType.ClipboardFiles, MessageCodec.EncodeStringMessage(json), CancellationToken.None);
+    }
+
+    /// <summary>JSON [{path,name,size}] khi người dùng Copy file trong trình quản lý file của ZCU.</summary>
+    public event EventHandler<string>? ClipboardFileListReceived;
+
+    private async Task DownloadCoreAsync(MessageType request, string remoteRef, string localPath,
+        IProgress<(long Done, long Total)>? progress, CancellationToken ct)
     {
         if (_state != ConnectionState.Streaming) throw new InvalidOperationException("Chưa kết nối");
 
@@ -257,7 +280,7 @@ public sealed class RemoteControlClient : IRemoteControlClient
 
         try
         {
-            await SendLockedAsync(MessageType.FileGet, System.Text.Encoding.UTF8.GetBytes(remoteName), ct).ConfigureAwait(false);
+            await SendLockedAsync(request, System.Text.Encoding.UTF8.GetBytes(remoteRef), ct).ConfigureAwait(false);
             using var reg = ct.Register(() => st.Completed.TrySetCanceled(ct));
             await st.Completed.Task.ConfigureAwait(false);
         }
@@ -272,12 +295,12 @@ public sealed class RemoteControlClient : IRemoteControlClient
         }
     }
 
-    private static async Task WaitAckAsync(Task<string> ack, int timeoutMs, CancellationToken ct)
+    private static async Task<string> WaitAckAsync(Task<string> ack, int timeoutMs, CancellationToken ct)
     {
         var done = await Task.WhenAny(ack, Task.Delay(timeoutMs, ct)).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
         if (done != ack) throw new TimeoutException("Máy đích không phản hồi (agent có thể là bản cũ < 1.2)");
-        await ack.ConfigureAwait(false); // ném IOException nếu agent báo lỗi
+        return await ack.ConfigureAwait(false); // ném IOException nếu agent báo lỗi
     }
 
     private void HandleFileAck(byte[] payload)
@@ -622,6 +645,10 @@ public sealed class RemoteControlClient : IRemoteControlClient
                 
                 case MessageType.ClipboardData:
                     ClipboardDataReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
+                    break;
+
+                case MessageType.ClipboardFileList:
+                    ClipboardFileListReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
                     break;
 
                 case MessageType.FileAck:   HandleFileAck(payload); break;

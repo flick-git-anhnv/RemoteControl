@@ -45,7 +45,7 @@ internal sealed class ClientSession
     private const int MaxClipboardChars = 262_144;
 
     /// <summary>Chu kỳ (ms) poll clipboard ZCU để đồng bộ ngược về CCU. 1s: mỗi lần poll spawn 1 tiến trình xclip, máy Atom/Celeron yếu không nên poll dày hơn.</summary>
-    private const int ClipboardPollMs = 1_000;
+    private const int ClipboardPollMs = 2_000;
 
     /// <summary>Màn hình đang được chọn (null = toàn desktop). Ghi từ receive loop, đọc từ capture loop và khi enqueue chuột.</summary>
     private volatile MonitorInfo? _monitor;
@@ -473,6 +473,8 @@ internal sealed class ClientSession
                     case MessageType.FileEnd:
                     case MessageType.FileListReq:
                     case MessageType.FileGet:
+                    case MessageType.FileGetPath:
+                    case MessageType.ClipboardFiles:
                         if (_files is not { Enabled: true })
                         {
                             if (type == MessageType.FileBegin)
@@ -487,6 +489,12 @@ internal sealed class ClientSession
                             case MessageType.FileEnd:     await _files.OnEndAsync(payload, ct);   break;
                             case MessageType.FileListReq: await _files.OnListAsync(ct);           break;
                             case MessageType.FileGet:     await _files.OnGetAsync(payload, ct);   break;
+                            case MessageType.FileGetPath: await _files.OnGetPathAsync(payload, ct); break;
+                            case MessageType.ClipboardFiles:
+                                // Chặn poll gửi ngược chính các file vừa đặt lên clipboard ZCU về CCU.
+                                if (_files.OnClipboardFiles(payload) is { } placed)
+                                    Volatile.Write(ref _lastClipboardHash, placed.GetHashCode());
+                                break;
                         }
                         break;
 
@@ -545,15 +553,7 @@ internal sealed class ClientSession
 
                     case MessageType.ClipboardGet:
                         if (_options.EnableDesktopIntegration)
-                        {
-                            var cur = await GetClipboardAsync(ct);
-                            if (!string.IsNullOrEmpty(cur) && cur.Length <= MaxClipboardChars)
-                            {
-                                Volatile.Write(ref _lastClipboardHash, cur.GetHashCode());
-                                _logger.LogInformation("CLIPBOARD to CCU on request (len: {Len})", cur.Length);
-                                await WriteAsync(MessageType.ClipboardData, MessageCodec.EncodeStringMessage(cur), ct);
-                            }
-                        }
+                            await PushClipboardAsync(force: true, markOnly: false, ct);
                         break;
 
                     case MessageType.PrivacyMode:
@@ -704,8 +704,8 @@ internal sealed class ClientSession
     }
 
     /// <summary>
-    /// Poll clipboard ZCU (<c>xclip -o</c>) và đẩy <see cref="MessageType.ClipboardData"/> S→C khi nội dung
-    /// đổi. Nếu xclip không có/không đọc được thì bỏ qua êm, không làm chết session.
+    /// Poll clipboard ZCU định kỳ và đẩy sang CCU khi nội dung đổi (chữ → ClipboardData, file vừa Copy trong
+    /// trình quản lý file → ClipboardFileList). Nếu xclip không có/không đọc được thì bỏ qua êm.
     /// </summary>
     private async Task RunClipboardWatchLoopAsync(CancellationToken ct)
     {
@@ -718,29 +718,100 @@ internal sealed class ClientSession
             }
 
             // Mốc ban đầu: nội dung có sẵn trên ZCU không tự đẩy sang CCU.
-            var initial = await GetClipboardAsync(ct);
-            if (initial is not null) Volatile.Write(ref _lastClipboardHash, initial.GetHashCode());
+            await PushClipboardAsync(force: false, markOnly: true, ct);
 
             while (!ct.IsCancellationRequested)
             {
                 await Task.Delay(ClipboardPollMs, ct);
-
-                var text = await GetClipboardAsync(ct);
-                if (string.IsNullOrEmpty(text) || text.Length > MaxClipboardChars) continue;
-
-                var hash = text.GetHashCode();
-                if (hash == Volatile.Read(ref _lastClipboardHash)) continue;
-
-                Volatile.Write(ref _lastClipboardHash, hash);
-                _logger.LogInformation("CLIPBOARD to CCU (len: {Len})", text.Length);
-                await WriteAsync(MessageType.ClipboardData, MessageCodec.EncodeStringMessage(text), ct);
+                await PushClipboardAsync(force: false, markOnly: false, ct);
             }
         }
         catch (OperationCanceledException) { /* expected */ }
     }
 
+    /// <summary>
+    /// Đọc clipboard ZCU và gửi sang CCU. <paramref name="force"/>: gửi dù không đổi (CCU chủ động kéo sau Ctrl+C).
+    /// <paramref name="markOnly"/>: chỉ ghi nhớ mốc, không gửi.
+    /// </summary>
+    private async Task PushClipboardCoreAsync(bool force, bool markOnly, CancellationToken ct)
+    {
+        // 1) File vừa Copy trong trình quản lý file?
+        var files = await GetClipboardFilesAsync(ct);
+        if (files is not null)
+        {
+            var key = string.Join("\n", files).GetHashCode();
+            if (markOnly) { Volatile.Write(ref _lastClipboardHash, key); return; }
+            if (!force && key == Volatile.Read(ref _lastClipboardHash)) return;
+            Volatile.Write(ref _lastClipboardHash, key);
+
+            var infos = files.Select(p => new FileInfo(p))
+                             .Where(i => i.Exists && i.Length <= _options.MaxTransferBytes)
+                             .Select(i => new { path = i.FullName, name = i.Name, size = i.Length }).ToList();
+            if (infos.Count == 0 || _files is not { Enabled: true }) return;
+
+            _files.SetAdvertised(infos.Select(i => i.path));
+            _logger.LogInformation("CLIPBOARD files to CCU ({Count} file)", infos.Count);
+            await WriteAsync(MessageType.ClipboardFileList,
+                MessageCodec.EncodeStringMessage(System.Text.Json.JsonSerializer.Serialize(infos)), ct);
+            return;
+        }
+
+        // 2) Chữ
+        var text = await GetClipboardAsync(ct);
+        if (string.IsNullOrEmpty(text) || text.Length > MaxClipboardChars) return;
+
+        var hash = text.GetHashCode();
+        if (markOnly) { Volatile.Write(ref _lastClipboardHash, hash); return; }
+        if (!force && hash == Volatile.Read(ref _lastClipboardHash)) return;
+
+        Volatile.Write(ref _lastClipboardHash, hash);
+        _logger.LogInformation("CLIPBOARD to CCU (len: {Len})", text.Length);
+        await WriteAsync(MessageType.ClipboardData, MessageCodec.EncodeStringMessage(text), ct);
+    }
+
+    // Poll và ClipboardGet không được chạy chồng nhau (nếu không có thể gửi trùng một nội dung).
+    private readonly SemaphoreSlim _clipLock = new(1, 1);
+
+    private async Task PushClipboardAsync(bool force, bool markOnly, CancellationToken ct)
+    {
+        await _clipLock.WaitAsync(ct);
+        try { await PushClipboardCoreAsync(force, markOnly, ct); }
+        finally { _clipLock.Release(); }
+    }
+
     /// <summary>Đọc text clipboard ZCU qua <c>xclip -o</c>. Trả null nếu rỗng/không phải text/xclip lỗi.</summary>
-    private async Task<string?> GetClipboardAsync(CancellationToken ct)
+    private Task<string?> GetClipboardAsync(CancellationToken ct) => RunXclipOutAsync(null, ct);
+
+    /// <summary>
+    /// Nếu clipboard ZCU đang chứa file (Copy trong Nautilus/PCManFM/Thunar…) → danh sách đường dẫn tuyệt đối
+    /// (chỉ mục file:// cục bộ); ngược lại null. Đọc TARGETS trước để không tốn thêm tiến trình khi là chữ.
+    /// </summary>
+    private async Task<List<string>?> GetClipboardFilesAsync(CancellationToken ct)
+    {
+        var targets = await RunXclipOutAsync("TARGETS", ct);
+        if (targets is null) return null;
+
+        string? target = null;
+        foreach (var t in targets.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (t == "x-special/gnome-copied-files") { target = t; break; }
+            if (t == "text/uri-list") target = t;
+        }
+        if (target is null) return null;
+
+        var raw = await RunXclipOutAsync(target, ct);
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+
+        var paths = new List<string>();
+        foreach (var line in raw.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            if (line.StartsWith("file://", StringComparison.OrdinalIgnoreCase) &&
+                Uri.TryCreate(line, UriKind.Absolute, out var uri) && uri.IsFile)
+                paths.Add(uri.LocalPath);
+        return paths.Count > 0 ? paths : null;
+    }
+
+    /// <summary><c>xclip -selection clipboard -o [-t target]</c>; null nếu lỗi/rỗng/quá 2 giây.</summary>
+    private async Task<string?> RunXclipOutAsync(string? target, CancellationToken ct)
     {
         try
         {
@@ -753,6 +824,7 @@ internal sealed class ClientSession
             psi.ArgumentList.Add("-selection");
             psi.ArgumentList.Add("clipboard");
             psi.ArgumentList.Add("-o");
+            if (target is not null) { psi.ArgumentList.Add("-t"); psi.ArgumentList.Add(target); }
 
             using var proc = Process.Start(psi);
             if (proc is null) return null;

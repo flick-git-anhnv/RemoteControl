@@ -65,6 +65,8 @@ public partial class RemoteScreenWindow : Window
         _vm.Client.SysInfoReceived += OnSysInfoReceived;
         _vm.Client.ClipboardDataReceived += OnClipboardDataReceived;
         _vm.Client.MonitorListReceived += OnMonitorListReceived;
+        _vm.Client.ClipboardFileListReceived += OnClipboardFileListReceived;
+        RemoteScreen.PasteStatus += s => Dispatcher.UIThread.Post(() => SetStatusTitle(s));
         _vm.Client.FrameReceived += OnFrameReceived;
         _vm.Client.StateChanged += OnClientStateChanged;
     }
@@ -90,6 +92,7 @@ public partial class RemoteScreenWindow : Window
         _vm.Client.SysInfoReceived -= OnSysInfoReceived;
         _vm.Client.ClipboardDataReceived -= OnClipboardDataReceived;
         _vm.Client.MonitorListReceived -= OnMonitorListReceived;
+        _vm.Client.ClipboardFileListReceived -= OnClipboardFileListReceived;
         _vm.Client.StateChanged  -= OnClientStateChanged;
         _sysInfoTimeoutCts?.Cancel();
         _fileWindow?.Close();
@@ -146,6 +149,81 @@ public partial class RemoteScreenWindow : Window
     }
 
     // ── F02: cảnh báo agent phiên bản cũ (fail âm thầm SysInfo/Privacy/Chat/Clipboard) ──
+
+    // ── File Copy trên ZCU → clipboard Windows ───────────────────────────────
+
+    private string _titleBase => $"Remote Control — {_host}:{_port}";
+    private void SetStatusTitle(string? status)
+        => Title = string.IsNullOrEmpty(status) ? _titleBase : $"{_titleBase}  |  {status}";
+
+    private string? _lastClipFileJson;
+    private int _clipFilesBusy;
+
+    /// <summary>
+    /// Người dùng vừa Copy file trong trình quản lý file của ZCU → tải các file về thư mục tạm rồi đặt vào
+    /// clipboard Windows, để Ctrl+V trong Explorer dán ra được. Mỗi danh sách chỉ tải một lần.
+    /// </summary>
+    private async void OnClipboardFileListReceived(object? sender, string json)
+    {
+        if (json == _lastClipFileJson) return;
+        if (Interlocked.CompareExchange(ref _clipFilesBusy, 1, 0) != 0) return;
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var items = doc.RootElement.EnumerateArray()
+                .Select(e => (Path: e.GetProperty("path").GetString()!, Name: e.GetProperty("name").GetString()!))
+                .ToList();
+            if (items.Count == 0) return;
+            _lastClipFileJson = json;
+
+            var root = Path.Combine(Path.GetTempPath(), "IPGS-Remote", "clip");
+            CleanOldTempDirs(root);
+            var dir = Path.Combine(root, Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+
+            var local = new List<string>();
+            for (var i = 0; i < items.Count; i++)
+            {
+                var dest = Path.Combine(dir, Path.GetFileName(items[i].Name));
+                var idx = i;
+                var progress = new Progress<(long Done, long Total)>(p => SetStatusTitle(
+                    $"Đang tải {items[idx].Name} từ máy đích ({idx + 1}/{items.Count}) — {(p.Total <= 0 ? 0 : p.Done * 100 / p.Total)}%"));
+                await _vm.Client.DownloadRemotePathAsync(items[i].Path, dest, progress);
+                local.Add(dest);
+            }
+
+            var top = TopLevel.GetTopLevel(this);
+            if (top?.Clipboard is { } clipboard)
+            {
+                var storage = new List<IStorageItem>();
+                foreach (var p in local)
+                    if (await top.StorageProvider.TryGetFileFromPathAsync(p) is { } f) storage.Add(f);
+                await clipboard.SetFilesAsync(storage);
+                SetStatusTitle($"Đã chép {storage.Count} file từ máy đích vào clipboard — dán (Ctrl+V) trong Explorer");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatusTitle("⚠ Không lấy được file từ máy đích: " + ex.Message);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _clipFilesBusy, 0);
+            _ = Task.Delay(8000).ContinueWith(_ => Dispatcher.UIThread.Post(() => SetStatusTitle(null)));
+        }
+    }
+
+    private static void CleanOldTempDirs(string root)
+    {
+        try
+        {
+            if (!Directory.Exists(root)) return;
+            foreach (var d in Directory.GetDirectories(root))
+                if (Directory.GetCreationTimeUtc(d) < DateTime.UtcNow.AddDays(-1)) Directory.Delete(d, true);
+        }
+        catch { /* file đang được dùng — bỏ qua */ }
+    }
 
     // ── Multi-monitor ────────────────────────────────────────────────────────
 

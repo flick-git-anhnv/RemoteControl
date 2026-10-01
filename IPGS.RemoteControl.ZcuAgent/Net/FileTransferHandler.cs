@@ -28,6 +28,8 @@ internal sealed class FileTransferHandler : IDisposable
     private readonly Func<MessageType, byte[], CancellationToken, Task> _send;
     private readonly Dictionary<byte, Upload> _uploads = new();
     private readonly string _dir;
+    private readonly HashSet<string> _advertised = new();
+    private Interop.X11ClipboardOwner? _owner;
     private byte _nextDownloadId = 0x80; // id do agent cấp cho luồng S→C (tách khỏi id client cấp)
 
     public FileTransferHandler(AgentOptions options, ILogger logger,
@@ -141,7 +143,7 @@ internal sealed class FileTransferHandler : IDisposable
             MessageCodec.EncodeStringMessage(System.Text.Json.JsonSerializer.Serialize(items)), ct);
     }
 
-    /// <summary>Gửi file về CCU trên task nền (không chặn receive loop). Lỗi → FileAck status 2, id 0.</summary>
+    /// <summary>Gửi file (theo tên trong thư mục nhận) về CCU trên task nền. Lỗi → FileAck status 2, id 0.</summary>
     public Task OnGetAsync(byte[] payload, CancellationToken ct)
     {
         var name = SanitizeName(Encoding.UTF8.GetString(payload));
@@ -149,6 +151,34 @@ internal sealed class FileTransferHandler : IDisposable
         if (path is null || !File.Exists(path))
             return AckAsync(0, 2, "Không tìm thấy file trên máy đích", ct);
 
+        StreamFileInBackground(path, name!, ct);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Gửi file theo đường dẫn tuyệt đối — CHỈ khi đường dẫn nằm trong danh sách vừa được báo qua
+    /// <see cref="MessageType.ClipboardFileList"/> (file người dùng vừa Copy trên ZCU). Không đọc file tuỳ ý.
+    /// </summary>
+    public Task OnGetPathAsync(byte[] payload, CancellationToken ct)
+    {
+        var path = Encoding.UTF8.GetString(payload);
+        bool allowed;
+        lock (_advertised) allowed = _advertised.Contains(path);
+        if (!allowed || !File.Exists(path))
+            return AckAsync(0, 2, "File không nằm trong danh sách vừa Copy trên máy đích", ct);
+
+        StreamFileInBackground(path, Path.GetFileName(path), ct);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Ghi nhận danh sách đường dẫn được phép tải qua <see cref="OnGetPathAsync"/> (thay thế danh sách cũ).</summary>
+    public void SetAdvertised(IEnumerable<string> paths)
+    {
+        lock (_advertised) { _advertised.Clear(); foreach (var p in paths) _advertised.Add(p); }
+    }
+
+    private void StreamFileInBackground(string path, string displayName, CancellationToken ct)
+    {
         var id = _nextDownloadId++;
         if (_nextDownloadId < 0x80) _nextDownloadId = 0x80;
 
@@ -157,7 +187,12 @@ internal sealed class FileTransferHandler : IDisposable
             try
             {
                 await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
-                var nameBytes = Encoding.UTF8.GetBytes(name!);
+                if (fs.Length > _options.MaxTransferBytes)
+                {
+                    await AckAsync(id, 2, $"File vượt giới hạn {_options.MaxTransferBytes / 1024 / 1024} MB", ct);
+                    return;
+                }
+                var nameBytes = Encoding.UTF8.GetBytes(displayName);
                 var begin = new byte[9 + nameBytes.Length];
                 begin[0] = id;
                 BinaryPrimitives.WriteUInt64BigEndian(begin.AsSpan(1), (ulong)fs.Length);
@@ -175,11 +210,38 @@ internal sealed class FileTransferHandler : IDisposable
             catch (OperationCanceledException) { /* session đóng */ }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Gửi file {Name} về CCU thất bại", name);
+                _logger.LogWarning(ex, "Gửi file {Name} về CCU thất bại", displayName);
                 try { await AckAsync(id, 2, "Lỗi đọc/gửi file: " + ex.Message, ct); } catch { /* ignore */ }
             }
         }, ct);
-        return Task.CompletedTask;
+    }
+
+    // ── Dán file: CCU → ZCU ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Đặt các file đã upload (tên trong TransferDir) lên clipboard ZCU như vừa "Copy" trong trình quản lý
+    /// file. Trả về khoá (các đường dẫn nối bằng LF) — caller dùng để chặn gửi ngược lại CCU — hoặc null nếu lỗi.
+    /// </summary>
+    public string? OnClipboardFiles(byte[] payload)
+    {
+        try
+        {
+            var names = System.Text.Json.JsonSerializer.Deserialize<string[]>(MessageCodec.DecodeStringMessage(payload)) ?? [];
+            var paths = names.Select(SanitizeName).Where(n => n is not null)
+                             .Select(n => Path.Combine(_dir, n!)).Where(File.Exists).ToList();
+            if (paths.Count == 0) return null;
+
+            _owner ??= new Interop.X11ClipboardOwner(_logger);
+            if (!_owner.SetFiles(paths)) return null;
+            _logger.LogInformation("Clipboard ZCU: đặt {Count} file để dán", paths.Count);
+            // "Khoá" nhận diện nội dung clipboard: các đường dẫn nối bằng LF — trùng cách ClientSession tính khi poll.
+            return string.Join("\n", paths.Select(p => new Uri(p).LocalPath));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Không đặt được file lên clipboard ZCU");
+            return null;
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
@@ -226,5 +288,6 @@ internal sealed class FileTransferHandler : IDisposable
     public void Dispose()
     {
         foreach (var id in _uploads.Keys.ToArray()) Abort(id);
+        _owner?.Dispose();
     }
 }

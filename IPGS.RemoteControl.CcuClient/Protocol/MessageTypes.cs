@@ -40,6 +40,9 @@ public enum MessageType : byte
     FileListReq = 0x74, // C→S  liệt kê file trong TransferDir
     FileList    = 0x75, // S→C  JSON [{name,size}]
     FileGet     = 0x76, // C→S  utf8 name — yêu cầu agent gửi file về
+    FileGetPath = 0x77, // C→S  utf8 đường dẫn tuyệt đối — chỉ chấp nhận file nằm trong danh sách ClipboardFileList agent vừa báo
+    ClipboardFiles    = 0x57, // C→S  JSON ["tên file đã upload", …] — đặt các file đó lên clipboard ZCU như vừa Copy
+    ClipboardFileList = 0x58, // S→C  JSON [{path,name,size}] — người dùng vừa Copy file trong trình quản lý file của ZCU
 
     // v2.0 — Phase 6 Enterprise Features
     ChatText    = 0x41,  // C↔S  UTF-8 text message

@@ -102,7 +102,7 @@
       DataContext is inherited from the Window (RemoteScreenViewModel),
       so RemoteScreenControl receives the same ViewModel automatically.
     -->
-    <views:RemoteScreenControl Grid.Row="3"
+    <views:RemoteScreenControl Name="RemoteScreen" Grid.Row="3"
                                HorizontalAlignment="Stretch"
                                VerticalAlignment="Stretch" />
 

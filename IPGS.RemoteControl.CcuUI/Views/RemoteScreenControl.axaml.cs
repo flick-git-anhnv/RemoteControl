@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Platform.Storage;
 using Avalonia.Interactivity;
 using IPGS.RemoteControl.CcuUI.ViewModels;
 
@@ -137,25 +138,93 @@ public partial class RemoteScreenControl : UserControl
 
     private async Task PasteAsync(RemoteScreenViewModel vm, Key key, string? symbol, KeyModifiers mods, PhysicalKey physical)
     {
+        var sendKey = true;
         try
         {
             var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
             if (clipboard is not null)
             {
-                var text = await clipboard.TryGetTextAsync();
-                if (!string.IsNullOrEmpty(text))
+                // File vừa Copy trong Explorer → gửi sang ZCU, đặt lên clipboard ZCU, rồi mới gửi phím V để dán.
+                var filesOk = await TryPasteFilesAsync(vm, clipboard); // null = không phải file
+                if (filesOk == false) sendKey = false;                 // lỗi → không gửi V (tránh dán nhầm nội dung cũ)
+                else if (filesOk is null)
                 {
-                    await vm.Client.SendClipboardTextAsync(text);
-                    await Task.Delay(ClipboardApplyDelayMs);
+                    var text = await clipboard.TryGetTextAsync();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        await vm.Client.SendClipboardTextAsync(text);
+                        await Task.Delay(ClipboardApplyDelayMs);
+                    }
                 }
             }
         }
         catch { /* clipboard Windows đang bị tiến trình khác giữ — vẫn gửi phím V */ }
         finally
         {
-            vm.HandleKeyDown(key, symbol, mods, physical);
-            vm.HandleKeyUp(key, symbol, mods, physical);
+            if (sendKey)
+            {
+                vm.HandleKeyDown(key, symbol, mods, physical);
+                vm.HandleKeyUp(key, symbol, mods, physical);
+            }
         }
+    }
+
+    /// <summary>Trạng thái dán file (tiến độ/kết quả) — cửa sổ cha hiển thị trên thanh tiêu đề. null = xoá.</summary>
+    public event Action<string?>? PasteStatus;
+
+    private const int MaxPasteFiles = 50;
+
+    /// <summary>
+    /// Clipboard Windows có file? → upload từng file lên thư mục nhận của ZCU, rồi đặt chúng lên clipboard
+    /// ZCU như vừa "Copy". Trả null = clipboard không có file; true = đã chuẩn bị xong (gửi phím V); false = lỗi (không gửi V).
+    /// Thư mục bị bỏ qua (chỉ hỗ trợ file).
+    /// </summary>
+    private async Task<bool?> TryPasteFilesAsync(RemoteScreenViewModel vm, IClipboard clipboard)
+    {
+        var items = await clipboard.TryGetFilesAsync();
+        var paths = items?.Select(i => i.TryGetLocalPath()).Where(p => p is not null && File.Exists(p))
+                          .Cast<string>().Take(MaxPasteFiles).ToList();
+        if (paths is null || paths.Count == 0) return null;
+
+        if (vm.Client.ServerName is { } sn && !AgentSupportsFiles(sn))
+        {
+            PasteStatus?.Invoke("⚠ Agent cũ (<1.2) chưa hỗ trợ dán file — cập nhật qua “⚡ Cài remote”");
+            return false;
+        }
+
+        var uploaded = new List<string>();
+        try
+        {
+            for (var i = 0; i < paths.Count; i++)
+            {
+                var name = Path.GetFileName(paths[i]);
+                var idx = i;
+                var progress = new Progress<(long Done, long Total)>(p =>
+                    PasteStatus?.Invoke($"Đang gửi {name} ({idx + 1}/{paths.Count}) — {(p.Total <= 0 ? 0 : p.Done * 100 / p.Total)}%"));
+                uploaded.Add(await vm.Client.UploadFileAsync(paths[i], progress));
+            }
+            await vm.Client.SetRemoteClipboardFilesAsync(uploaded);
+            await Task.Delay(300); // chờ agent chiếm xong clipboard
+            PasteStatus?.Invoke($"Đã gửi {uploaded.Count} file — đang dán trên máy đích");
+        }
+        catch (Exception ex)
+        {
+            PasteStatus?.Invoke("⚠ Dán file lỗi: " + ex.Message);
+            return false; // lỗi — PasteAsync sẽ không gửi phím V
+        }
+        finally
+        {
+            _ = Task.Delay(6000).ContinueWith(_ => PasteStatus?.Invoke(null));
+        }
+
+        // Gửi phím V (Ctrl đang giữ) → trình quản lý file ZCU dán các file vừa đặt lên clipboard.
+        return true;  // thành công → PasteAsync gửi phím V để ZCU dán
+    }
+
+    private static bool AgentSupportsFiles(string serverName)
+    {
+        var idx = serverName.LastIndexOf('/');
+        return idx >= 0 && Version.TryParse(serverName[(idx + 1)..], out var v) && v >= new Version(1, 2);
     }
 
     private async Task PullClipboardLaterAsync(RemoteScreenViewModel vm)
