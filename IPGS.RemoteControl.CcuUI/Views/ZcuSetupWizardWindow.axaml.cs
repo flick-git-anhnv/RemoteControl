@@ -51,6 +51,11 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             if (prefill.Port > 0) PART_AgentPort.Text = prefill.Port.ToString();
             if (!string.IsNullOrWhiteSpace(prefill.Token)) PART_AgentToken.Text = prefill.Token;
+
+            // Nạp lại cấu hình cài lần trước (nếu đã lưu); chưa có thì giữ giá trị mặc định trên form.
+            if (!string.IsNullOrWhiteSpace(prefill.SetupAllowedClientIPs)) PART_AllowedIPs.Text = prefill.SetupAllowedClientIPs;
+            if (prefill.SetupTargetFps is > 0) PART_TargetFps.Text = prefill.SetupTargetFps.Value.ToString();
+            if (prefill.SetupJpegQuality is > 0) PART_JpegQuality.Text = prefill.SetupJpegQuality.Value.ToString();
         }
 
         private void GenerateRandomToken()
@@ -85,6 +90,19 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
                 PART_StatusMsg.Text = "Thiếu IP/SSH user (vào 'Sửa' máy tính để bổ sung) hoặc Token Agent.";
                 return;
+            }
+
+            // Lưu cấu hình ngay khi bấm cài (kể cả cài lỗi) để lần mở sau tự nạp lại.
+            // Chỉ cập nhật máy đã có trong danh sách; máy mới được lưu sau khi cài xong (nếu tick).
+            var known = ComputerProfileStore.Instance.GetById(_prefillId)
+                ?? ComputerProfileStore.Instance.GetAll().FirstOrDefault(p =>
+                    p.Host.Equals(_sshHost, StringComparison.OrdinalIgnoreCase));
+            if (known != null)
+            {
+                known.SetupAllowedClientIPs = allowedIps;
+                known.SetupTargetFps = targetFps;
+                known.SetupJpegQuality = jpegQuality;
+                ComputerProfileStore.Instance.Save(known);
             }
 
             PART_BtnStartInstall.IsEnabled = false;
@@ -160,6 +178,9 @@ namespace IPGS.RemoteControl.CcuUI.Views
                         MacAddress = existing?.MacAddress,
                         LastAppInstallerPath = existing?.LastAppInstallerPath,
                         LastUninstallPackage = existing?.LastUninstallPackage,
+                        SetupAllowedClientIPs = allowedIps,
+                        SetupTargetFps = targetFps,
+                        SetupJpegQuality = jpegQuality,
                         CreatedAt = existing?.CreatedAt ?? DateTimeOffset.Now,
                         LastConnectedAt = DateTimeOffset.Now
                     };

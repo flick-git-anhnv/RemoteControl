@@ -16,9 +16,6 @@
       Avalonia 12.1.0 — match KztekComponentAvalonia.
       Must be a direct reference so the Avalonia AXAML compiler (Build.Tasks) activates.
     -->
-    <PackageReference Include="Avalonia" Version="12.1.0" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
 
     <!-- JPEG decode on CCU side — 3.119.4 required by Avalonia.Desktop 12.1.0 → Avalonia.Skia -->
     <PackageReference Include="SkiaSharp" Version="3.119.4" />

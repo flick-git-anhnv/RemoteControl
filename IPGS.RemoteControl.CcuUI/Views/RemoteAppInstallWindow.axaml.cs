@@ -161,7 +161,10 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             try
             {
-                await _installService.InstallAsync(options, Log);
+                PART_ProgressPanel.IsVisible = true;
+                ReportProgress(new InstallProgress(0, "Đang kết nối..."));
+                await _installService.InstallAsync(options, Log, default, ReportProgress);
+                ReportProgress(new InstallProgress(100, "Hoàn tất 100%"));
 
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Green;
                 PART_StatusMsg.Text = "🎉 Đã tải lên và cài đặt thành công!";
@@ -246,6 +249,16 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 PART_BtnBrowseApp.IsEnabled = true;
                 if (this.FindControl<Button>("PART_BtnUninstall") is { } btnUninstall2) btnUninstall2.IsEnabled = true;
             }
+        }
+
+        private void ReportProgress(InstallProgress p)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                PART_Progress.IsIndeterminate = p.Percent < 0;
+                if (p.Percent >= 0) PART_Progress.Value = p.Percent;
+                PART_ProgressText.Text = p.Text;
+            });
         }
 
         private void Log(string text)

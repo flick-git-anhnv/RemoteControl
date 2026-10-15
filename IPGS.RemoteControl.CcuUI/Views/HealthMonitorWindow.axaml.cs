@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -21,8 +22,109 @@ public class ProcessItem
     public string Command { get; set; } = "";
 }
 
+public class AcceleratorItem
+{
+    public string Kind { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Util { get; set; } = "";
+    public string Freq { get; set; } = "";
+    public string Temp { get; set; } = "";
+    public string Note { get; set; } = "";
+}
+
 public partial class HealthMonitorWindow : Window
 {
+    // Script dò GPU/NPU/VPU chạy trên máy khách (POSIX sh). Mỗi dòng: KIND|tên|tải%|MHz|°C|ghi chú
+    // Gửi qua base64 để tránh lỗi quote khi chạy bằng SSH exec.
+    private const string AcceleratorProbeScript = """
+emit() { echo "$1|$2|${3:--}|${4:--}|${5:--}|${6:--}"; }
+devname() { n=$(lspci -s "$1" 2>/dev/null | cut -d: -f3- | sed 's/^ *//'); [ -n "$n" ] && echo "$n" || echo "$2"; }
+dfinfo() {
+  for p in /sys/class/devfreq/*; do
+    [ -d "$p" ] || continue
+    basename "$p" | grep -Eqi "$1" || continue
+    l=$(cat "$p/load" 2>/dev/null); u=${l%%@*}
+    g=$(cat "$p/governor" 2>/dev/null)
+    # governor cố định xung nhịp thì "load" không phản ánh tải thật (hay kẹt 100%) -> bỏ
+    case "$g" in performance|userspace|powersave) u= ;; esac
+    fr=$(cat "$p/cur_freq" 2>/dev/null); [ -n "$fr" ] && fr=$((fr/1000000))
+    echo "$(basename "$p")|$u|$fr|$g"
+  done
+}
+# GPU NVIDIA
+if command -v nvidia-smi >/dev/null 2>&1; then
+  nvidia-smi --query-gpu=name,utilization.gpu,clocks.gr,temperature.gpu,memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null | while IFS=, read -r n u f t mu mt; do
+    emit GPU "$n" "$u" "$f" "$t" "VRAM $mu/$mt MB"
+  done
+fi
+# GPU AMD / Intel / ARM (DRM)
+for c in /sys/class/drm/card[0-9]; do
+  d=$c/device; [ -d "$d" ] || continue
+  drv=$(basename "$(readlink -f "$d/driver" 2>/dev/null)")
+  [ "$drv" = nvidia ] && continue
+  # cổng DRM của NPU/VPU (vd rknpu) không phải GPU -> để mục NPU/VPU xử lý
+  echo "$drv" | grep -Eqi 'npu|vpu' && continue
+  n=$(devname "$(basename "$(readlink -f "$d")")" "$drv")
+  u=$(cat "$d/gpu_busy_percent" 2>/dev/null)
+  f=$(cat "$c/gt_cur_freq_mhz" 2>/dev/null)
+  [ -n "$f" ] || f=$(sed -n 's/^[0-9]*: *\([0-9]*\)Mhz \*.*/\1/p' "$d/pp_dpm_sclk" 2>/dev/null)
+  t=$(cat "$d"/hwmon/hwmon*/temp1_input 2>/dev/null | head -n1); [ -n "$t" ] && t=$((t/1000))
+  vu=$(cat "$d/mem_info_vram_used" 2>/dev/null); vt=$(cat "$d/mem_info_vram_total" 2>/dev/null)
+  note=; [ -n "$vt" ] && [ -n "$vu" ] && note="VRAM $((vu/1048576))/$((vt/1048576)) MB"
+  if [ -z "$u" ]; then
+    x=$(dfinfo 'gpu|mali' | head -n1)
+    if [ -n "$x" ]; then u=$(echo "$x" | cut -d'|' -f2); [ -n "$f" ] || f=$(echo "$x" | cut -d'|' -f3); fi
+  fi
+  emit GPU "$n" "$u" "$f" "$t" "$note"
+done
+# NPU
+for a in /sys/class/accel/accel[0-9]*; do
+  [ -d "$a/device" ] || continue
+  drv=$(basename "$(readlink -f "$a/device/driver" 2>/dev/null)")
+  n=$(devname "$(basename "$(readlink -f "$a/device")")" "$drv")
+  b1=$(cat "$a/device/npu_busy_time_us" 2>/dev/null)
+  f=$(cat "$a/device/npu_current_frequency_mhz" 2>/dev/null)
+  u=
+  if [ -n "$b1" ]; then
+    sleep 1; b2=$(cat "$a/device/npu_busy_time_us" 2>/dev/null)
+    u=$(( (b2-b1)/10000 )); [ "$u" -gt 100 ] && u=100
+  fi
+  emit NPU "$n" "$u" "$f" "" "driver $drv"
+done
+rkl=$(cat /sys/kernel/debug/rknpu/load 2>/dev/null || sudo -n cat /sys/kernel/debug/rknpu/load 2>/dev/null)
+npu=$(dfinfo 'npu')
+if [ -n "$rkl" ]; then
+  # tải thật của NPU Rockchip: lấy core bận nhất
+  u=$(echo "$rkl" | grep -o '[0-9]*%' | tr -d % | sort -n | tail -n1)
+  f=$(echo "$npu" | head -n1 | cut -d'|' -f3)
+  emit NPU "Rockchip NPU" "$u" "$f" "" "rknpu (tải thật)"
+elif [ -n "$npu" ]; then
+  echo "$npu" | while IFS='|' read -r nm u f g; do
+    note="devfreq"; [ -n "$g" ] && note="devfreq, governor $g"; [ -z "$u" ] && note="$note (không đo được tải)"
+    emit NPU "$nm" "$u" "$f" "" "$note"
+  done
+fi
+for dv in /dev/hailo* /dev/apex_*; do
+  [ -e "$dv" ] && emit NPU "$(basename "$dv")" "" "" "" "phát hiện thiết bị, chưa đo tải"
+done
+# VPU
+vpu=$(dfinfo 'vpu|vdec|venc|rkvdec|hantro|codec|mfc')
+if [ -n "$vpu" ]; then
+  echo "$vpu" | while IFS='|' read -r nm u f g; do
+    note="devfreq"; [ -n "$g" ] && note="devfreq, governor $g"; [ -z "$u" ] && note="$note (không đo được tải)"
+    emit VPU "$nm" "$u" "$f" "" "$note"
+  done
+else
+  for dv in /dev/mpp_service /dev/vpu_service; do
+    [ -e "$dv" ] && emit VPU "$(basename "$dv")" "" "" "" "phát hiện thiết bị, chưa đo tải"
+  done
+  for v in /sys/class/video4linux/*/name; do cat "$v" 2>/dev/null; done | grep -Ei 'dec|enc|vpu|hantro|rkvdec|cedrus|codec|mfc|venus|coda' | sort -u | while IFS= read -r nm; do
+    emit VPU "$nm" "" "" "" "phát hiện thiết bị, chưa đo tải"
+  done
+fi
+exit 0
+""";
+
     private readonly ComputerProfile _profile;
     private DispatcherTimer? _timer;
     private bool _isConnecting;
@@ -32,6 +134,7 @@ public partial class HealthMonitorWindow : Window
     private bool _isClosed;
 
     public ObservableCollection<ProcessItem> Processes { get; set; } = new();
+    public ObservableCollection<AcceleratorItem> Accelerators { get; set; } = new();
 
     public HealthMonitorWindow()
     {
@@ -53,6 +156,8 @@ public partial class HealthMonitorWindow : Window
         {
             processList.ItemsSource = Processes;
         }
+        if (this.FindControl<DataGrid>("PART_AcceleratorList") is { } accelList)
+            accelList.ItemsSource = Accelerators;
 
         if (this.FindControl<KzButton>("PART_BtnRefresh") is { } btnRefresh) btnRefresh.Click += OnRefreshClick;
         if (this.FindControl<KzButton>("PART_BtnClose") is { } btnClose) btnClose.Click += (s, e) => Close();
@@ -160,11 +265,23 @@ public partial class HealthMonitorWindow : Window
                 using var topCmd = ssh.CreateCommand("top -b -n 1 | head -n 15");
                 string topResult = topCmd.Execute();
 
+                // 4. GPU / NPU / VPU (nếu có) — lỗi ở đây không được làm hỏng các chỉ số chính
+                string accelResult = "";
+                try
+                {
+                    string b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(AcceleratorProbeScript.Replace("\r\n", "\n")));
+                    using var accelCmd = ssh.CreateCommand($"echo {b64} | base64 -d | sh");
+                    accelCmd.CommandTimeout = TimeSpan.FromSeconds(10);
+                    accelResult = accelCmd.Execute();
+                }
+                catch { /* máy không hỗ trợ / timeout — bỏ qua */ }
+
                 Dispatcher.UIThread.Post(() =>
                 {
                     // Q18: guard — refresh in-flight không được post UI vào window đã đóng
                     if (_isClosed) return;
                     ParseAndUpdateUI(ramResult, diskResult, topResult);
+                    UpdateAccelerators(accelResult);
                     SetStatus($"Cập nhật lần cuối: {DateTime.Now:HH:mm:ss}");
                 });
             });
@@ -183,6 +300,36 @@ public partial class HealthMonitorWindow : Window
             if (_isClosed)
                 DisposeSshClient();
         }
+    }
+
+    private static string WithUnit(string v, string unit)
+    {
+        v = v.Trim();
+        if (v.Length == 0 || v == "-" || v.StartsWith("[")) return "--";
+        return v + unit;
+    }
+
+    private void UpdateAccelerators(string output)
+    {
+        Accelerators.Clear();
+        foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var p = line.Split('|', 6);
+            if (p.Length < 6 || p[0] is not ("GPU" or "NPU" or "VPU")) continue;
+            Accelerators.Add(new AcceleratorItem
+            {
+                Kind = p[0],
+                Name = p[1].Trim(),
+                Util = WithUnit(p[2], "%"),
+                Freq = WithUnit(p[3], " MHz"),
+                Temp = WithUnit(p[4], " °C"),
+                Note = p[5].Trim() == "-" ? "" : p[5].Trim()
+            });
+        }
+
+        bool any = Accelerators.Count > 0;
+        if (this.FindControl<Control>("PART_AcceleratorPanel") is { } panel)
+            panel.IsVisible = any;
     }
 
     private void ParseAndUpdateUI(string ramStr, string diskStr, string topStr)

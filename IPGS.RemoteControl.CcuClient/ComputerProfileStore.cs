@@ -92,6 +92,11 @@ public sealed class ComputerProfileStore : IComputerProfileStore
                 existing.LastAppInstallerPath = profile.LastAppInstallerPath;
                 existing.LastUninstallPackage = profile.LastUninstallPackage;
                 existing.MacAddress = profile.MacAddress;
+                // Cấu hình cài agent: chỉ ghi đè khi bên gọi có giá trị — các màn hình khác (Sửa máy...)
+                // không biết các trường này, không được làm mất chúng.
+                if (profile.SetupAllowedClientIPs != null) existing.SetupAllowedClientIPs = profile.SetupAllowedClientIPs;
+                if (profile.SetupTargetFps.HasValue) existing.SetupTargetFps = profile.SetupTargetFps;
+                if (profile.SetupJpegQuality.HasValue) existing.SetupJpegQuality = profile.SetupJpegQuality;
             }
             else
             {
@@ -283,6 +288,9 @@ public sealed class ComputerProfileStore : IComputerProfileStore
         LastConnectedAt = p.LastConnectedAt,
         LastAppInstallerPath = p.LastAppInstallerPath,
         LastUninstallPackage = p.LastUninstallPackage,
+        SetupAllowedClientIPs = p.SetupAllowedClientIPs,
+        SetupTargetFps = p.SetupTargetFps,
+        SetupJpegQuality = p.SetupJpegQuality,
         CreatedAt = p.CreatedAt
     };
 }

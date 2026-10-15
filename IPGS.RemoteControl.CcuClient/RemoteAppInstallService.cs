@@ -19,6 +19,9 @@ namespace IPGS.RemoteControl.CcuClient
         public string PackageName { get; set; } = string.Empty;
     }
 
+    /// <summary>Tiến độ cài đặt. Percent 0-100; &lt; 0 = không xác định (indeterminate).</summary>
+    public readonly record struct InstallProgress(int Percent, string Text);
+
     public class RemoteAppInstallService
     {
         private readonly ILogger<RemoteAppInstallService>? _logger;
@@ -28,7 +31,7 @@ namespace IPGS.RemoteControl.CcuClient
             _logger = logger;
         }
 
-        public Task InstallAsync(RemoteAppInstallOptions options, Action<string>? onLog = null, CancellationToken cancellationToken = default)
+        public Task InstallAsync(RemoteAppInstallOptions options, Action<string>? onLog = null, CancellationToken cancellationToken = default, Action<InstallProgress>? onProgress = null)
         {
             return Task.Run(() =>
             {
@@ -51,12 +54,14 @@ namespace IPGS.RemoteControl.CcuClient
                 using (var sftp = new SftpClient(options.Host, options.SshPort, options.Username, options.Password))
                 {
                     sftp.Connect();
-                    UploadInstaller(sftp, options.AppInstallerFile, options.Username, Log);
+                    UploadInstaller(sftp, options.AppInstallerFile, options.Username, Log, onProgress);
                     sftp.Disconnect();
                 }
 
                 // ── Bước 2: Cài đặt App ────────────────────────────────────────
                 Log("--- [2/2] Chạy cài đặt trên máy đích ---");
+                // dpkg/sh không báo % → thanh chạy không xác định (Percent < 0).
+                onProgress?.Invoke(new InstallProgress(-1, "Đang cài đặt trên máy đích (không xác định thời gian)..."));
 
                 // S1/Q12: dùng ShellQuote.Quote cho password (thay escape lặp tay).
                 string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS={ShellQuote.Quote(options.SudoPassword)}";
@@ -139,30 +144,54 @@ namespace IPGS.RemoteControl.CcuClient
             }, cancellationToken);
         }
 
-        private static void UploadInstaller(SftpClient sftp, string localPath, string username, Action<string> log)
+        private static void UploadInstaller(SftpClient sftp, string localPath, string username, Action<string> log, Action<InstallProgress>? onProgress)
         {
             string fileName = Path.GetFileName(localPath);
             string remotePath = $"/home/{username}/{fileName}";
 
             using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read);
-            long sizeMb = fs.Length / 1024 / 1024;
+            long total = fs.Length;
+            long sizeMb = total / 1024 / 1024;
             log($"📤 Đang tải {fileName} lên {remotePath} ({(sizeMb > 0 ? sizeMb : "<1")} MB)...");
-            sftp.UploadFile(fs, remotePath, true);
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            int lastPct = -1, lastLogPct = 0;
+            sftp.UploadFile(fs, remotePath, true, sent =>
+            {
+                int pct = total == 0 ? 100 : (int)(sent * 100UL / (ulong)total);
+                if (pct == lastPct) return;
+                lastPct = pct;
+                double mbSent = sent / 1048576.0;
+                double speed = sw.Elapsed.TotalSeconds > 0 ? mbSent / sw.Elapsed.TotalSeconds : 0;
+                onProgress?.Invoke(new InstallProgress(pct, $"Đang tải lên: {pct}% ({mbSent:F0}/{total / 1048576.0:F0} MB, {speed:F1} MB/s)"));
+                if (pct >= lastLogPct + 25) { lastLogPct = pct; log($"   … {pct}%"); }
+            });
             log($"✅ Đã tải xong {fileName}.");
         }
 
         private static void RunCommand(SshClient ssh, string commandText, Action<string>? log, bool silent = false)
         {
             using var cmd = ssh.CreateCommand(commandText, Encoding.UTF8);
-            cmd.Execute();
+            var async = cmd.BeginExecute();
 
-            if (silent || log is null) return;
+            // Đọc output theo thời gian thực để người dùng thấy dpkg đang chạy tới đâu.
+            using var stdout = new StreamReader(cmd.OutputStream, Encoding.UTF8);
+            using var stderr = new StreamReader(cmd.ExtendedOutputStream, Encoding.UTF8);
 
-            string result = (cmd.Result ?? string.Empty).TrimEnd();
-            if (!string.IsNullOrEmpty(result)) log(result);
+            void Drain()
+            {
+                string? line;
+                while ((line = stdout.ReadLine()) != null) { if (!silent && !string.IsNullOrWhiteSpace(line)) log?.Invoke(line.TrimEnd()); }
+                while ((line = stderr.ReadLine()) != null) { if (!silent && !string.IsNullOrWhiteSpace(line)) log?.Invoke(line.TrimEnd()); }
+            }
 
-            string error = (cmd.Error ?? string.Empty).TrimEnd();
-            if (!string.IsNullOrEmpty(error)) log(error);
+            while (!async.IsCompleted)
+            {
+                Drain();
+                Thread.Sleep(150);
+            }
+            cmd.EndExecute(async);
+            Drain();
         }
     }
 }

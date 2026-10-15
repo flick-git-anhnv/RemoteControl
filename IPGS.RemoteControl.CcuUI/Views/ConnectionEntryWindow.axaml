@@ -15,6 +15,25 @@
     <conv:NullableBoolIsTrueConverter x:Key="NullableBoolIsTrueConverter" />
   </Window.Resources>
 
+  <Window.Styles>
+    <!-- Nút trên header navy: viền trắng trong suốt / CTA cam -->
+    <Style Selector="kz|KzButton.hdr">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="#B8B3D6" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="kz|KzButton.hdr-cta">
+      <Setter Property="Background" Value="#F05922" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="#F05922" />
+    </Style>
+    <!-- Nút bị vô hiệu: mờ rõ ràng nhưng vẫn đọc được -->
+    <Style Selector="kz|KzButton:disabled">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+  </Window.Styles>
+
   <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
 
     <!-- ── Header bar ─────────────────────────────────────────────── -->
@@ -31,9 +50,9 @@
         </StackPanel>
         
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-          <kz:KzButton x:Name="PART_BtnScanNetwork" Content="🔍 Quét mạng..." />
-          <kz:KzButton x:Name="PART_BtnMultiRemote" Content="🚀 Remote nhiều máy (Grid View)..." Classes="kz-primary" />
-          <kz:KzButton x:Name="PART_BtnAddComputer" Content="+ Thêm máy tính" />
+          <kz:KzButton x:Name="PART_BtnScanNetwork" Content="🔍 Quét mạng..." Classes="hdr" />
+          <kz:KzButton x:Name="PART_BtnMultiRemote" Content="🚀 Remote nhiều máy (Grid View)..." Classes="hdr hdr-cta" />
+          <kz:KzButton x:Name="PART_BtnAddComputer" Content="+ Thêm máy tính" Classes="hdr" />
         </StackPanel>
       </Grid>
     </Border>
@@ -150,7 +169,7 @@
                 </StackPanel>
 
                 <!-- Actions -->
-                <StackPanel Grid.Column="2" Orientation="Vertical" Spacing="4" VerticalAlignment="Center">
+                <StackPanel Grid.Column="2" Orientation="Vertical" Spacing="6" VerticalAlignment="Center" MaxWidth="640">
                   <!-- Row 1: Basic Operations -->
                   <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                     <kz:KzButton Tag="{Binding}"
