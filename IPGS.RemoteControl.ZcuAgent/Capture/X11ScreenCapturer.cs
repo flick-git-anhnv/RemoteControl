@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using IPGS.RemoteControl.ZcuAgent.Interop;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace IPGS.RemoteControl.ZcuAgent.Capture;
 
@@ -24,10 +25,12 @@ namespace IPGS.RemoteControl.ZcuAgent.Capture;
 internal sealed class X11ScreenCapturer : IScreenCapturer
 {
     private readonly ILogger<X11ScreenCapturer> _logger;
+    private readonly IOptions<AgentOptions>? _options;
 
     private IntPtr _display = IntPtr.Zero;
     private IntPtr _rootWindow = IntPtr.Zero;
     private int    _screen;
+    private string _resolvedDisplay = string.Empty;
 
     // XShm state
     private bool   _useSHM;
@@ -56,8 +59,11 @@ internal sealed class X11ScreenCapturer : IScreenCapturer
     /// </summary>
     private byte[] _pixelBuffer = [];
 
-    public X11ScreenCapturer(ILogger<X11ScreenCapturer> logger)
-        => _logger = logger;
+    public X11ScreenCapturer(ILogger<X11ScreenCapturer> logger, IOptions<AgentOptions>? options = null)
+    {
+        _logger = logger;
+        _options = options;
+    }
 
     // Audit L9: ScreenSize (2×int, 8-byte struct) is written by the capture thread on
     // resolution change and read by the receive thread for mouse clamping. A raw struct
@@ -83,9 +89,22 @@ internal sealed class X11ScreenCapturer : IScreenCapturer
         // when X11 is used from multiple threads.
         X11.XInitThreads();
 
-        _display = X11.XOpenDisplay(null);
-        if (_display == IntPtr.Zero)
-            throw new InvalidOperationException("XOpenDisplay failed. Is DISPLAY set correctly?");
+        var preferredDisplay = _options?.Value?.Display;
+        var (displayHandle, resolvedName) = X11DisplayResolver.OpenAvailableDisplay(preferredDisplay, _logger);
+        _display = displayHandle;
+        _resolvedDisplay = resolvedName;
+
+        // Chống màn hình đen (DPMS Blanking / Screensaver Sleep) trong môi trường Headless / Virtual Display / RDP
+        try
+        {
+            X11.XSetScreenSaver(_display, 0, 0, 0, 0);
+            X11.XResetScreenSaver(_display);
+            _logger.LogInformation("X11 anti-blanking/screen saver disabled for headless display '{Display}'", _resolvedDisplay);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Không thể thiết lập XSetScreenSaver anti-blanking cho '{Display}'", _resolvedDisplay);
+        }
 
         // Install the global X11 error handler once, as early as possible after
         // XOpenDisplay, so errors from ANY subsequent X call (SHM, XTest, etc.) are
@@ -98,7 +117,7 @@ internal sealed class X11ScreenCapturer : IScreenCapturer
         var h       = X11.XDisplayHeight(_display, _screen);
         ScreenSize  = new ScreenSize(w, h);
 
-        _logger.LogInformation("X11 display opened: {W}x{H} on screen {Screen}", w, h, _screen);
+        _logger.LogInformation("X11 display '{Display}' opened: {W}x{H} on screen {Screen}", _resolvedDisplay, w, h, _screen);
 
         // Try to set up MIT-SHM
         if (XShm.XShmQueryExtension(_display))

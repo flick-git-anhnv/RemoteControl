@@ -1,6 +1,7 @@
 using IPGS.RemoteControl.Protocol;
 using IPGS.RemoteControl.ZcuAgent.Interop;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace IPGS.RemoteControl.ZcuAgent.Input;
 
@@ -16,12 +17,17 @@ namespace IPGS.RemoteControl.ZcuAgent.Input;
 internal sealed class MouseInjector : IMouseInjector
 {
     private readonly ILogger<MouseInjector> _logger;
+    private readonly IOptions<AgentOptions>? _options;
     private IntPtr _display = IntPtr.Zero;
     private int    _screen;
     private bool   _initialized;
     private bool   _disposed;
 
-    public MouseInjector(ILogger<MouseInjector> logger) => _logger = logger;
+    public MouseInjector(ILogger<MouseInjector> logger, IOptions<AgentOptions>? options = null)
+    {
+        _logger = logger;
+        _options = options;
+    }
 
     // ── IMouseInjector ────────────────────────────────────────────────────
 
@@ -31,12 +37,12 @@ internal sealed class MouseInjector : IMouseInjector
         if (_initialized) return;
 
         // Separate display connection — capturer already called XInitThreads() globally
-        _display = X11.XOpenDisplay(null);
-        if (_display == IntPtr.Zero)
-            throw new InvalidOperationException("MouseInjector: XOpenDisplay failed");
+        var preferred = _options?.Value?.Display;
+        var (handle, resolved) = X11DisplayResolver.OpenAvailableDisplay(preferred, _logger);
+        _display = handle;
 
         _screen = X11.XDefaultScreen(_display);
-        _logger.LogInformation("MouseInjector: XTest display opened on screen {Screen}", _screen);
+        _logger.LogInformation("MouseInjector: XTest display '{Display}' opened on screen {Screen}", resolved, _screen);
         _initialized = true;
     }
 

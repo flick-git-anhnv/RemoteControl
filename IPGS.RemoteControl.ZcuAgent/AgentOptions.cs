@@ -13,6 +13,12 @@ public sealed class AgentOptions
     public int Port { get; set; } = RemoteControlConstants.DefaultPort;
 
     /// <summary>
+    /// Chỉ định X11 Display cụ thể (ví dụ: ":0", ":1", ":10.0").
+    /// Mặc định rỗng = tự động dò tìm qua <see cref="Interop.X11DisplayResolver"/> (Unix socket /tmp/.X11-unix hoặc biến DISPLAY).
+    /// </summary>
+    public string Display { get; set; } = string.Empty;
+
+    /// <summary>
     /// Shared secret token for authentication (TDD §8.1).
     /// MUST be set to a strong random value in production. NEVER log this value.
     /// </summary>

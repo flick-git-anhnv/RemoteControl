@@ -1,5 +1,6 @@
 using IPGS.RemoteControl.ZcuAgent.Interop;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace IPGS.RemoteControl.ZcuAgent.Input;
 
@@ -24,6 +25,7 @@ namespace IPGS.RemoteControl.ZcuAgent.Input;
 internal sealed class KeyboardInjector : IKeyboardInjector
 {
     private readonly ILogger<KeyboardInjector> _logger;
+    private readonly IOptions<AgentOptions>? _options;
     private IntPtr   _display = IntPtr.Zero;
     private bool     _initialized;
     private bool     _disposed;
@@ -38,7 +40,11 @@ internal sealed class KeyboardInjector : IKeyboardInjector
     /// <summary>Keycode vật lý đang giữ (scan mode) — nhả hết khi kết thúc session.</summary>
     private readonly HashSet<byte> _downRawKeys = new();
 
-    public KeyboardInjector(ILogger<KeyboardInjector> logger) => _logger = logger;
+    public KeyboardInjector(ILogger<KeyboardInjector> logger, IOptions<AgentOptions>? options = null)
+    {
+        _logger = logger;
+        _options = options;
+    }
 
     // ── IKeyboardInjector ─────────────────────────────────────────────────
 
@@ -48,11 +54,11 @@ internal sealed class KeyboardInjector : IKeyboardInjector
         if (_initialized) return;
 
         // Separate display connection — capturer already called XInitThreads() globally.
-        _display = X11.XOpenDisplay(null);
-        if (_display == IntPtr.Zero)
-            throw new InvalidOperationException("KeyboardInjector: XOpenDisplay failed");
+        var preferred = _options?.Value?.Display;
+        var (handle, resolved) = X11DisplayResolver.OpenAvailableDisplay(preferred, _logger);
+        _display = handle;
 
-        _logger.LogInformation("KeyboardInjector: XTest display opened for keyboard injection");
+        _logger.LogInformation("KeyboardInjector: XTest display '{Display}' opened for keyboard injection", resolved);
         _initialized = true;
     }
 
