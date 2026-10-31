@@ -93,7 +93,10 @@ internal sealed class TcpServer : IDisposable
 
                 _logger.LogInformation("TcpServer: accepted connection from {IP}", remoteIp);
 
-                // Enable TCP keepalive (TDD §14 — guard against half-open TCP)
+                // Socket tuning: NoDelay triệt tiêu trễ Nagle 40ms, buffer 256KB cho video stream (F-ROUND4-2)
+                client.NoDelay = true;
+                client.SendBufferSize = 256 * 1024;
+                client.ReceiveBufferSize = 64 * 1024;
                 client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
 
                 // Run session — await so only 1 session at a time (v1)

@@ -25,6 +25,12 @@ public interface IRemoteControlClient : IDisposable
     event EventHandler<string>? ClipboardDataReceived;
     event EventHandler<string>? SysInfoReceived;
 
+    // ── Telemetry Events (F-ROUND4-1) ──
+    event EventHandler<NetworkMetricsEventArgs>? NetworkMetricsUpdated;
+    double CurrentFps { get; }
+    double CurrentRttMs { get; }
+    double CurrentBitrateKbps { get; }
+
     /// <summary>
     /// Begin connecting to <paramref name="host"/>:<paramref name="port"/> using
     /// <paramref name="token"/> as the shared secret. Returns immediately; connection

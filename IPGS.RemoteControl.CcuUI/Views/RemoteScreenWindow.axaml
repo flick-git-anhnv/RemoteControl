@@ -47,6 +47,22 @@
                        FontWeight="SemiBold"
                        VerticalAlignment="Center" />
           </Border>
+
+          <!-- Network Performance HUD Badge (audit F-ROUND4-1) -->
+          <Border IsVisible="{Binding IsHudVisible}"
+                  Background="#0F172A"
+                  BorderBrush="#334155"
+                  BorderThickness="1"
+                  CornerRadius="4"
+                  Padding="6,2"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="Chỉ số hiệu năng mạng thời gian thực: FPS, Độ trễ (RTT) và Băng thông tải">
+            <TextBlock Text="{Binding NetworkHudText}"
+                       FontSize="11"
+                       Foreground="#94A3B8"
+                       FontWeight="Medium"
+                       VerticalAlignment="Center" />
+          </Border>
         </StackPanel>
 
         <!-- Tools - enabled only while streaming -->

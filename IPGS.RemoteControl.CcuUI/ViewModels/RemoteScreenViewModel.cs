@@ -32,6 +32,8 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     [ObservableProperty] private bool     _isTlsEncrypted;
     [ObservableProperty] private string?  _tlsFingerprint;
     [ObservableProperty] private bool     _isTlsVerified;
+    [ObservableProperty] private string   _networkHudText = "⚡ -- FPS  |  📶 -- ms  |  📊 -- KB/s";
+    [ObservableProperty] private bool     _isHudVisible;
 
     // ── ZCU screen dimensions — written by background thread, read on UI thread
     // (volatile gives memory-ordering guarantee for single-reader/single-writer int).
@@ -96,6 +98,17 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
                 IsTlsEncrypted = true;
                 TlsFingerprint = hash;
                 IsTlsVerified  = true;
+            });
+        };
+        _client.NetworkMetricsUpdated += (sender, metrics) =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                string bitrateStr = metrics.BitrateKbps >= 1000.0
+                    ? $"{metrics.BitrateKbps / 1000.0:F1} MB/s"
+                    : $"{metrics.BitrateKbps:F0} KB/s";
+                NetworkHudText = $"⚡ {metrics.Fps:F0} FPS  |  📶 {metrics.RttMs:F0} ms  |  📊 {bitrateStr}";
+                IsHudVisible = IsStreaming;
             });
         };
     }

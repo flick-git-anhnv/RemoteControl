@@ -5,6 +5,22 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IPGS.RemoteControl.CcuClient;
 
+/// <summary>Dữ liệu đo kiểm hiệu năng mạng thời gian thực (F-ROUND4-1).</summary>
+public sealed class NetworkMetricsEventArgs : EventArgs
+{
+    public double Fps { get; }
+    public double RttMs { get; }
+    public double BitrateKbps { get; }
+
+    public NetworkMetricsEventArgs(double fps, double rttMs, double bitrateKbps)
+    {
+        Fps = fps;
+        RttMs = rttMs;
+        BitrateKbps = bitrateKbps;
+    }
+}
+
+
 /// <summary>
 /// TCP client that connects to a ZcuAgent, authenticates, receives JPEG frames and
 /// forwards mouse events. Implements the state machine from TDD §7.
@@ -59,6 +75,18 @@ public sealed class RemoteControlClient : IRemoteControlClient
 
     // ── Logging ───────────────────────────────────────────────────────────
     private readonly ILogger<RemoteControlClient> _logger;
+
+    // ── Telemetry (F-ROUND4-1) ───────────────────────────────────────────
+    private long  _lastPingSentTicks;
+    private ulong _lastPingNonce;
+    private long  _lastMetricTicks;
+    private int   _metricFramesReceived;
+    private long  _metricBytesReceived;
+
+    public double CurrentFps { get; private set; }
+    public double CurrentRttMs { get; private set; }
+    public double CurrentBitrateKbps { get; private set; }
+    public event EventHandler<NetworkMetricsEventArgs>? NetworkMetricsUpdated;
 
     // ── Public API ────────────────────────────────────────────────────────
     public ConnectionState State => _state;
@@ -496,7 +524,7 @@ public sealed class RemoteControlClient : IRemoteControlClient
         _sessionCts = CancellationTokenSource.CreateLinkedTokenSource(globalCt);
         var sessionCt = _sessionCts.Token;
 
-        _tcp = new TcpClient { NoDelay = true };
+        _tcp = new TcpClient { NoDelay = true, ReceiveBufferSize = 256 * 1024, SendBufferSize = 64 * 1024 };
         // Enable TCP keepalive to catch half-open connections (TDD §14).
         _tcp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
 
@@ -642,7 +670,7 @@ public sealed class RemoteControlClient : IRemoteControlClient
                 _logger.LogInformation(ex, "TLS handshake với {Host} thất bại — agent có thể là bản cũ, lùi về TCP thường", _host);
                 _tlsUnsupported = true;
                 try { _tcp?.Dispose(); } catch { /* ignore */ }
-                _tcp = new TcpClient { NoDelay = true };
+                _tcp = new TcpClient { NoDelay = true, ReceiveBufferSize = 256 * 1024, SendBufferSize = 64 * 1024 };
                 _tcp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
                 await _tcp.ConnectAsync(_host, _port, sessionCt).ConfigureAwait(false);
             }
@@ -658,6 +686,21 @@ public sealed class RemoteControlClient : IRemoteControlClient
         {
             var (type, payload) = await MessageCodec
                 .ReadMessageAsync(_stream!, sessionCt).ConfigureAwait(false);
+
+            _metricBytesReceived += 5 + payload.Length;
+            if (type == MessageType.FrameJpeg) _metricFramesReceived++;
+
+            long nowTicks = DateTime.UtcNow.Ticks;
+            double elapsedSec = (nowTicks - _lastMetricTicks) / (double)TimeSpan.TicksPerSecond;
+            if (elapsedSec >= 1.0)
+            {
+                CurrentFps = Math.Round(_metricFramesReceived / elapsedSec, 1);
+                CurrentBitrateKbps = Math.Round((_metricBytesReceived * 8.0 / 1000.0) / elapsedSec, 1);
+                _metricFramesReceived = 0;
+                _metricBytesReceived = 0;
+                _lastMetricTicks = nowTicks;
+                NetworkMetricsUpdated?.Invoke(this, new NetworkMetricsEventArgs(CurrentFps, CurrentRttMs, CurrentBitrateKbps));
+            }
 
             switch (type)
             {
@@ -675,6 +718,12 @@ public sealed class RemoteControlClient : IRemoteControlClient
                 case MessageType.Pong:
                     // Update PONG timestamp — checked by PingSenderLoop for timeout.
                     Interlocked.Exchange(ref _lastPongTicks, DateTime.UtcNow.Ticks);
+                    var pongNonce = MessageCodec.DecodePingPong(payload);
+                    if (pongNonce == _lastPingNonce && _lastPingSentTicks > 0)
+                    {
+                        var rtt = (DateTime.UtcNow.Ticks - _lastPingSentTicks) / (double)TimeSpan.TicksPerMillisecond;
+                        CurrentRttMs = Math.Max(0.1, Math.Round(rtt, 1));
+                    }
                     break;
 
                 case MessageType.Bye:
@@ -783,6 +832,8 @@ public sealed class RemoteControlClient : IRemoteControlClient
                 try
                 {
                     var nonce = (ulong)rng.NextInt64();
+                    _lastPingSentTicks = DateTime.UtcNow.Ticks;
+                    _lastPingNonce = nonce;
                     await SendLockedAsync(MessageType.Ping,
                         MessageCodec.EncodePingPong(nonce), sessionCt).ConfigureAwait(false);
                 }
