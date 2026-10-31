@@ -52,6 +52,7 @@ internal sealed class ClientSession
     private FileTransferHandler? _files;
     private List<MonitorInfo> _monitors = [];
     private byte[] _cropBuffer = [];
+    private readonly byte[] _frameHeaderBuffer = new byte[MessageCodec.HeaderSize + MessageCodec.FrameMetadataHeaderSize];
 
     /// <summary>Adaptive FPS: sàn FPS/chất lượng, và ngưỡng ghi 1 frame bị coi là chậm (ms).</summary>
     private const int MinAdaptiveFps     = 5;
@@ -270,6 +271,7 @@ internal sealed class ClientSession
         var minQuality  = Math.Min(curQuality, MinAdaptiveQuality);
         var badStreak   = 0;
         var goodStreak  = 0;
+        var consecutiveSlowWrites = 0;
         var frameInterval = 1000 / Math.Max(1, _options.TargetFps);
         var sw            = Stopwatch.StartNew();
         var nextPing      = Environment.TickCount64 + RemoteControlConstants.PingIntervalMs;
@@ -303,13 +305,20 @@ internal sealed class ClientSession
                     if (jpeg.Length > 0 && jpeg.Length <= _options.MaxFrameBytes)
                     {
                         var tsMs = (uint)(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() & 0xFFFF_FFFF);
-                        var payload = MessageCodec.EncodeFrameJpeg(
-                            frameId++, tsMs,
-                            frame.Width, frame.Height,
-                            jpeg.Span);
                         var writeStart = Stopwatch.GetTimestamp();
-                        await WriteAsync(MessageType.FrameJpeg, payload, ct);
+                        // Zero-Allocation Streaming (F-ROUND7-1): Stream trực tiếp qua WriteFrameJpegDirectAsync
+                        await WriteFrameJpegDirectAsync(frameId++, tsMs, frame.Width, frame.Height, jpeg, ct);
                         var writeMs = Stopwatch.GetElapsedTime(writeStart).TotalMilliseconds;
+
+                        // Chống trễ tích lũy (F-ROUND7-3): Ghi nhận backpressure nếu ghi frame chậm hơn 1.5 chu kỳ
+                        if (writeMs > frameInterval * 1.5)
+                        {
+                            consecutiveSlowWrites++;
+                        }
+                        else
+                        {
+                            consecutiveSlowWrites = 0;
+                        }
 
                         if (_options.AdaptiveQuality)
                         {
@@ -340,11 +349,18 @@ internal sealed class ClientSession
                     }
                 }
 
-                // Throttle to target FPS
+                // Throttle to target FPS & Congestion Relief (F-ROUND7-3)
                 var elapsed = (int)sw.ElapsedMilliseconds;
                 var sleep   = frameInterval - elapsed;
                 if (sleep > 0)
+                {
                     await Task.Delay(sleep, ct);
+                }
+                else if (consecutiveSlowWrites > 0)
+                {
+                    // Mạng nghẽn kéo dài: yield để nhường CPU giải phóng buffer socket TCP
+                    await Task.Yield();
+                }
             }
         }
         catch (OperationCanceledException) { /* expected */ }
@@ -661,6 +677,50 @@ internal sealed class ClientSession
     /// client that stops reading (TCP backpressure) fails the session after
     /// <see cref="WriteTimeoutMs"/> instead of holding the single v1 session slot forever.
     /// </summary>
+    /// <summary>
+    /// Stream khung hình JPEG trực tiếp không cấp phát bộ nhớ heap (F-ROUND7-1 Zero-Allocation).
+    /// Ghép 5 bytes wire header + 24 bytes metadata vào <see cref="_frameHeaderBuffer"/> (29 bytes cố định),
+    /// sau đó stream trực tiếp mảng pixel JPEG đã nén từ encoder buffer mà không tạo bản sao trung gian.
+    /// </summary>
+    private async Task WriteFrameJpegDirectAsync(
+        long frameId, uint timestampMs, int width, int height,
+        ReadOnlyMemory<byte> jpegData, CancellationToken ct)
+    {
+        await _writeLock.WaitAsync(ct);
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(WriteTimeoutMs);
+            var writeCt = cts.Token;
+
+            // 1. Wire header (5 bytes)
+            var totalPayloadLen = MessageCodec.FrameMetadataHeaderSize + jpegData.Length;
+            _frameHeaderBuffer[0] = (byte)MessageType.FrameJpeg;
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(
+                _frameHeaderBuffer.AsSpan(1, 4), (uint)totalPayloadLen);
+
+            // 2. Frame metadata (24 bytes)
+            MessageCodec.WriteFrameMetadataHeader(
+                _frameHeaderBuffer.AsSpan(MessageCodec.HeaderSize, MessageCodec.FrameMetadataHeaderSize),
+                frameId, timestampMs, width, height, jpegData.Length);
+
+            // 3. Ghi 29 bytes header vào stream
+            await _stream!.WriteAsync(_frameHeaderBuffer.AsMemory(0, MessageCodec.HeaderSize + MessageCodec.FrameMetadataHeaderSize), writeCt);
+
+            // 4. Ghi trực tiếp jpegData từ buffer tái sử dụng của JpegEncoder vào stream
+            await _stream!.WriteAsync(jpegData, writeCt);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new IOException(
+                $"Write of FrameJpeg timed out after {WriteTimeoutMs} ms — slow or stalled reader");
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
     private Task WriteAsync(MessageType type, byte[] payload, CancellationToken ct)
         => WriteAsync(type, (ReadOnlyMemory<byte>)payload.AsMemory(), ct);
 
