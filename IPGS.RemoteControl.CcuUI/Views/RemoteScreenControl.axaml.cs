@@ -271,7 +271,7 @@ public partial class RemoteScreenControl : UserControl
         }
         finally
         {
-            _ = Task.Delay(6000).ContinueWith(_ => PasteStatus?.Invoke(null));
+            _ = Task.Delay(6000).ContinueWith(_ => Avalonia.Threading.Dispatcher.UIThread.Post(() => PasteStatus?.Invoke(null)));
         }
 
         return true;  // thành công → PasteAsync gửi phím V để ZCU dán

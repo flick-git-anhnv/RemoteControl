@@ -31,6 +31,22 @@
                      Foreground="White"
                      FontSize="13"
                      VerticalAlignment="Center" />
+
+          <!-- TLS Security Badge (audit F-NEW-7) -->
+          <Border IsVisible="{Binding IsTlsEncrypted}"
+                  Background="#1E293B"
+                  BorderBrush="#38BDF8"
+                  BorderThickness="1"
+                  CornerRadius="4"
+                  Padding="6,2"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="{Binding TlsFingerprint, StringFormat='SHA-256: {0}'}">
+            <TextBlock Text="🔒 TLS"
+                       FontSize="11"
+                       Foreground="#38BDF8"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+          </Border>
         </StackPanel>
 
         <!-- Tools - enabled only while streaming -->

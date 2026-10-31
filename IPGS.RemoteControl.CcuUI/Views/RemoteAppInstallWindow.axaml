@@ -40,7 +40,7 @@
         <StackPanel Spacing="4">
           <TextBlock Text="Cài đặt (chọn file .deb, .sh, .run):" FontSize="12" Foreground="#64748B"/>
           <Grid ColumnDefinitions="*,Auto">
-            <TextBox x:Name="PART_AppInstallerPath" Watermark="Đường dẫn file..." Grid.Column="0" IsReadOnly="True" Margin="0,0,8,0" Height="36" VerticalContentAlignment="Center" />
+            <TextBox x:Name="PART_AppInstallerPath" PlaceholderText="Đường dẫn file..." Grid.Column="0" IsReadOnly="True" Margin="0,0,8,0" Height="36" VerticalContentAlignment="Center" />
             <Button x:Name="PART_BtnBrowseApp" Content="Duyệt File..." Grid.Column="1" Padding="16,8" />
           </Grid>
         </StackPanel>
@@ -49,7 +49,7 @@
         <StackPanel Spacing="4">
           <TextBlock Text="Gỡ cài đặt (nhập tên package, VD: kztek-app):" FontSize="12" Foreground="#64748B"/>
           <Grid ColumnDefinitions="*,Auto,Auto">
-            <AutoCompleteBox x:Name="PART_UninstallPackageName" MinimumPrefixLength="0" Watermark="Tên package cần gỡ (gõ để tìm)..." Grid.Column="0" Margin="0,0,4,0" Height="36" FilterMode="Contains" />
+            <AutoCompleteBox x:Name="PART_UninstallPackageName" MinimumPrefixLength="0" PlaceholderText="Tên package cần gỡ (gõ để tìm)..." Grid.Column="0" Margin="0,0,4,0" Height="36" FilterMode="Contains" />
             <Button x:Name="PART_BtnShowAll" Content="▼" Grid.Column="1" Margin="0,0,8,0" Height="36" Width="36" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" />
             <Button x:Name="PART_BtnUninstall" Content="🗑️ Gỡ ứng dụng" Grid.Column="2" Padding="16,8" Foreground="White" Background="#EF4444" />
           </Grid>

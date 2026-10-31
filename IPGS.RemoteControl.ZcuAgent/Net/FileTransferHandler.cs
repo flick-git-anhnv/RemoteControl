@@ -25,7 +25,7 @@ internal sealed class FileTransferHandler : IDisposable
 
     private readonly AgentOptions _options;
     private readonly ILogger _logger;
-    private readonly Func<MessageType, byte[], CancellationToken, Task> _send;
+    private readonly Func<MessageType, ReadOnlyMemory<byte>, CancellationToken, Task> _send;
     private readonly Dictionary<byte, Upload> _uploads = new();
     private readonly string _dir;
     private readonly HashSet<string> _advertised = new();
@@ -33,7 +33,7 @@ internal sealed class FileTransferHandler : IDisposable
     private byte _nextDownloadId = 0x80; // id do agent cấp cho luồng S→C (tách khỏi id client cấp)
 
     public FileTransferHandler(AgentOptions options, ILogger logger,
-        Func<MessageType, byte[], CancellationToken, Task> send)
+        Func<MessageType, ReadOnlyMemory<byte>, CancellationToken, Task> send)
     {
         _options = options;
         _logger  = logger;
@@ -223,7 +223,8 @@ internal sealed class FileTransferHandler : IDisposable
                 buf[0] = id;
                 int n;
                 while ((n = await fs.ReadAsync(buf.AsMemory(1, ChunkSize), ct)) > 0)
-                    await _send(MessageType.FileChunk, buf.AsSpan(0, 1 + n).ToArray(), ct);
+                    // Audit F-ROUND3-1: Zero-copy upload chunking without .ToArray()
+                await _send(MessageType.FileChunk, buf.AsMemory(0, 1 + n), ct);
 
                 await _send(MessageType.FileEnd, new[] { id }, ct);
             }

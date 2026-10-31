@@ -208,6 +208,18 @@ public static class MessageCodec
     }
 
     // ── Payload decoders ──────────────────────────────────────────────────
+    public static (byte Version, string ClientName) DecodeHello(byte[] payload)
+    {
+        RequireMinLength(payload, 3, "HELLO");
+        var version = payload[0];
+        var nameLen = BinaryPrimitives.ReadUInt16BigEndian(payload.AsSpan(1));
+        if (nameLen > payload.Length - 3)
+            throw new ProtocolException(
+                $"HELLO clientName length {nameLen} B exceeds remaining payload {payload.Length - 3} B");
+        var name    = Encoding.UTF8.GetString(payload, 3, nameLen);
+        return (version, name);
+    }
+
 
     public static (byte Version, uint ScreenW, uint ScreenH, string ServerName) DecodeHelloAck(byte[] payload)
     {

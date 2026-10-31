@@ -83,7 +83,10 @@ internal sealed class ClientSession
     /// SingleReader/SingleWriter=true vì chỉ 1 producer (receive loop) và 1 consumer
     /// (<see cref="RunInputInjectorLoopAsync"/>) mỗi bên — giữ đúng thứ tự sự kiện input.
     /// </summary>
-    private readonly Channel<Action> _inputQueue = Channel.CreateUnbounded<Action>(
+    internal enum InputCommandKind : byte { MouseMove, MouseButton, KeyEvent, KeyEventRaw }
+    internal readonly record struct InputCommand(InputCommandKind Kind, int X, int Y, MouseButton Button = MouseButton.Left, bool IsDown = false, uint Key = 0);
+
+    private readonly Channel<InputCommand> _inputQueue = Channel.CreateUnbounded<InputCommand>(
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
 
     /// <summary>Ngưỡng cảnh báo (không phải hủy) khi 1 lệnh inject chạy lâu hơn mức này — xem log để biết X server đang chậm.</summary>
@@ -431,7 +434,7 @@ internal sealed class ClientSession
                         var (mx, my) = MessageCodec.DecodeMouseMove(payload);
                         // Toạ độ client gửi là trong khung hình đang xem → cộng offset màn hình đã chọn.
                         if (_monitor is { } mm) { mx += mm.X; my += mm.Y; }
-                        _inputQueue.Writer.TryWrite(() => _injector.Move(mx, my));
+                        _inputQueue.Writer.TryWrite(new InputCommand(InputCommandKind.MouseMove, mx, my));
                         break;
 
                     case MessageType.MouseButton:
@@ -445,11 +448,7 @@ internal sealed class ClientSession
                         if (_monitor is { } sel) { offX = sel.X; offY = sel.Y; areaW = sel.W; areaH = sel.H; }
                         var sx = offX + Math.Clamp(bx, 0, areaW - 1);
                         var sy = offY + Math.Clamp(by, 0, areaH - 1);
-                        _inputQueue.Writer.TryWrite(() =>
-                        {
-                            _injector.Move(sx, sy);
-                            _injector.Button(btn, down);
-                        });
+                        _inputQueue.Writer.TryWrite(new InputCommand(InputCommandKind.MouseButton, sx, sy, btn, down));
                         break;
 
                     case MessageType.Ping:
@@ -464,7 +463,7 @@ internal sealed class ClientSession
 
                     case MessageType.KeyEvent:
                         var (keysym, isDown) = MessageCodec.DecodeKeyEvent(payload);
-                        _inputQueue.Writer.TryWrite(() => _keyboard.SendKey(keysym, isDown));
+                        _inputQueue.Writer.TryWrite(new InputCommand(InputCommandKind.KeyEvent, 0, 0, MouseButton.Left, isDown, keysym));
                         break;
                         
                     // ── File transfer (chỉ trong TransferDir) ─────────────────
@@ -516,7 +515,7 @@ internal sealed class ClientSession
 
                     case MessageType.KeyEventRaw:
                         var (rawCode, rawDown) = MessageCodec.DecodeKeyEventRaw(payload);
-                        _inputQueue.Writer.TryWrite(() => _keyboard.SendRawKey(rawCode, rawDown));
+                        _inputQueue.Writer.TryWrite(new InputCommand(InputCommandKind.KeyEventRaw, 0, 0, MouseButton.Left, rawDown, rawCode));
                         break;
 
                     // ── Phase 6 Enterprise Features ───────────────────────────
@@ -611,23 +610,43 @@ internal sealed class ClientSession
     {
         try
         {
-            await foreach (var action in _inputQueue.Reader.ReadAllAsync(ct))
+            await foreach (var cmd in _inputQueue.Reader.ReadAllAsync(ct))
             {
                 var sw = Stopwatch.StartNew();
-                var task = Task.Run(action, ct);
-                if (await Task.WhenAny(task, Task.Delay(InjectWarnMs, ct)) != task)
+                switch (cmd.Kind)
+                {
+                    case InputCommandKind.MouseMove:
+                        // Mouse coalescing (audit C3): nếu các lệnh tiếp theo cũng là MouseMove thì nhảy thẳng đến toạ độ mới nhất
+                        var finalX = cmd.X;
+                        var finalY = cmd.Y;
+                        while (_inputQueue.Reader.TryPeek(out var next) && next.Kind == InputCommandKind.MouseMove)
+                        {
+                            _inputQueue.Reader.TryRead(out next);
+                            finalX = next.X;
+                            finalY = next.Y;
+                        }
+                        _injector.Move(finalX, finalY);
+                        break;
+
+                    case InputCommandKind.MouseButton:
+                        _injector.Move(cmd.X, cmd.Y);
+                        _injector.Button(cmd.Button, cmd.IsDown);
+                        break;
+
+                    case InputCommandKind.KeyEvent:
+                        _keyboard.SendKey(cmd.Key, cmd.IsDown);
+                        break;
+
+                    case InputCommandKind.KeyEventRaw:
+                        _keyboard.SendRawKey((byte)cmd.Key, cmd.IsDown);
+                        break;
+                }
+
+                if (sw.ElapsedMilliseconds > InjectWarnMs)
                 {
                     _logger.LogWarning(
-                        "Session {IP}: lệnh inject chuột/bàn phím chạy quá {Ms}ms (X server có thể đang chậm) — " +
-                        "vẫn đợi lệnh này xong (F26: không bắn thêm task chồng lên, tránh domino)",
-                        _remoteIp, InjectWarnMs);
-                    // F26: PHẢI đợi task cũ xong thật trước khi lấy lệnh kế tiếp — xem giải
-                    // thích ở doc comment phía trên. Không đợi = domino block trên Xlib lock.
-                    await task;
-                }
-                else if (sw.ElapsedMilliseconds > InjectWarnMs / 2)
-                {
-                    _logger.LogDebug("Session {IP}: lệnh inject mất {Ms}ms", _remoteIp, sw.ElapsedMilliseconds);
+                        "Session {IP}: lệnh inject {Kind} chạy quá {Ms}ms (X server có thể đang chậm)",
+                        _remoteIp, cmd.Kind, sw.ElapsedMilliseconds);
                 }
             }
         }
@@ -642,7 +661,10 @@ internal sealed class ClientSession
     /// client that stops reading (TCP backpressure) fails the session after
     /// <see cref="WriteTimeoutMs"/> instead of holding the single v1 session slot forever.
     /// </summary>
-    private async Task WriteAsync(MessageType type, byte[] payload, CancellationToken ct)
+    private Task WriteAsync(MessageType type, byte[] payload, CancellationToken ct)
+        => WriteAsync(type, (ReadOnlyMemory<byte>)payload.AsMemory(), ct);
+
+    private async Task WriteAsync(MessageType type, ReadOnlyMemory<byte> payload, CancellationToken ct)
     {
         await _writeLock.WaitAsync(ct);
         try

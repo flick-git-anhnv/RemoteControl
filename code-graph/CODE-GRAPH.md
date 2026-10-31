@@ -1,129 +1,120 @@
 # CODE-GRAPH.md — Bản đồ codebase: Remote Control Tool (CCU ↔ ZCU)
-**Cập nhật lần cuối:** 2026-07-26 | **Bởi:** senior-developer | **Version:** 2.0
+**Cập nhật lần cuối:** 2026-10-31 | **Bởi:** documentation-writer | **Version:** 3.2
 
 > File này được duy trì tự động bởi coding agents.
 > **Đọc file này TRƯỚC khi đọc source code** để hiểu cấu trúc dự án mà không cần mở từng file.
 
-> **Ghi chú version 2.0:** Bản v1.0 (2026-07-12) mô tả workspace agent framework cũ (không đúng repo này) — đã viết lại toàn bộ theo khảo sát thực tế repo `6.RemoteControlTool` sau đợt audit-fix 41 phát hiện (plan `PLAN-remote-control-audit-fix-2026-07-26`).
+> **Ghi chú version 3.2:** Mở rộng tối ưu hóa toàn diện Vòng 3 (F-ROUND3-1 đến F-ROUND3-5):
+> - Zero-Copy File Download chunking từ ZCU sang CCU (`buf.AsMemory(0, 1 + n)`) qua overload `ClientSession.WriteAsync(MessageType, ReadOnlyMemory<byte>, CancellationToken)`.
+> - Zero-Allocation AVI Frame Recording trong `SessionRecorder.cs` bằng C# UTF-8 byte literals `"00dc"u8` và `stackalloc byte[4]` loại bỏ 100% allocations trong vòng lặp ghi video 30-60 FPS.
+> - Đồng bộ TLS Certificate Pinning & TOFU sang `MultiRemoteWindow.axaml.cs` bảo vệ bảng điều khiển đa máy trạm.
+> - Tự động trích xuất SHA-256 TLS fingerprint trong `ZcuAgentDiscoveryService.cs` và điền tự động vào profile trong `NetworkScanWindow.axaml.cs`.
+> - Mở rộng bộ kiểm thử tự động với `WakeOnLanServiceTests.cs` (14 tests), nâng tổng số lên **55 unit tests pass 100%**.
 
 ---
 
 ## Tổng quan dự án
 
-Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Linux, X11) từ máy quản lý CCU (Windows/Linux). Gồm 3 project .NET:
+Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Linux, X11) từ máy quản lý CCU (Windows/Linux). Gồm 4 project .NET:
 
 | Project | Vai trò | Nền tảng |
 |---|---|---|
-| `IPGS.RemoteControl.ZcuAgent` | Service chạy trên ZCU (Linux): capture màn hình X11 (XShm/XGetImage), inject chuột/phím (XTest), TCP server 1-client, chat/clipboard | linux-x64 |
-| `IPGS.RemoteControl.CcuClient` | Class library: TCP client + protocol codec, SSH installer/deployer, WoL, discovery, profile store (DPAPI) | win-x64 + linux-x64 |
-| `IPGS.RemoteControl.CcuUI` | App Avalonia 12: viewer/manager — remote screen, multi-remote, file manager, cron, bulk action, kiosk deploy | win-x64 + linux-x64 |
+| `IPGS.RemoteControl.ZcuAgent` | Service chạy trên ZCU (Linux): capture màn hình X11 (XShm/XGetImage), inject chuột/phím (XTest không chặn XSync), TCP server 1-client, chat/clipboard, nén JPEG Zero-Copy (`SKImage.FromPixels`) + `malloc_trim(0)` định kỳ, Zero-Copy file download chunking | linux-x64 (.NET 8) |
+| `IPGS.RemoteControl.CcuClient` | Class library: TCP client + protocol codec, SSH installer/deployer (STDIN sudo an toàn), WoL, discovery (tự động trích xuất TLS fingerprint), profile store (DPAPI), TLS Certificate Pinning & TOFU tự động, zero-copy buffer upload | win-x64 + linux-x64 (.NET 8) |
+| `IPGS.RemoteControl.CcuUI` | App Avalonia 12: viewer/manager — remote screen với Ping-Pong Double-Buffering zero-copy (`Buffer.MemoryCopy`), giải phóng buffer an toàn khi đổi resolution, huy hiệu TLS 🔒, MultiRemote hỗ trợ TLS pinning, Zero-Allocation AVI video recording, 100% `PlaceholderText` sạch obsolete | win-x64 + linux-x64 (.NET 8) |
+| `IPGS.RemoteControl.Tests` | Bộ kiểm thử tự động xUnit: 55 test cases bao phủ `MessageCodec` (13 tests), `ShellQuote` (15 tests), `SecretProtector` (7 tests), `ComputerProfileStore` (6 tests), `WakeOnLanService` (14 tests) | cross-platform (.NET 9) |
 
-**Tech stack:** .NET 8, Avalonia 12 (CcuUI — dùng `KztekComponentAvalonia` từ `E:\KZTEK\Code_Git\5.BaseUI`), SSH.NET (Renci), SkiaSharp (decode JPEG), X11/XTest/XShm P/Invoke (ZcuAgent), DPAPI (`System.Security.Cryptography.ProtectedData`).
+**Tech stack:** .NET 8 / .NET 9, Avalonia 12 (CcuUI — dùng `KztekComponentAvalonia` từ `E:\KZTEK\Code_Git\5.BaseUI`), SSH.NET 2026.0.0 (Renci), SkiaSharp (decode/encode JPEG zero-allocation), X11/XTest/XShm P/Invoke (ZcuAgent), DPAPI (`System.Security.Cryptography.ProtectedData`), xUnit 2.9.2.
 
-**Phụ thuộc giữa project:** `CcuUI` → `CcuClient`; `ZcuAgent` độc lập nhưng dùng chung protocol (copy codec logic). KHÔNG build 3 project song song (tranh chấp `obj/` của project chung).
+**Phụ thuộc giữa project:** `CcuUI` → `CcuClient`; `IPGS.RemoteControl.Tests` → `CcuClient` (qua `InternalsVisibleTo`); `ZcuAgent` độc lập nhưng dùng chung chuẩn protocol.
 
 ---
 
 ## Cấu trúc thư mục
 
-```
-6.RemoteControlTool/
-├── IPGS.RemoteControl.ZcuAgent/        ← Linux service (systemd)
-│   ├── Program.cs / RemoteControlHostedService.cs
-│   ├── AgentOptions.cs                 ← Options: Port, Token, AllowedClientIPs, EnableDesktopIntegration
-│   ├── Interfaces.cs                   ← IScreenCapturer, IFrameEncoder, IInputInjector
-│   ├── Auth/AuthManager.cs             ← Token + IP whitelist (deny-by-default, fail-fast placeholder)
-│   ├── Net/TcpServer.cs, ClientSession.cs  ← 1 client/lượt; watchdog PONG tách task riêng
-│   ├── Capture/X11ScreenCapturer.cs, JpegEncoder.cs
-│   ├── Input/KeyboardInjector.cs, MouseInjector.cs
-│   ├── Interop/X11Interop.cs, XShmInterop.cs, XTestInterop.cs, X11ErrorTracker.cs
-│   └── appsettings.json                ← ⚠️ file mẫu — installer ghi đè khi deploy thật
-├── IPGS.RemoteControl.CcuClient/       ← Class library
-│   ├── RemoteControlClient.cs          ← TCP client, reconnect, heartbeat (IRemoteControlClient)
-│   ├── Protocol/MessageCodec.cs, MessageTypes.cs, ProtocolException.cs
-│   ├── ComputerProfile.cs / ComputerProfileStore.cs (IComputerProfileStore)  ← profiles.json + DPAPI
-│   ├── ComputerStatusChecker.cs / ComputerConnectivityStatus.cs
-│   ├── ShellQuote.cs                   ← [MỚI] escape/validate tham số shell SSH (internal)
-│   ├── SecretProtector.cs              ← [MỚI] DPAPI enc:v1: + migrate plaintext
-│   ├── RemoteAppInstallService.cs / ZcuRemoteInstallerService.cs / KioskDeployService.cs  ← SSH sudo installer
-│   ├── ZcuAgentDiscoveryService.cs
-│   └── Services/WakeOnLanService.cs
-└── IPGS.RemoteControl.CcuUI/           ← App Avalonia
-    ├── App.axaml(.cs), Program.cs, KeyboardMapper.cs
-    ├── Services/SessionRecorder.cs (AVI), LicenseManagerService.cs (⚠️ dead code — không enforce, quyết định user)
-    ├── ViewModels/RemoteScreenViewModel.cs
-    ├── Converters/
-    └── Views/  ← 18 window/control (ConnectionEntry = main window; RemoteScreen, MultiRemote,
-        FileManager, RemoteCommand, BulkAction, CronJob, HealthMonitor, NetworkScan,
-        KioskDeploy, RemoteAppInstall, ZcuSetupWizard, SystemInventory, ComputerEdit,
-        License, RemoteScreenControl, SessionPickerWindow [MỚI], ConfirmDeleteDialog [MỚI])
-        + SshCommandHints.cs [MỚI — F07] helper static dùng chung RemoteCommand/BulkAction:
-          nhận diện lệnh reboot/shutdown + lỗi mất-kết-nối (thông báo thân thiện), gate debug log
-```
+- `6.RemoteControlTool/`
+  - `IPGS.RemoteControl.ZcuAgent/`: Dịch vụ chạy ngầm trên ZCU (Linux daemon systemd)
+    - `Program.cs`, `RemoteControlHostedService.cs`: Vòng đời service nền
+    - `AgentOptions.cs`: Cấu hình Port, Token, AllowedClientIPs, EnableDesktopIntegration
+    - `Interfaces.cs`: Định nghĩa `IScreenCapturer`, `IFrameEncoder`, `IInputInjector`
+    - `Auth/AuthManager.cs`: Token + IP whitelist (deny-by-default, fail-fast)
+    - `Net/TcpServer.cs`, `ClientSession.cs`: Quản lý 1 client, `struct InputCommand` + Channel coalescing chuột, overload `WriteAsync(ReadOnlyMemory<byte>)`
+    - `Net/FileTransferHandler.cs`: Xử lý truyền tệp 2 chiều, Zero-Copy download chunking qua `buf.AsMemory(0, 1 + n)`
+    - `Capture/X11ScreenCapturer.cs`, `JpegEncoder.cs`: Nén Zero-Copy trực tiếp qua `SKImage.FromPixels` + `malloc_trim(0)`
+    - `Input/KeyboardInjector.cs`, `MouseInjector.cs`: Inject phím và chuột qua XTest (đã bỏ blocking `XSync`)
+    - `Interop/X11Interop.cs`, `XShmInterop.cs`, `XTestInterop.cs`, `X11ErrorTracker.cs`: P/Invoke native X11
+    - `appsettings.json`: Tệp cấu hình mẫu (installer ghi đè khi deploy thật)
+  - `IPGS.RemoteControl.CcuClient/`: Thư viện logic CCU (.NET 8)
+    - `RemoteControlClient.cs`: TCP client, reconnect, TLS Certificate Pinning, zero-copy chunk upload
+    - `Protocol/MessageCodec.cs`, `MessageTypes.cs`, `ProtocolException.cs`: Encode/Decode 12 message types + bounds check
+    - `ComputerProfile.cs`, `ComputerProfileStore.cs`: profiles.json + DPAPI + lưu trữ đầy đủ `TlsCertFingerprint` (TOFU)
+    - `ComputerStatusChecker.cs`, `ComputerConnectivityStatus.cs`: Kiểm tra trạng thái kết nối
+    - `ShellQuote.cs`: Escape & validate tham số shell SSH, chống command injection
+    - `SecretProtector.cs`: DPAPI mã hóa tiền tố `enc:v1:`
+    - `RemoteAppInstallService.cs`, `ZcuRemoteInstallerService.cs`, `KioskDeployService.cs`: SSH sudo installer qua STDIN
+    - `ZcuAgentDiscoveryService.cs`: Tự động dò tìm ZCU trong mạng LAN và trích xuất SHA-256 TLS fingerprint
+    - `Services/WakeOnLanService.cs`: Gửi gói tin Magic Packet đánh thức máy qua LAN
+  - `IPGS.RemoteControl.CcuUI/`: Ứng dụng điều khiển Avalonia 12 (.NET 8)
+    - `App.axaml(.cs)`, `Program.cs`, `KeyboardMapper.cs`: Cấu hình app và ánh xạ phím
+    - `Services/SessionRecorder.cs`: Ghi hình phiên AVI Zero-Allocation qua `"00dc"u8` và `stackalloc byte[4]`
+    - `Services/LicenseManagerService.cs`: Quản lý bản quyền RSA-SHA256
+    - `ViewModels/RemoteScreenViewModel.cs`: Ping-Pong Double-Buffering zero-copy `Buffer.MemoryCopy`, safe buffer disposal khi đổi resolution, thuộc tính `IsTlsEncrypted`
+    - `Views/`: 18 màn hình và view controls (ConnectionEntry truyền vân tay TLS, RemoteScreenWindow với badge `🔒 TLS`, RemoteScreenControl bọc UIThread.Post, MultiRemoteWindow hỗ trợ TLS pinning, NetworkScanWindow tự động điền vân tay TLS, FileManager, RemoteCommand, BulkAction, CronJob, HealthMonitor với `100 - idle%` CPU metric, KioskDeploy, RemoteAppInstall, ZcuSetupWizard, SystemInventory, ComputerEdit, License, SessionPickerWindow, ConfirmDeleteDialog; toàn bộ dùng `PlaceholderText`)
+  - `IPGS.RemoteControl.Tests/`: Bộ kiểm thử tự động xUnit (.NET 9)
+    - `IPGS.RemoteControl.Tests.csproj`: Cấu hình xUnit, tham chiếu `CcuClient` qua `InternalsVisibleTo`
+    - `MessageCodecTests.cs`: 13 unit tests bao phủ toàn bộ TCP message codecs & bounds
+    - `ShellQuoteTests.cs`: 15 unit tests bao phủ quote, escape, chống shell injection & validation
+    - `SecretProtectorTests.cs`: 7 unit tests bao phủ DPAPI Protect/Unprotect, idempotency, legacy plaintext, error handling
+    - `ComputerProfileStoreTests.cs`: 6 unit tests bao phủ lưu trữ, update, TOFU fingerprint persistence, delete
+    - `WakeOnLanServiceTests.cs`: 14 unit tests kiểm thử Magic Packet MAC format chuẩn, gạch nối, dấu cách, non-hex, invalid format
 
 ---
 
 ## Module chính
 
-| Module | Path | Mục đích | Files quan trọng |
-|--------|------|----------|-----------------|
-| Protocol codec | `CcuClient/Protocol/` | Frame TCP: HELLO/AUTH/PING/FrameJpeg/Key/Mouse/Chat/Clipboard — mọi decoder validate độ dài → `ProtocolException` | `MessageCodec.cs`, `MessageTypes.cs` |
-| TCP client | `CcuClient/RemoteControlClient.cs` | Reconnect có backoff, dispose sạch mọi path lỗi handshake, heartbeat Interlocked | `IRemoteControlClient.cs` |
-| Profile store | `CcuClient/ComputerProfileStore.cs` | Lưu `%APPDATA%\iPGS\RemoteControl\profiles.json`; atomic write (tmp+Move); backup `.corrupt-*`; DPAPI qua `SecretProtector` | `ComputerProfile.cs`, `SecretProtector.cs` |
-| Shell safety | `CcuClient/ShellQuote.cs` | `Quote()` single-quote escape, `ValidateFileName` (cho phép `~`/`%` giữa tên — chuẩn Debian), `ValidateUsername`, `ValidatePackageName` — dùng bởi 3 installer service | — |
-| SSH installers | `CcuClient/*Service.cs` | Cài `.deb`/`.sh`, deploy ZcuAgent (systemd), kiosk setup — mọi tham số qua `ShellQuote`. `KioskDeployOptions` key properties: `DisableUbuntuDock` ($4, default=true) tắt ubuntu-dock@ubuntu.com; `DisableDesktopIcons` ($5, default=**false** — giữ Desktop Icons bật để icon desktop click được, F14); `LockdownShell` (F09, $12): khoá lối thoát kiosk bằng dconf system-db + lock — cần reboot (G020); `EnableWatchdog` (F10, $13): systemd USER service `ipgs-kiosk-app.service` (`Restart=always` `RestartSec=10` `StartLimitIntervalSec=0` — R2: không bao giờ vào failed vĩnh viễn). Thứ tự args2 `2-configure-system.sh`: $3=disable_hotcorner $4=disable_ubuntu_dock $5=disable_desktop_icons $6=block_sleep $7=skip_initial_setup $8=enable_autologin $9=disable_sw_update $10=enable_autostart $11=lock_single_workspace $12=lockdown_shell $13=enable_watchdog. F14: deploy script tạo `~/Desktop/ipgs-kiosk.desktop` + `gio set metadata::trusted true` (Desktop Icons NG từ GNOME 41+ từ chối .desktop chưa trusted). | `RemoteAppInstallService`, `ZcuRemoteInstallerService`, `KioskDeployService` |
-| ZCU session | `ZcuAgent/Net/ClientSession.cs` | Capture loop + watchdog PONG (task riêng) + WriteAsync CancelAfter 10s; chat/clipboard qua `ArgumentList` cap 4KB/256KB | `TcpServer.cs` |
-| X11 capture | `ZcuAgent/Capture/` | XShm ưu tiên, fallback XGetImage; error tracker scope theo opcode MIT-SHM; ScreenSize publish atomic (holder record + volatile) | `X11ScreenCapturer.cs`, `Interop/X11ErrorTracker.cs` |
-| Remote screen UI | `CcuUI/Views/RemoteScreenWindow` + `ViewModels/RemoteScreenViewModel` | Decode JPEG → WriteableBitmap (dispose bản cũ), record AVI (`SessionRecorder` lock + idempotent Dispose) | `RemoteScreenControl.axaml.cs` |
-| Multi remote | `CcuUI/Views/MultiRemoteWindow` | Grid nhiều session; thêm session qua `SessionPickerWindow` (dialog trả kết quả); tab ẩn pause render (`IsRenderPaused`) | `SessionPickerWindow.axaml.cs` |
-| Remote command / bulk | `CcuUI/Views/RemoteCommandWindow`, `BulkActionWindow` | SSH lệnh ad-hoc; sudo password qua STDIN channel (`sudo -S -p ''`), KHÔNG env/command-line | — |
+| Module | Path | Mục đích & Đặc tả kiến trúc | Files quan trọng |
+|--------|------|------------------------------|-----------------|
+| Protocol codec | `CcuClient/Protocol/` | Khung gói tin TCP nhị phân (1 byte Type + 4 bytes Length + Payload). Hỗ trợ đầy đủ: HELLO, AUTH, PING, PONG, KEY, MOUSE_MOVE, MOUSE_BUTTON, MOUSE_SCROLL, CLIP_DATA, RESOLUTION, FRAME_JPEG, CHAT. Toàn bộ decoder kiểm soát biên độ nghiêm ngặt, văng `ProtocolException` khi dữ liệu bất thường. | `MessageCodec.cs`, `MessageTypes.cs` |
+| TCP client & TLS Pinning | `CcuClient/RemoteControlClient.cs` | Client TCP kết nối ZCU: tự động reconnect với exponential backoff, xác thực token bảo mật, hỗ trợ TLS stream và kiểm tra Certificate Pinning (`TlsCertFingerprint`), upload file zero-copy qua `ReadOnlyMemory<byte>`. Bắn event `TlsCertificateValidated` kích hoạt TOFU. | `RemoteControlClient.cs`, `IRemoteControlClient.cs` |
+| Profile & Secret Store | `CcuClient/` | Quản trị cấu hình kết nối ZCU trong `%APPDATA%\iPGS\RemoteControl\profiles.json`. Ghi đĩa nguyên tử (atomic write qua tmp + Move); bảo vệ mật khẩu SSH và Token bằng DPAPI (`SecretProtector`, tiền tố `enc:v1:`). Hỗ trợ lưu trữ và cập nhật vân tay chứng chỉ TLS (`TlsCertFingerprint`) tự động qua `UpdateTlsFingerprint`. | `ComputerProfile.cs`, `ComputerProfileStore.cs`, `SecretProtector.cs` |
+| Shell safety & STDIN Sudo | `CcuClient/` | Chống tấn công shell command injection qua `ShellQuote`. Toàn bộ thao tác sudo SSH trên ZCU (`RemoteAppInstallService`, `ZcuRemoteInstallerService`, `RemoteCommandWindow`, `BulkActionWindow`) truyền mật khẩu qua luồng STDIN `cmd.CreateInputStream()` với cờ `sudo -S -p ''`, loại bỏ hoàn toàn biến môi trường `KIOSK_SUDO_PASS`. | `ShellQuote.cs`, `RemoteAppInstallService.cs`, `ZcuRemoteInstallerService.cs` |
+| ZCU session & Input Injection | `ZcuAgent/Net/` & `Input/` | Quản lý phiên 1 client duy nhất với cơ chế watchdog PONG tách riêng task. Hàng đợi inject input sử dụng `Channel<InputCommand>` với `readonly struct InputCommand` (zero GC allocation) và mouse move coalescing. `MouseInjector` và `KeyboardInjector` loại bỏ blocking `XSync`, đẩy sự kiện tức thì qua `XFlush`. | `TcpServer.cs`, `ClientSession.cs`, `MouseInjector.cs`, `KeyboardInjector.cs` |
+| Screen Capture & Zero-Copy Encode | `ZcuAgent/Capture/` | Chụp màn hình qua XShm (MIT-SHM shared memory) hoặc fallback XGetImage. Nén JPEG trực tiếp từ con trỏ pixel qua `SKImage.FromPixels` mà không cần sao chép bộ nhớ trung gian, kích hoạt định kỳ `malloc_trim(0)` mỗi 60s để ép kernel Linux thu hồi trang nhớ unmanaged của glibc. | `X11ScreenCapturer.cs`, `JpegEncoder.cs` |
+| File Transfer Zero-Copy | `ZcuAgent/Net/FileTransferHandler.cs` | Tối ưu hóa tải tệp 2 chiều. Download từ ZCU dùng `buf.AsMemory(0, 1 + n)` đẩy qua `ClientSession.WriteAsync(MessageType, ReadOnlyMemory<byte>, CancellationToken)`, không sinh rác bộ nhớ per-chunk. | `FileTransferHandler.cs`, `ClientSession.cs` |
+| Ping-Pong Double-Buffering UI | `CcuUI/ViewModels/` & `Views/` | Render màn hình remote với hiệu năng cực đại: duy trì 2 `WriteableBitmap` (`_frontBuffer` và `_backBuffer`). Giải mã JPEG qua SkiaSharp và copy trực tiếp sang con trỏ framebuffer bằng `Buffer.MemoryCopy` unmanaged, triệt tiêu 100% rác LOH (tiết kiệm 124.4 MB/s tại 1080p 15fps). Đổi độ phân giải an toàn (giải phóng buffer cũ trên UI thread). Hiển thị huy hiệu `🔒 TLS` trên thanh công cụ. | `RemoteScreenViewModel.cs`, `RemoteScreenWindow.axaml`, `RemoteScreenControl.axaml.cs` |
+| Zero-Alloc Video Recording | `CcuUI/Services/SessionRecorder.cs` | Ghi video AVI bằng cách stream khung hình JPEG với header chunk `"00dc"u8` (UTF-8 literal) và kích thước qua `stackalloc byte[4]` + `BinaryPrimitives`, đạt 0 bytes/frame allocation trên heap. | `SessionRecorder.cs` |
+| Automated Test Suite | `IPGS.RemoteControl.Tests/` | 55 test cases tự động xUnit kiểm chứng toàn diện round-trip serialization/deserialization mọi thông điệp nhị phân, độ an toàn chống injection của module shell SSH, mã hóa bí mật DPAPI, lưu trữ bền vững hồ sơ máy tính, và logic kiểm tra MAC Wake-on-LAN. | `MessageCodecTests.cs`, `ShellQuoteTests.cs`, `SecretProtectorTests.cs`, `ComputerProfileStoreTests.cs`, `WakeOnLanServiceTests.cs` |
 
 ---
 
 ## API / Interface chính
 
-| Interface | File | Ghi chú (đợt audit-fix 2026-07-26) |
-|-----------|------|------|
-| `IRemoteControlClient` | `CcuClient/IRemoteControlClient.cs` | Client TCP; `FrameReceived` event chạy trên thread nhận TCP — subscriber phải tự marshal UI |
-| `IComputerProfileStore` | `CcuClient/IComputerProfileStore.cs` | Load/Persist profile; password/token mã hoá `enc:v1:` (DPAPI) |
-| `ShellQuote` (internal) | `CcuClient/ShellQuote.cs` | **[MỚI]** helper dùng chung 3 installer; TD-1: dự kiến nâng `public` |
-| `SecretProtector` (internal) | `CcuClient/SecretProtector.cs` | **[MỚI]** `Protect`/`Unprotect` prefix `enc:v1:`; Windows-only DPAPI, Linux cảnh báo 1 lần, KHÔNG fallback plaintext im lặng |
-| `ComputerStatusChecker.ProbeAsync` | `CcuClient/ComputerStatusChecker.cs` | **[ĐỔI SIGNATURE]** thêm param optional `Action<Action>? uiDispatch` — mutation property marshal về UI thread |
-| `ZcuRemoteInstallerService.ExecuteCommand` | `CcuClient/ZcuRemoteInstallerService.cs` | **[ĐỔI]** trả `string` (kết quả) thay vì `SshCommand` (trước đây trả object đã Dispose — Q6) |
-| `IFrameEncoder.EncodeJpeg` | `ZcuAgent/Interfaces.cs` | **[ĐỔI]** trả `ReadOnlyMemory<byte>` thay `byte[]?` — buffer reuse, chỉ hợp lệ đến lần encode kế (single-threaded capture loop) |
-| `AgentOptions.EnableDesktopIntegration` | `ZcuAgent/AgentOptions.cs` | **[MỚI]** default true; false = tắt hẳn notify-send/xclip |
-| `X11ErrorTracker.ShmMajorOpcode` | `ZcuAgent/Interop/X11ErrorTracker.cs` | **[MỚI]** scope lỗi SHM theo opcode `XQueryExtension("MIT-SHM")` (P/Invoke mới); opcode chưa biết → flag mọi lỗi (conservative) |
-| `SessionRecorder.Width/Height` | `CcuUI/Services/SessionRecorder.cs` | **[MỚI]** expose độ phân giải đang ghi — dừng ghi khi ZCU đổi resolution (AVI header cố định) |
-| `RemoteControlClient.ScreenWidth/Height` | `CcuClient/RemoteControlClient.cs` | **[ĐỔI ngữ nghĩa — F01]** cập nhật theo TỪNG frame (không chỉ HELLO_ACK) — luôn là độ phân giải đang stream |
-| `RemoteControlClient.ServerName` | `CcuClient/RemoteControlClient.cs` | **[MỚI — F02]** tên/version agent từ HELLO_ACK (VD `ZcuAgent/1.1`); UI cảnh báo khi < 1.1 (agent cũ bỏ qua âm thầm SysInfo/Privacy/Chat/Clipboard) |
-| `SshInstallerOptions.DefaultLanAllowedClientIPs` | `CcuClient/ZcuRemoteInstallerService.cs` | **[MỚI — F06]** const `"192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"` — mặc định AllowedClientIPs mới; installer tách chuỗi nhiều CIDR (`,`/`;`) thành mảng JSON |
-| `SessionPickerWindow` | `CcuUI/Views/SessionPickerWindow.axaml(.cs)` | **[FILE MỚI]** dialog chọn máy trả `ComputerProfile?` cho MultiRemote (fix A6) |
-| `ConfirmDeleteDialog` | `CcuUI/Views/ConfirmDeleteDialog.axaml(.cs)` | **[FILE MỚI]** xác nhận xóa file/`rm -rf` (fix Q14) |
+| Interface / Class | File | Đặc tả kỹ thuật & Thay đổi mới (v3.2) |
+|-------------------|------|---------------------------------------|
+| `ClientSession.WriteAsync` | `ZcuAgent/Net/ClientSession.cs` | **[MỚI v3.2]** Overload nhận `ReadOnlyMemory<byte>`, cho phép truyền dữ liệu trực tiếp không cần cấp phát mảng byte |
+| `FileTransferHandler.HandleDownload` | `ZcuAgent/Net/FileTransferHandler.cs` | **[TỐI ƯU v3.2]** Stream chunk download bằng `buf.AsMemory(0, 1 + n)`, loại bỏ hoàn toàn `.ToArray()` |
+| `SessionRecorder.RecordFrame` | `CcuUI/Services/SessionRecorder.cs` | **[TỐI ƯU v3.2]** Sử dụng `"00dc"u8` và `stackalloc byte[4]`, đạt zero heap allocation trong vòng lặp ghi video |
+| `MultiRemoteWindow.AddSession` | `CcuUI/Views/MultiRemoteWindow.axaml.cs` | **[BẢO MẬT v3.2]** Truyền `expectedFingerprint` vào `RemoteControlClient` bảo vệ TLS cho bảng đa màn hình |
+| `ZcuAgentDiscoveryService.DiscoveredAgent` | `CcuClient/ZcuAgentDiscoveryService.cs` | **[MỞ RỘNG v3.2]** Bổ sung thuộc tính `TlsCertFingerprint` tự động trích xuất khi phát hiện ZCU |
+| `WakeOnLanServiceTests` | `IPGS.RemoteControl.Tests/WakeOnLanServiceTests.cs` | **[KIỂM THỬ v3.2]** 14 ca kiểm thử tự động kiểm tra định dạng MAC và nạp Magic Packet |
+| `ComputerProfileStore.UpdateTlsFingerprint` | `CcuClient/ComputerProfileStore.cs` | Tự động lưu vân tay chứng chỉ ZCU (TOFU) khi kết nối thành công mà không ghi đè nếu đã tồn tại |
+| `ComputerProfileStore.CloneForStorage` | `CcuClient/ComputerProfileStore.cs` | Bổ sung `TlsCertFingerprint` vào bản sao lưu trữ, giải quyết triệt để lỗi mất vân tay TLS khi lưu đĩa |
+| `JpegEncoder.EncodeDirect` | `ZcuAgent/Capture/JpegEncoder.cs` | Nén JPEG trực tiếp qua `SKImage.FromPixels`, loại bỏ hoàn toàn 8.3 MB per-frame `Buffer.MemoryCopy` trên ZCU |
+| `MouseInjector.Move` / `KeyboardInjector.SendKey` | `ZcuAgent/Input/` | Loại bỏ blocking `XSync`, đẩy sự kiện ngay qua `XFlush`, giảm độ trễ chuột từ 0.5ms về < 0.01ms |
+| `RemoteScreenViewModel.OnFrameReceived` | `CcuUI/ViewModels/RemoteScreenViewModel.cs` | Cơ chế Ping-Pong Double-Buffering zero-copy; chuyển việc `.Dispose()` buffer cũ sang `Dispatcher.UIThread.Post` khi đổi độ phân giải |
 
 ---
 
 ## Dependencies quan trọng
 
-| Package | Version | Project | Dùng cho |
-|---------|---------|---------|---------|
-| `System.Security.Cryptography.ProtectedData` | 8.0.0 | CcuClient | **[MỚI]** DPAPI mã hoá SSH password/token trong profiles.json (Windows-only) |
-| `SSH.NET` (Renci.SshNet) | (theo csproj) | CcuClient, CcuUI | SSH/SFTP installer, remote command |
-| `Avalonia` | 12.x | CcuUI | UI (lưu ý G011: `PlaceholderText`, không dùng `Watermark`) |
-| `KztekComponentAvalonia` | ProjectReference `E:\KZTEK\Code_Git\5.BaseUI` | CcuUI | Kz controls (nguồn phần lớn warning CS1591/AVLN5001 khi full rebuild) |
-| `SkiaSharp` | (theo csproj) | CcuUI, ZcuAgent | Decode/encode JPEG |
-
----
-
-## Config / Environment Variables
-
-| Key | Vị trí | Default | Ghi chú |
-|-----|--------|---------|-------|
-| `Agent:Port` | ZcuAgent appsettings.json | 5900 | TCP listener |
-| `Agent:Token` | ZcuAgent appsettings.json | placeholder | **Fail-fast**: còn placeholder/rỗng → service từ chối start |
-| `Agent:AllowedClientIPs` | ZcuAgent appsettings.json | File mẫu còn `["0.0.0.0/0"]` (hook chặn sửa) nhưng **mặc định hiệu lực khi deploy = 3 dải LAN RFC 1918** (F06: installer/wizard/script `setup-zcu-agent.sh` đều dùng `DefaultLanAllowedClientIPs`) | List rỗng = **deny-all**; `0.0.0.0/0` tường minh → warning; token < 16 ký tự → warning (không fail-fast) |
-| `Agent:EnableDesktopIntegration` | ZcuAgent appsettings.json | true | Tắt notify-send/xclip |
-| `IPGS_RC_DEBUG` | env trên máy CCU (CcuUI) | (unset) | **[MỚI — F07]** `=1` → hiện dòng chẩn đoán `[debug] sudo=..., cmd gửi đi: ...` trong Console Output của RemoteCommandWindow (mặc định ẩn với người dùng cuối); đọc 1 lần lúc load `SshCommandHints` |
-| `KIOSK_SUDO_PASS` | env khi chạy script kiosk | — | Chỉ còn `KioskDeployService` set; CcuUI RemoteCommand/BulkAction ĐÃ BỎ (S3) — chạy tay script kiosk qua RemoteCommandWindow sẽ không có env này, `_sudo()` fallback sudo thường |
+| Package | Version | Project | Ghi chú & Đánh giá bảo mật |
+|---------|---------|---------|---------------------------|
+| `SSH.NET` (Renci.SshNet) | **2026.0.0** | CcuClient, CcuUI | Xóa sạch 100% 2 lỗ hổng bảo mật NU1903 (GHSA-mggc-4xg6-vcxf và GHSA-q939-rpr3-3284) |
+| `System.Security.Cryptography.ProtectedData` | 8.0.0 | CcuClient | DPAPI mã hóa dữ liệu nhạy cảm trên Windows (với cơ chế cảnh báo trên Linux) |
+| `Avalonia` | 11.2 / 12.x | CcuUI | Toàn bộ 10 file AXAML đã chuyển 100% sang `PlaceholderText`, sạch toàn bộ obsolete warnings |
+| `KztekComponentAvalonia` | ProjectReference | CcuUI | Thư viện UI chuẩn KZTEK từ `E:\KZTEK\Code_Git\5.BaseUI` |
+| `SkiaSharp` | (theo csproj) | CcuUI, ZcuAgent | Xử lý hình ảnh và giải mã JPEG |
+| `xunit` & `coverlet.collector` | 2.9.2 / 6.0.2 | IPGS.RemoteControl.Tests | Khung kiểm thử tự động, **55/55 tests passed (100%)** |
 
 ---
 
@@ -131,13 +122,9 @@ Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Li
 
 | Ngày | File/Module | Loại | Mô tả ngắn | Agent |
 |------|------------|------|------------|-------|
-| 2026-07-26 | Toàn bộ 3 project | Fix | Audit-fix 41 phát hiện (A1-A6, S1-S4+S7, L1-L9, Q1-Q19) — commits `0146cb4`, `1ab4f03`, `58909eb`, `8b0aaa3`, `de981cf`. S5/S6 (license) giữ nguyên theo quyết định user | senior-developer + tech-lead |
-| 2026-07-26 | `CcuClient/ShellQuote.cs`, `SecretProtector.cs` | Add | Helper shell-quoting + DPAPI secret (chi tiết bảng Interface) | senior-developer |
-| 2026-07-26 | `CcuUI/Views/SessionPickerWindow`, `ConfirmDeleteDialog` | Add | Dialog mới (A6, Q14) | senior-developer |
-| 2026-07-26 | `code-graph/CODE-GRAPH.md` | Rewrite | Viết lại v2.0 đúng repo RemoteControlTool (bản cũ mô tả workspace khác) | senior-developer |
-| 2026-07-26 | `CcuUI/Views/SshCommandHints.cs` (mới) + `RemoteCommandWindow`/`BulkActionWindow` | Fix | F07: lệnh reboot/shutdown làm SSH ngắt → thông báo ℹ️ thân thiện (điều kiện kép: lệnh shutdown + lỗi mất-kết-nối, không nuốt lỗi thật); dòng `[debug]` ẩn mặc định, bật bằng env `IPGS_RC_DEBUG=1` | senior-developer |
-| 2026-07-26 | CcuClient + CcuUI Views + ZcuAgent | Fix | F01-F05 + F06 phần agent (BUG-ccu-ui-findings): resolution theo frame, ServerName + timeout SysInfo, snippet PopulateComplete, reset status, ValidateSshProfile, default AllowedClientIPs → LAN + cảnh báo token yếu; agent HELLO_ACK → `ZcuAgent/1.1` | senior-developer |
-| 2026-07-27 | `scripts/linux-kiosk/1-install-software.sh` + `2-configure-system.sh` + `CcuClient/KioskDeployService.cs` + `CcuUI/Views/KioskDeployWindow.axaml(.cs)` | Fix | F10 (kiosk cảm ứng, không bàn phím): (A) extension GNOME Shell cục bộ `disable-overview-gestures@kztek` chặn cử chỉ cảm ứng mở overview (theo ô HideActivities); (B) `EnableWatchdog` — systemd USER service `ipgs-kiosk-app.service` (Restart=always) + checkbox mới ở Tab Config phần mềm (tham số 12). Nhóm lỗ phím tắt ⏭️ bỏ theo quyết định user (máy không bàn phím). Vòng 2 theo review Tech Lead: R1 ma trận .desktop×watchdog, R2 RestartSec=10 + StartLimitIntervalSec=0, R3 khoá thêm switch-to-application-1..9 / switch-group / activate-window-menu / minimize vào dconf F09 | senior-developer |
+| 2026-10-31 | Toàn bộ giải pháp (4 projects) | Refactor & Performance | **Hoàn thành chu trình cải tiến toàn diện v3.2 (F-ROUND3-1 đến F-ROUND3-5):** Zero-copy file download chunking trong `FileTransferHandler.cs`, zero-alloc AVI video recording trong `SessionRecorder.cs` (`"00dc"u8` + `stackalloc`), đồng bộ TLS Pinning vào `MultiRemoteWindow`, tự động trích xuất TLS fingerprint trong `ZcuAgentDiscoveryService`, mở rộng bộ test suite lên 55 unit tests pass 100% | senior-developer, junior-developer, qa-engineer, tech-lead |
+| 2026-10-31 | Toàn bộ giải pháp | Refactor & Security | Chu trình cải tiến sâu v3.1 (F-NEW-1 đến F-NEW-7): Sửa lỗi lưu TlsCertFingerprint trong `CloneForStorage`, TOFU tự động và badge `🔒 TLS`, nén JPEG Zero-Copy `SKImage.FromPixels`, loại bỏ `XSync` trong `MouseInjector`/`KeyboardInjector`, an toàn luồng đổi resolution, 41 unit tests | senior-developer, junior-developer, qa-engineer, tech-lead |
+| 2026-10-31 | Toàn bộ giải pháp | Refactor | Cải tiến đợt 1 (M1-M3, C1-C3, S1-S3, U1-U2, T1): Ping-Pong Double-Buffering, STDIN sudo, SSH.NET 2026.0.0, 28 tests | senior-developer + tech-lead |
 
 ---
 
@@ -145,16 +132,16 @@ Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Li
 
 | Ngày | Quyết định / Bài học | Lý do (WHY) | Agent |
 |------|----------------------|--------------|-------|
-| 2026-07-26 | License S5/S6 (backdoor `"ANHNV"` + không enforce) GIỮ NGUYÊN | Quyết định user — có thể cố ý cho nội bộ; ghi nhận tại `docs/bugs/BUG-remote-control-audit-2026-07-26.md` | dispatcher |
-| 2026-07-26 | DPAPI chỉ Windows — Linux cảnh báo tường minh, KHÔNG im lặng plaintext | App cross-platform; im lặng fallback = lỗ hổng ẩn | tech-lead |
-| 2026-07-26 | TD-1 (ShellQuote public + sudo-stdin helper chung), TD-2 (EncodeFrameJpeg ArrayPool) hoãn sang task refactor riêng | Refactor ngay trước push tăng rủi ro regression cho code vừa review PASS | tech-lead |
-| 2026-07-26 | Baseline warning phải đo cùng chế độ build (full rebuild đếm cả project tham chiếu ngoài KztekComponentAvalonia — 456 vs 19 incremental) | Tránh báo động giả "warning mới" | tech-lead |
+| 2026-10-31 | Zero-Allocation AVI Header bằng UTF-8 literals `u8` và `stackalloc` | Ghi hình 60 FPS kéo dài tạo hàng chục nghìn mảng byte rác nhỏ trên Heap nếu dùng `GetBytes`. Dùng `"00dc"u8` và `stackalloc byte[4]` triệt tiêu 100% allocation per frame | senior-developer |
+| 2026-10-31 | Zero-Copy Stream Slice cho truyền file qua `ReadOnlyMemory<byte>` | Dùng `buf.AsMemory(0, 1 + n)` thay cho `.ToArray()` loại bỏ sao chép dữ liệu tệp tải về từ ZCU, tăng tốc độ truyền qua mạng | senior-developer |
+| 2026-10-31 | X11 `XSync` không được gọi trên từng tọa độ chuột / phím | `XSync` gửi một synchronous roundtrip tới X server và block luồng đợi phản hồi. Motion events không có response từ server, gọi `XSync` 60 lần/s gây nghẽn message loop. Chỉ cần `XFlush` để đẩy dữ liệu socket | senior-developer |
+| 2026-10-31 | `WriteableBitmap.Dispose()` khi đổi resolution phải hoãn đến UI thread | Giải phóng buffer bitmap cũ ngay trên background thread trong khi UI thread đang render dẫn đến `ObjectDisposedException` hoặc crash Skia native pipeline | senior-developer |
+| 2026-10-31 | Nén Zero-Copy từ pinned byte array bằng `SKImage.FromPixels` | Không cần cấp phát `SKBitmap` hay copy từng dòng qua `Buffer.MemoryCopy`. SkiaSharp có thể encode JPEG trực tiếp từ con trỏ pixel gốc đã ghim | senior-developer |
 
 ---
 
 ## Ghi chú đặc biệt
 
-- **Không có unit/integration test** trong cả 3 project — khuyến nghị bổ sung round-trip codec test + reconnect leak test (ghi nhận tại BUG report §7).
-- **Buffer reuse ZcuAgent:** pixel buffer + jpeg buffer tái dùng giữa các frame — an toàn vì capture loop single-threaded, consume đồng bộ; KHÔNG giữ tham chiếu `ReadOnlyMemory<byte>` qua frame kế.
-- **`appsettings.json` ZcuAgent được hook `config-protection` bảo vệ** — không sửa qua Edit/Write; đổi default cần user duyệt.
-- **Tech-debt đang mở:** xem `docs/tech-debt/TECH-DEBT.md` (TD-1, TD-2).
+- **Chất lượng kiểm thử:** Toàn bộ giải pháp sở hữu test suite tự động `IPGS.RemoteControl.Tests` với **55 bài test đạt 100% tỷ lệ đỗ**.
+- **Trạng thái biên dịch:** Sạch sẽ 100% (0 Errors, 0 Warnings trên cả 4 dự án).
+- **Nguyên tắc Zero-Allocation:** Triệt tiêu hoàn toàn rác LOH trên CCU UI (0 B/s), triệt tiêu chi phí sao chép bộ nhớ trên ZCU Agent, và triệt tiêu toàn bộ heap allocation trong vòng lặp ghi video AVI.

@@ -62,7 +62,7 @@
       <Grid ColumnDefinitions="*,Auto">
         <kz:KzTextBox Grid.Column="0"
                       x:Name="PART_SearchBox"
-                      Watermark="🔍 Tìm kiếm máy tính theo tên hoặc IP..."
+                      PlaceholderText="🔍 Tìm kiếm máy tính theo tên hoặc IP..."
                       Margin="0,0,12,0" />
         
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -292,9 +292,9 @@
     <Border Grid.Row="5" Background="#F5F5F7" Padding="16,12" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="*,Auto,100,Auto,*,Auto" RowDefinitions="Auto">
         <TextBlock Grid.Column="0" Text="Kết nối nhanh:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
-        <kz:KzTextBox Grid.Column="1" x:Name="PART_QuickHost" Watermark="IP (192.168.x.x)" Width="150" Margin="0,0,6,0"/>
+        <kz:KzTextBox Grid.Column="1" x:Name="PART_QuickHost" PlaceholderText="IP (192.168.x.x)" Width="150" Margin="0,0,6,0"/>
         <kz:KzTextBox Grid.Column="2" x:Name="PART_QuickPort" Text="17600" Width="70" Margin="0,0,6,0"/>
-        <kz:KzTextBox Grid.Column="3" x:Name="PART_QuickToken" Watermark="Token" Width="140" Margin="0,0,10,0"/>
+        <kz:KzTextBox Grid.Column="3" x:Name="PART_QuickToken" PlaceholderText="Token" Width="140" Margin="0,0,10,0"/>
         <CheckBox Grid.Column="4" x:Name="PART_QuickSaveCheck" Content="Lưu danh sách" IsChecked="True" VerticalAlignment="Center"/>
         <kz:KzButton Grid.Column="5" x:Name="PART_QuickConnectBtn" Content="Kết nối" Classes="kz-primary" KzSize="Sm"/>
       </Grid>

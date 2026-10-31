@@ -83,10 +83,8 @@ internal sealed class KeyboardInjector : IKeyboardInjector
             _downKeys.Remove(keysym);
 
         XTest.XTestFakeKeyEvent(_display, keycode, isDown, 0);
-        // GOTCHA: XFlush is mandatory — same rule as XTestFakeButtonEvent in MouseInjector.
+        // Audit F-NEW-4: XFlush is mandatory to dispatch event without blocking on XSync
         X11.XFlush(_display);
-        // XSync surfaces any async X errors immediately (e.g. BadAccess).
-        X11.XSync(_display, false);
     }
 
     /// <summary>Physical key injection (scan mode): keycode dùng thẳng, layout ZCU tự dịch ra ký tự.</summary>
@@ -98,7 +96,6 @@ internal sealed class KeyboardInjector : IKeyboardInjector
 
         XTest.XTestFakeKeyEvent(_display, keycode, isDown, 0);
         X11.XFlush(_display);
-        X11.XSync(_display, false);
     }
 
     /// <summary>

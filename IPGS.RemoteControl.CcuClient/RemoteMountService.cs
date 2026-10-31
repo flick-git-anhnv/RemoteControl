@@ -98,7 +98,7 @@ public sealed class RemoteMountService
         }
         else
         {
-            if (!PathRegex.IsMatch(m.SharePath ?? "") || (m.SharePath ?? "").Length < 2 || m.SharePath.Contains(".."))
+            var sp = m.SharePath ?? ""; if (!PathRegex.IsMatch(sp) || sp.Length < 2 || sp.Contains(".."))
                 throw new ArgumentException($"Đường dẫn export NFS '{m.SharePath}' không hợp lệ (VD /srv/share).");
             prep = "";
             source = $"{m.ServerHost}:{m.SharePath}";

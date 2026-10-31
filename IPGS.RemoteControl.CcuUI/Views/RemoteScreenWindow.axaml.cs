@@ -46,11 +46,16 @@ public partial class RemoteScreenWindow : Window
     /// <param name="host">ZCU hostname or IP address.</param>
     /// <param name="port">TCP port (default <see cref="RemoteControlConstants.DefaultPort"/> = 17600).</param>
     /// <param name="token">Shared secret token (must match ZcuAgent appsettings.json).</param>
-    public RemoteScreenWindow(string host, int port, string token, bool showSshHelp = false)
+    private readonly string? _expectedFingerprint;
+
+    public RemoteScreenWindow() : this("127.0.0.1", 17600, "") { }
+
+    public RemoteScreenWindow(string host, int port, string token, bool showSshHelp = false, string? expectedFingerprint = null)
     {
         _host  = host;
         _port  = port;
         _token = token;
+        _expectedFingerprint = expectedFingerprint;
 
         _vm = new RemoteScreenViewModel
         {
@@ -69,6 +74,11 @@ public partial class RemoteScreenWindow : Window
         RemoteScreen.PasteStatus += s => Dispatcher.UIThread.Post(() => SetStatusTitle(s));
         _vm.Client.FrameReceived += OnFrameReceived;
         _vm.Client.StateChanged += OnClientStateChanged;
+        _vm.Client.TlsCertificateValidated += (sender, hash) =>
+        {
+            // TOFU (audit F-NEW-2): tự động lưu vân tay chứng chỉ vào profile nếu chưa lưu
+            ComputerProfileStore.Instance.UpdateTlsFingerprint(_host, _port, hash);
+        };
     }
 
     // ── Window lifecycle ─────────────────────────────────────────────────────
@@ -78,7 +88,7 @@ public partial class RemoteScreenWindow : Window
         base.OnOpened(e);
         // Start connection loop immediately; CcuClient fires StateChanged events
         // back to the ViewModel which updates the UI via Dispatcher.UIThread.Post.
-        await _vm.ConnectAsync(_host, _port, _token);
+        await _vm.ConnectAsync(_host, _port, _token, _expectedFingerprint);
     }
 
     protected override async void OnClosed(EventArgs e)

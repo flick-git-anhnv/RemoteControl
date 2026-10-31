@@ -43,14 +43,14 @@ public partial class MountFolderWindow : Window
         if (IsNfs)
         {
             PART_ShareLabel.Text = "Đường dẫn export:";
-            PART_SharePath.Watermark = "/srv/share";
+            PART_SharePath.PlaceholderText = "/srv/share";
             PART_Hint.Text = "NFS dành cho Ubuntu ↔ Ubuntu: không cần user/mật khẩu, phân quyền theo dải IP máy khách. " +
                              "Nếu máy chủ chưa cài NFS, dùng khung 'Thiết lập máy chủ NFS' bên dưới trước, rồi bấm 'Cài & Mount' cho các máy khách.";
         }
         else
         {
             PART_ShareLabel.Text = "Tên share:";
-            PART_SharePath.Watermark = "Images";
+            PART_SharePath.PlaceholderText = "Images";
             PART_Hint.Text = "CIFS/SMB dùng cho thư mục share trên máy Windows (hoặc Ubuntu đã cài Samba). " +
                              "Tương đương dòng fstab: //IP/Tên_share /mnt/... cifs username=Guest,... — mật khẩu được lưu trong file /etc/ipgs-cifs/*.cred (quyền 600), không đặt trong fstab. " +
                              "Mount tự động khi truy cập (automount), nofail nên máy vẫn boot bình thường nếu máy chủ share tắt.";

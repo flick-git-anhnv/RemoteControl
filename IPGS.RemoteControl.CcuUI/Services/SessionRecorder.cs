@@ -56,7 +56,8 @@ public sealed class SessionRecorder : IDisposable
 
             uint offset = (uint)(_stream.Position - _moviOffset);
 
-            WriteFourCC("00dc");
+            // Audit F-ROUND3-2: Zero-allocation chunk writing
+            WriteFourCC("00dc"u8);
             WriteUInt32((uint)jpegData.Length);
             _stream.Write(jpegData);
             if (pad) _stream.WriteByte(0);
@@ -184,23 +185,28 @@ public sealed class SessionRecorder : IDisposable
         _moviOffset = _stream.Position;
     }
 
+    private void WriteFourCC(ReadOnlySpan<byte> fcc)
+    {
+        _stream.Write(fcc);
+    }
+
     private void WriteFourCC(string fcc)
     {
-        var bytes = Encoding.ASCII.GetBytes(fcc);
-        if (bytes.Length != 4) throw new ArgumentException("Must be 4 chars");
+        Span<byte> bytes = stackalloc byte[4];
+        Encoding.ASCII.GetBytes(fcc, bytes);
         _stream.Write(bytes);
     }
 
     private void WriteUInt16(ushort val)
     {
-        var buf = new byte[2];
+        Span<byte> buf = stackalloc byte[2];
         BinaryPrimitives.WriteUInt16LittleEndian(buf, val);
         _stream.Write(buf);
     }
 
     private void WriteUInt32(uint val)
     {
-        var buf = new byte[4];
+        Span<byte> buf = stackalloc byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(buf, val);
         _stream.Write(buf);
     }

@@ -117,7 +117,7 @@ namespace IPGS.RemoteControl.CcuClient
 
         public Task InstallZcuAgentAsync(SshInstallerOptions options, Action<string, double>? onProgress = null, CancellationToken cancellationToken = default)
         {
-            return Task.Run(async () =>
+            return Task.Run(() =>
             {
                 void Report(string msg, double percent) => onProgress?.Invoke(msg, percent);
 

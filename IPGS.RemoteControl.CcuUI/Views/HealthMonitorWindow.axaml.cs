@@ -376,12 +376,18 @@ exit 0
         var cpuLine = topLines.FirstOrDefault(l => l.StartsWith("%Cpu"));
         if (cpuLine != null)
         {
-            // Simple parsing to get idle or user usage. 
-            // e.g. %Cpu(s):  5.0 us
-            var match = Regex.Match(cpuLine, @"([\d\.]+)\s*us");
-            if (match.Success)
+            // Tính toán tổng tải CPU chính xác: Total CPU % = 100 - idle% (audit U1)
+            var idleMatch = Regex.Match(cpuLine, @"([\d\.]+)\s*id");
+            if (idleMatch.Success && double.TryParse(idleMatch.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture, out double idleVal))
             {
+                double totalCpu = Math.Clamp(100.0 - idleVal, 0.0, 100.0);
                 if (this.FindControl<TextBlock>("PART_CpuText") is { } cpuTxt)
+                    cpuTxt.Text = $"{totalCpu:F1}%";
+            }
+            else
+            {
+                var match = Regex.Match(cpuLine, @"([\d\.]+)\s*us");
+                if (match.Success && this.FindControl<TextBlock>("PART_CpuText") is { } cpuTxt)
                     cpuTxt.Text = $"{match.Groups[1].Value}%";
             }
         }

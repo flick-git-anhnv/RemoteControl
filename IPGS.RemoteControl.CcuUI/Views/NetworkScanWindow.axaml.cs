@@ -151,13 +151,15 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     LastAppInstallerPath = existing.LastAppInstallerPath,
                     LastUninstallPackage = existing.LastUninstallPackage,
                     LastConnectedAt = existing.LastConnectedAt,
+                    TlsCertFingerprint = existing.TlsCertFingerprint ?? found.TlsCertFingerprint,
                     CreatedAt = existing.CreatedAt
                 }
                 : new ComputerProfile
                 {
                     Name = found.ServerName,
                     Host = found.Host,
-                    Port = found.Port
+                    Port = found.Port,
+                    TlsCertFingerprint = found.TlsCertFingerprint
                 };
 
             var dlg = new ComputerEditWindow(profileToEdit);

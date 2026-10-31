@@ -31,14 +31,14 @@
                      VerticalAlignment="Center" />
           <kz:KzTextBox Grid.Row="0" Grid.Column="1"
                         x:Name="PART_Name"
-                        Watermark="Ví dụ: Máy khách Trạm P01" />
+                        PlaceholderText="Ví dụ: Máy khách Trạm P01" />
 
           <TextBlock Grid.Row="1" Grid.Column="0"
                      Text="Địa chỉ IP Máy khách:"
                      VerticalAlignment="Center" />
           <kz:KzTextBox Grid.Row="1" Grid.Column="1"
                         x:Name="PART_Host"
-                        Watermark="192.168.x.x" />
+                        PlaceholderText="192.168.x.x" />
 
           <TextBlock Grid.Row="2" Grid.Column="0"
                      Text="Cổng TCP:"
@@ -52,7 +52,7 @@
                      VerticalAlignment="Center" />
           <kz:KzTextBox Grid.Row="3" Grid.Column="1"
                         x:Name="PART_Token"
-                        Watermark="Shared-secret token" />
+                        PlaceholderText="Shared-secret token" />
 
           <TextBlock Grid.Row="4" Grid.Column="0"
                      Text="Ghi chú:"
@@ -66,7 +66,7 @@
                      VerticalAlignment="Center" />
           <TextBox Grid.Row="5" Grid.Column="1"
                    x:Name="PART_MacAddress"
-                   Watermark="Bỏ trống hoặc XX:XX:XX:XX:XX:XX (dùng cho WoL)"
+                   PlaceholderText="Bỏ trống hoặc XX:XX:XX:XX:XX:XX (dùng cho WoL)"
                    Height="36" VerticalContentAlignment="Center" />
         </Grid>
 
@@ -85,7 +85,7 @@
                          VerticalAlignment="Center" />
               <kz:KzTextBox Grid.Row="0" Grid.Column="1"
                             x:Name="PART_SshUser"
-                            Watermark="kztek / ubuntu" />
+                            PlaceholderText="kztek / ubuntu" />
 
               <TextBlock Grid.Row="1" Grid.Column="0"
                          Text="SSH password:"
@@ -93,7 +93,7 @@
               <kz:KzTextBox Grid.Row="1" Grid.Column="1"
                         x:Name="PART_SshPassword"
                         PasswordChar="•"
-                        Watermark="Nhập mật khẩu SSH..." />
+                        PlaceholderText="Nhập mật khẩu SSH..." />
 
               <TextBlock Grid.Row="2" Grid.Column="0"
                          Text="Cổng SSH:"

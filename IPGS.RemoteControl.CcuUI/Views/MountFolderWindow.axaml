@@ -26,19 +26,19 @@
           </ComboBox>
 
           <TextBlock Grid.Row="1" Text="IP máy chủ share:" VerticalAlignment="Center" />
-          <kz:KzTextBox Grid.Row="1" Grid.Column="1" x:Name="PART_ServerHost" Watermark="192.168.80.6" />
+          <kz:KzTextBox Grid.Row="1" Grid.Column="1" x:Name="PART_ServerHost" PlaceholderText="192.168.80.6" />
 
           <TextBlock Grid.Row="2" x:Name="PART_ShareLabel" Text="Tên share:" VerticalAlignment="Center" />
-          <kz:KzTextBox Grid.Row="2" Grid.Column="1" x:Name="PART_SharePath" Watermark="Images" />
+          <kz:KzTextBox Grid.Row="2" Grid.Column="1" x:Name="PART_SharePath" PlaceholderText="Images" />
 
           <TextBlock Grid.Row="3" Text="Thư mục gắn (mount):" VerticalAlignment="Center" />
-          <kz:KzTextBox Grid.Row="3" Grid.Column="1" x:Name="PART_MountPoint" Watermark="/mnt/Images" Text="/mnt/Images" />
+          <kz:KzTextBox Grid.Row="3" Grid.Column="1" x:Name="PART_MountPoint" PlaceholderText="/mnt/Images" Text="/mnt/Images" />
 
           <TextBlock Grid.Row="4" x:Name="PART_UserLabel" Text="User share:" VerticalAlignment="Center" />
-          <kz:KzTextBox Grid.Row="4" Grid.Column="1" x:Name="PART_ShareUser" Watermark="Bỏ trống = Guest (không cần mật khẩu)" />
+          <kz:KzTextBox Grid.Row="4" Grid.Column="1" x:Name="PART_ShareUser" PlaceholderText="Bỏ trống = Guest (không cần mật khẩu)" />
 
           <TextBlock Grid.Row="5" x:Name="PART_PassLabel" Text="Mật khẩu share:" VerticalAlignment="Center" />
-          <kz:KzTextBox Grid.Row="5" Grid.Column="1" x:Name="PART_SharePass" PasswordChar="•" Watermark="Bỏ trống nếu Guest" />
+          <kz:KzTextBox Grid.Row="5" Grid.Column="1" x:Name="PART_SharePass" PasswordChar="•" PlaceholderText="Bỏ trống nếu Guest" />
         </Grid>
 
         <CheckBox x:Name="PART_ReadOnly" Content="Chỉ đọc (read-only)" />
@@ -52,7 +52,7 @@
             <TextBlock Text="🖥️ Thiết lập máy chủ NFS (chạy trên máy Ubuntu CHỨA thư mục)" FontWeight="SemiBold" FontSize="12" Foreground="#92400E" />
             <TextBlock FontSize="12" Foreground="#92400E" TextWrapping="Wrap"
                        Text="Máy chủ phải có trong danh sách với IP trùng ô 'IP máy chủ share' và đã nhập SSH user/password. Cài nfs-kernel-server và export thư mục ở ô 'Đường dẫn export' cho các dải IP bên dưới." />
-            <kz:KzTextBox x:Name="PART_AllowedClients" Text="192.168.0.0/16,10.0.0.0/8,172.16.0.0/12" Watermark="Dải IP máy khách được phép" />
+            <kz:KzTextBox x:Name="PART_AllowedClients" Text="192.168.0.0/16,10.0.0.0/8,172.16.0.0/12" PlaceholderText="Dải IP máy khách được phép" />
             <kz:KzButton x:Name="PART_BtnSetupServer" Content="🖥️ Thiết lập máy chủ NFS" KzSize="Sm" HorizontalAlignment="Left" />
           </StackPanel>
         </Border>

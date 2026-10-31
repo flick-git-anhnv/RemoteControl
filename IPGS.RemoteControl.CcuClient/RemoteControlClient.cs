@@ -69,6 +69,10 @@ public sealed class RemoteControlClient : IRemoteControlClient
     public event EventHandler<string>? ChatMessageReceived;
     public event EventHandler<string>? ClipboardDataReceived;
     public event EventHandler<string>? SysInfoReceived;
+    /// <summary>Báo vân tay SHA-256 chứng chỉ TLS máy đích khi kết nối thành công (audit S3).</summary>
+    public event EventHandler<string>? TlsCertificateValidated;
+    /// <summary>Vân tay SHA-256 kỳ vọng của máy đích (null nếu chấp nhận TOFU lần đầu).</summary>
+    public string? ExpectedCertFingerprint { get; set; }
 
     // ── Constructor ───────────────────────────────────────────────────────
     public RemoteControlClient(ILogger<RemoteControlClient>? logger = null)
@@ -224,7 +228,7 @@ public sealed class RemoteControlClient : IRemoteControlClient
             {
                 while ((n = await fs.ReadAsync(buf.AsMemory(1, FileChunkSize), ct).ConfigureAwait(false)) > 0)
                 {
-                    await SendLockedAsync(MessageType.FileChunk, buf.AsSpan(0, 1 + n).ToArray(), ct).ConfigureAwait(false);
+                    await SendLockedAsync(MessageType.FileChunk, buf.AsMemory(0, 1 + n), ct).ConfigureAwait(false);
                     sent += n;
                     progress?.Report((sent, fs.Length));
                     if (st.Done.Task.IsFaulted) break; // agent báo lỗi giữa chừng
@@ -607,7 +611,22 @@ public sealed class RemoteControlClient : IRemoteControlClient
 
                 var ssl = new System.Net.Security.SslStream(
                     _tcp!.GetStream(), leaveInnerStreamOpen: false,
-                    userCertificateValidationCallback: (_, _, _, _) => true);
+                    userCertificateValidationCallback: (sender, cert, chain, errors) =>
+                    {
+                        if (cert is null) return false;
+                        var hash = cert.GetCertHashString(System.Security.Cryptography.HashAlgorithmName.SHA256);
+                        if (!string.IsNullOrEmpty(ExpectedCertFingerprint))
+                        {
+                            if (!string.Equals(hash, ExpectedCertFingerprint, StringComparison.OrdinalIgnoreCase))
+                            {
+                                _logger.LogWarning("TLS Certificate Fingerprint Mismatch! Expected {Expected}, got {Actual}",
+                                    ExpectedCertFingerprint, hash);
+                                return false;
+                            }
+                        }
+                        TlsCertificateValidated?.Invoke(this, hash);
+                        return true;
+                    });
                 await ssl.AuthenticateAsClientAsync(new System.Net.Security.SslClientAuthenticationOptions
                 {
                     TargetHost = _host,
@@ -778,7 +797,10 @@ public sealed class RemoteControlClient : IRemoteControlClient
 
     // ── Send helper (serialises concurrent writes) ────────────────────────
 
-    private async Task SendLockedAsync(MessageType type, byte[] payload, CancellationToken ct)
+    private Task SendLockedAsync(MessageType type, byte[] payload, CancellationToken ct)
+        => SendLockedAsync(type, (ReadOnlyMemory<byte>)payload, ct);
+
+    private async Task SendLockedAsync(MessageType type, ReadOnlyMemory<byte> payload, CancellationToken ct)
     {
         var stream = _stream;
         if (stream is null) return;

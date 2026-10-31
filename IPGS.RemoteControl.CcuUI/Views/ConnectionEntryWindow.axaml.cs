@@ -448,7 +448,9 @@ public partial class ConnectionEntryWindow : Window
 
         // Hiển thị HD cài SSH nếu đã thăm dò và chắc chắn không kết nối được
         bool showSshHelp = isSshReachable == false;
-        var screenWin = new RemoteScreenWindow(host, port, token, showSshHelp);
+        var existingProf = _store.GetAll().FirstOrDefault(p => p.Host.Equals(host, StringComparison.OrdinalIgnoreCase) && p.Port == port);
+        string? expectedFp = existingProf?.TlsCertFingerprint;
+        var screenWin = new RemoteScreenWindow(host, port, token, showSshHelp, expectedFp);
 
         screenWin.Closed += (_, _) =>
         {

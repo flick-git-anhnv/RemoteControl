@@ -48,12 +48,9 @@ internal sealed class MouseInjector : IMouseInjector
     {
         if (!_initialized || _disposed) return;
         XTest.XTestFakeMotionEvent(_display, -1, x, y, 0);
+        // Audit F-NEW-4: XFlush is sufficient to send buffered motion events.
+        // Removed XSync per-move round-trip which blocked reader loop and caused mouse lag.
         X11.XFlush(_display);
-        // XSync forces the X server to process the request and send back any pending
-        // error events (e.g. BadAccess if XTest is not permitted on this display).
-        // Without this, a rejection would be silently dropped; with the global
-        // X11ErrorTracker handler installed, it now appears in the log immediately.
-        X11.XSync(_display, false);
     }
 
     /// <summary>

@@ -63,11 +63,6 @@ namespace IPGS.RemoteControl.CcuClient
                 // dpkg/sh không báo % → thanh chạy không xác định (Percent < 0).
                 onProgress?.Invoke(new InstallProgress(-1, "Đang cài đặt trên máy đích (không xác định thời gian)..."));
 
-                // S1/Q12: dùng ShellQuote.Quote cho password (thay escape lặp tay).
-                string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS={ShellQuote.Quote(options.SudoPassword)}";
-
-                // S1: fileName nội suy vào TRONG chuỗi bash -c '...' đã single-quote nên
-                // không thể Quote lồng — validate whitelist, từ chối tên chứa ' ; $() space...
                 string fileName = ShellQuote.ValidateFileName(
                     Path.GetFileName(options.AppInstallerFile), nameof(options.AppInstallerFile));
                 string ext = Path.GetExtension(fileName).ToLower();
@@ -75,13 +70,11 @@ namespace IPGS.RemoteControl.CcuClient
 
                 if (ext == ".deb")
                 {
-                    RunCommand(ssh, $"{envCmd} bash -c 'echo \"$KIOSK_SUDO_PASS\" | sudo -S dpkg -i \"$HOME/{fileName}\"'", Log);
+                    RunSudoCommand(ssh, $"sudo -S -p '' dpkg -i \"$HOME/{fileName}\"", options.SudoPassword, Log);
                 }
                 else if (ext == ".sh" || ext == ".run")
                 {
-                    // A5: trước đây là `sudo -S ./~/{fileName}` — `~` sau `./` là literal,
-                    // đường dẫn ./~/file không tồn tại → nhánh .sh/.run LUÔN thất bại.
-                    RunCommand(ssh, $"{envCmd} bash -c 'chmod +x \"$HOME/{fileName}\" && echo \"$KIOSK_SUDO_PASS\" | sudo -S \"$HOME/{fileName}\"'", Log);
+                    RunSudoCommand(ssh, $"chmod +x \"$HOME/{fileName}\" && sudo -S -p '' \"$HOME/{fileName}\"", options.SudoPassword, Log);
                 }
                 else
                 {
@@ -115,29 +108,27 @@ namespace IPGS.RemoteControl.CcuClient
                 if (!ssh.IsConnected)
                     throw new Exception("Không thể mở kết nối SSH tới máy đích.");
 
-                string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS={ShellQuote.Quote(options.SudoPassword)}";
-
                 Log($"🔄 Đang chạy lệnh gỡ cài đặt (Purge) dpkg -P {packageName}...");
-                RunCommand(ssh, $"{envCmd} bash -c 'echo \"$KIOSK_SUDO_PASS\" | sudo -S dpkg -P {packageName}'", Log);
+                RunSudoCommand(ssh, $"sudo -S -p '' dpkg -P {packageName}", options.SudoPassword, Log);
 
                 Log($"🧹 Đang dọn dẹp các shortcut (.desktop) còn sót lại...");
-                string cleanupCmd = $"echo \"$KIOSK_SUDO_PASS\" | sudo -S find /usr/share/applications /etc/xdg/autostart ~/.local/share/applications ~/Desktop -iname \"*{packageName}*.desktop\" -delete 2>/dev/null || true";
-                RunCommand(ssh, $"{envCmd} bash -c '{cleanupCmd}'", null, silent: true);
+                string cleanupCmd = $"sudo -S -p '' find /usr/share/applications /etc/xdg/autostart ~/.local/share/applications ~/Desktop -iname \"*{packageName}*.desktop\" -delete 2>/dev/null || true";
+                RunSudoCommand(ssh, cleanupCmd, options.SudoPassword, null, silent: true);
 
                 // baseName là chuỗi con của packageName đã validate → cũng an toàn.
                 string baseName = packageName.Replace("kztek-", "").Trim('-');
                 if (!string.IsNullOrEmpty(baseName) && baseName != packageName)
                 {
-                    string cleanupCmd2 = $"echo \"$KIOSK_SUDO_PASS\" | sudo -S find /usr/share/applications /etc/xdg/autostart ~/.local/share/applications ~/Desktop -iname \"*{baseName}*.desktop\" -delete 2>/dev/null || true";
-                    RunCommand(ssh, $"{envCmd} bash -c '{cleanupCmd2}'", null, silent: true);
+                    string cleanupCmd2 = $"sudo -S -p '' find /usr/share/applications /etc/xdg/autostart ~/.local/share/applications ~/Desktop -iname \"*{baseName}*.desktop\" -delete 2>/dev/null || true";
+                    RunSudoCommand(ssh, cleanupCmd2, options.SudoPassword, null, silent: true);
                 }
 
                 Log($"🧹 Đang dọn dẹp thư mục rác /opt/kztek/{baseName} (nếu có)...");
-                string rmFolderCmd = $"echo \"$KIOSK_SUDO_PASS\" | sudo -S rm -rf /opt/kztek/{baseName} /opt/kztek/{packageName} 2>/dev/null || true";
-                RunCommand(ssh, $"{envCmd} bash -c '{rmFolderCmd}'", null, silent: true);
+                string rmFolderCmd = $"sudo -S -p '' rm -rf /opt/kztek/{baseName} /opt/kztek/{packageName} 2>/dev/null || true";
+                RunSudoCommand(ssh, rmFolderCmd, options.SudoPassword, null, silent: true);
 
-                RunCommand(ssh, $"{envCmd} bash -c 'update-desktop-database ~/.local/share/applications 2>/dev/null || true'", null, silent: true);
-                RunCommand(ssh, $"{envCmd} bash -c 'echo \"$KIOSK_SUDO_PASS\" | sudo -S update-desktop-database /usr/share/applications 2>/dev/null || true'", null, silent: true);
+                RunSudoCommand(ssh, "update-desktop-database ~/.local/share/applications 2>/dev/null || true", options.SudoPassword, null, silent: true);
+                RunSudoCommand(ssh, "sudo -S -p '' update-desktop-database /usr/share/applications 2>/dev/null || true", options.SudoPassword, null, silent: true);
 
                 ssh.Disconnect();
                 Log("=== HOÀN THÀNH GỠ CÀI ĐẶT ===");
@@ -169,12 +160,37 @@ namespace IPGS.RemoteControl.CcuClient
             log($"✅ Đã tải xong {fileName}.");
         }
 
-        private static void RunCommand(SshClient ssh, string commandText, Action<string>? log, bool silent = false)
+        private static void RunSudoCommand(SshClient ssh, string commandText, string sudoPassword, Action<string>? log, bool silent = false)
         {
-            using var cmd = ssh.CreateCommand(commandText, Encoding.UTF8);
+            // S2: Bảo mật sudo — không truyền password qua env hay cmdline. Mật khẩu được ghi vào STDIN channel.
+            string envPrefix = "env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus";
+            string wrapped = $"{envPrefix} bash -c {ShellQuote.Quote(commandText)}";
+            using var cmd = ssh.CreateCommand(wrapped, Encoding.UTF8);
             var async = cmd.BeginExecute();
 
-            // Đọc output theo thời gian thực để người dùng thấy dpkg đang chạy tới đâu.
+            if (!string.IsNullOrEmpty(sudoPassword))
+            {
+                try
+                {
+                    Stream? input = null;
+                    for (int i = 0; i < 20; i++)
+                    {
+                        try { input = cmd.CreateInputStream(); break; }
+                        catch { Thread.Sleep(50); }
+                    }
+                    if (input != null)
+                    {
+                        using (input)
+                        {
+                            var passBytes = Encoding.UTF8.GetBytes(sudoPassword + "\n");
+                            input.Write(passBytes, 0, passBytes.Length);
+                            input.Flush();
+                        }
+                    }
+                }
+                catch { /* best-effort stdin write */ }
+            }
+
             using var stdout = new StreamReader(cmd.OutputStream, Encoding.UTF8);
             using var stderr = new StreamReader(cmd.ExtendedOutputStream, Encoding.UTF8);
 

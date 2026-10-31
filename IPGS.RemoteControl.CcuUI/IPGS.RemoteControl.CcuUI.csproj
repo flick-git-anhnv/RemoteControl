@@ -9,6 +9,7 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>IPGS.RemoteControl.CcuUI</RootNamespace>
     <AssemblyName>IPGS.RemoteControl.CcuUI</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

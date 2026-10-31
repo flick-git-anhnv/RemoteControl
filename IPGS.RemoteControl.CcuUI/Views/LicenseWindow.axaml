@@ -34,7 +34,7 @@
       <!-- License Key Input -->
       <StackPanel Spacing="6">
         <TextBlock Text="Nhập mã kích hoạt (License Key):" FontWeight="SemiBold" Foreground="#334155"/>
-        <kz:KzTextBox x:Name="PART_LicenseKeyInput" AcceptsReturn="True" TextWrapping="Wrap" Height="100" Watermark="Dán mã bản quyền vào đây..." FontFamily="Consolas, Monospace" FontSize="12"/>
+        <kz:KzTextBox x:Name="PART_LicenseKeyInput" AcceptsReturn="True" TextWrapping="Wrap" Height="100" PlaceholderText="Dán mã bản quyền vào đây..." FontFamily="Consolas, Monospace" FontSize="12"/>
       </StackPanel>
 
       <!-- Status Message -->

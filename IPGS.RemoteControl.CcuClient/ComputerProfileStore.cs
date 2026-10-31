@@ -92,6 +92,7 @@ public sealed class ComputerProfileStore : IComputerProfileStore
                 existing.LastAppInstallerPath = profile.LastAppInstallerPath;
                 existing.LastUninstallPackage = profile.LastUninstallPackage;
                 existing.MacAddress = profile.MacAddress;
+                if (!string.IsNullOrEmpty(profile.TlsCertFingerprint)) existing.TlsCertFingerprint = profile.TlsCertFingerprint;
                 // Cấu hình cài agent: chỉ ghi đè khi bên gọi có giá trị — các màn hình khác (Sửa máy...)
                 // không biết các trường này, không được làm mất chúng.
                 if (profile.SetupAllowedClientIPs != null) existing.SetupAllowedClientIPs = profile.SetupAllowedClientIPs;
@@ -167,7 +168,25 @@ public sealed class ComputerProfileStore : IComputerProfileStore
         }
     }
 
-    /// <summary>So sánh chuỗi có số theo giá trị (P2 &lt; P10, 192.168.0.9 &lt; 192.168.0.10).</summary>
+    /// <summary>
+    /// Cập nhật vân tay chứng chỉ TLS (TOFU - Trust On First Use) khi kết nối thành công.
+    /// </summary>
+    public void UpdateTlsFingerprint(string host, int port, string fingerprint)
+    {
+        if (string.IsNullOrWhiteSpace(fingerprint)) return;
+        lock (_lockObj)
+        {
+            var existing = _profiles.FirstOrDefault(p =>
+                p.Host.Equals(host, StringComparison.OrdinalIgnoreCase) && p.Port == port);
+            if (existing != null && string.IsNullOrEmpty(existing.TlsCertFingerprint))
+            {
+                existing.TlsCertFingerprint = fingerprint;
+                Persist();
+            }
+        }
+    }
+
+    /// <summary>So sánh chuỗi có số theo giá trị (P2 < P10, 192.168.0.9 < 192.168.0.10).</summary>
     private sealed class NaturalComparer : IComparer<string?>
     {
         public static readonly NaturalComparer Instance = new();
@@ -291,6 +310,7 @@ public sealed class ComputerProfileStore : IComputerProfileStore
         SetupAllowedClientIPs = p.SetupAllowedClientIPs,
         SetupTargetFps = p.SetupTargetFps,
         SetupJpegQuality = p.SetupJpegQuality,
+        TlsCertFingerprint = p.TlsCertFingerprint,
         CreatedAt = p.CreatedAt
     };
 }

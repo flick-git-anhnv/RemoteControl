@@ -18,7 +18,7 @@
 
           <TextBlock Text="1. Thư mục chứa file update (DLL, exe...) trên máy này" FontSize="13" Foreground="#64748B"/>
           <Grid ColumnDefinitions="*,Auto">
-            <TextBox x:Name="PART_FolderPath" Grid.Column="0" Margin="0,0,8,0" Watermark="Chọn thư mục publish chứa các file cần ghi đè..." />
+            <TextBox x:Name="PART_FolderPath" Grid.Column="0" Margin="0,0,8,0" PlaceholderText="Chọn thư mục publish chứa các file cần ghi đè..." />
             <kz:KzButton x:Name="PART_BtnBrowse" Grid.Column="1" Content="📁 Chọn thư mục" Click="OnBrowseFolderClick" />
           </Grid>
 

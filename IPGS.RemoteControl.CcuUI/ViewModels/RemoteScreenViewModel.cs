@@ -29,6 +29,9 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     [ObservableProperty] private string?  _errorMessage;
     /// <summary>Colour of the status dot in the window toolbar.</summary>
     [ObservableProperty] private IBrush   _statusBrush   = Brushes.Gray;
+    [ObservableProperty] private bool     _isTlsEncrypted;
+    [ObservableProperty] private string?  _tlsFingerprint;
+    [ObservableProperty] private bool     _isTlsVerified;
 
     // ── ZCU screen dimensions — written by background thread, read on UI thread
     // (volatile gives memory-ordering guarantee for single-reader/single-writer int).
@@ -38,6 +41,13 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     // ── Disposal flag — set on UI thread in Dispose(), read inside queued
     // Dispatcher.UIThread.Post lambdas and on the frame-decode thread (L5 fix).
     private volatile bool _disposed;
+
+    // ── Ping-Pong Double-Buffering (audit M1: triệt tiêu 124 MB/s rác LOH) ──
+    private WriteableBitmap? _frontBuffer;
+    private WriteableBitmap? _backBuffer;
+    private int _bufferW;
+    private int _bufferH;
+    private readonly object _bufferLock = new();
 
     /// <summary>
     /// Khi true, frame tới vẫn cập nhật kích thước màn hình nhưng BỎ QUA decode JPEG +
@@ -79,16 +89,29 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         _client = new RemoteControlClient();
         _client.FrameReceived += OnFrameReceived;
         _client.StateChanged  += OnStateChanged;
+        _client.TlsCertificateValidated += (sender, hash) =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                IsTlsEncrypted = true;
+                TlsFingerprint = hash;
+                IsTlsVerified  = true;
+            });
+        };
     }
 
     // ── Public commands called by code-behind ────────────────────────────────
 
     /// <summary>Starts the connection loop (fire-and-forget via CcuClient).</summary>
-    public Task ConnectAsync(string host, int port, string token)
+    public Task ConnectAsync(string host, int port, string token, string? expectedFingerprint = null)
     {
-        IsFaulted     = false;
-        ErrorMessage  = null;
-        StatusText    = "Đang kết nối...";
+        IsFaulted        = false;
+        ErrorMessage     = null;
+        StatusText       = "Đang kết nối...";
+        IsTlsEncrypted   = false;
+        IsTlsVerified    = false;
+        TlsFingerprint   = null;
+        _client.ExpectedCertFingerprint = expectedFingerprint;
         return _client.ConnectAsync(host, port, token);
     }
 
@@ -391,43 +414,59 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         {
             int w = toRender.Width, h = toRender.Height;
 
-            // Allocate a fresh WriteableBitmap for each frame.
-            // At 15 fps + 1080p this is acceptable for v1; double-buffer optimisation
-            // can be added as v1.1 when profiling confirms GC pressure.
-            var wb = new WriteableBitmap(
-                new Avalonia.PixelSize(w, h),
-                new Avalonia.Vector(96.0, 96.0),
-                PixelFormat.Bgra8888,
-                AlphaFormat.Opaque);   // JPEG has no alpha channel
+            WriteableBitmap displayBitmap;
+            WriteableBitmap? oldFront = null;
+            WriteableBitmap? oldBack = null;
+            lock (_bufferLock)
+            {
+                if (_disposed) return;
 
-            // Copy pixels: SKBitmap unmanaged → byte[] → WriteableBitmap (2-copy,
-            // avoids unsafe blocks; acceptable latency at target FPS).
-            IntPtr pixPtr  = toRender.GetPixels();
-            byte[] pixData = new byte[toRender.ByteCount];
-            Marshal.Copy(pixPtr, pixData, 0, pixData.Length);
+                // Re-allocate buffers only when size changes or first frame
+                if (_frontBuffer == null || _backBuffer == null || _bufferW != w || _bufferH != h)
+                {
+                    oldFront = _frontBuffer;
+                    oldBack  = _backBuffer;
+                    var pSize = new Avalonia.PixelSize(w, h);
+                    var dpi   = new Avalonia.Vector(96.0, 96.0);
+                    _frontBuffer = new WriteableBitmap(pSize, dpi, PixelFormat.Bgra8888, AlphaFormat.Opaque);
+                    _backBuffer  = new WriteableBitmap(pSize, dpi, PixelFormat.Bgra8888, AlphaFormat.Opaque);
+                    _bufferW = w;
+                    _bufferH = h;
+                }
 
-            using (var locked = wb.Lock())
-                Marshal.Copy(pixData, 0, locked.Address, pixData.Length);
+                // Direct zero-copy copy from SKBitmap unmanaged memory to WriteableBitmap back buffer (audit M1)
+                IntPtr pixPtr = toRender.GetPixels();
+                using (var locked = _backBuffer.Lock())
+                {
+                    unsafe
+                    {
+                        Buffer.MemoryCopy(
+                            (void*)pixPtr,
+                            (void*)locked.Address,
+                            toRender.ByteCount,
+                            toRender.ByteCount);
+                    }
+                }
 
-            // Assign CurrentFrame on the UI thread to trigger binding update,
-            // then dispose the previous bitmap to release its native pixel buffer.
-            // Without this, WriteableBitmap accumulates ~8 MB per frame (1080p BGRA)
-            // and only gets reclaimed when the GC decides to run — memory pressure
-            // becomes visible within seconds at 10–15 fps.
+                // Swap ping-pong buffers
+                var temp = _frontBuffer;
+                _frontBuffer = _backBuffer;
+                _backBuffer = temp;
+                displayBitmap = _frontBuffer;
+            }
+
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                // L5: nếu Dispose() đã chạy trước khi lambda này ra khỏi queue thì
-                // KHÔNG gán CurrentFrame — VM đã chết, không ai dispose bitmap này nữa
-                // (leak ~8MB/lần đóng ở 1080p; MultiRemote 3×3 "Close All" = 9 bitmap).
-                // Dispose thẳng wb tại đây thay vì gán.
                 if (_disposed)
                 {
-                    wb.Dispose();
+                    oldFront?.Dispose();
+                    oldBack?.Dispose();
                     return;
                 }
-                var old = CurrentFrame;
-                CurrentFrame = wb;
-                old?.Dispose();
+                CurrentFrame = displayBitmap;
+                // Dispose old buffers only AFTER UI thread has set CurrentFrame to the new bitmap (F-NEW-5)
+                oldFront?.Dispose();
+                oldBack?.Dispose();
             });
         }
         finally
@@ -451,8 +490,13 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         // Best-effort disconnect; ignore exceptions during teardown.
         try { _ = _client.DisconnectAsync(); } catch { /* ignored */ }
         _client.Dispose();
-        // Release the last WriteableBitmap's native buffer.
-        CurrentFrame?.Dispose();
-        CurrentFrame = null;
+        lock (_bufferLock)
+        {
+            _frontBuffer?.Dispose();
+            _frontBuffer = null;
+            _backBuffer?.Dispose();
+            _backBuffer = null;
+            CurrentFrame = null;
+        }
     }
 }
