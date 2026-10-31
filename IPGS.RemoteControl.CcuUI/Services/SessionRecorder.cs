@@ -1,10 +1,10 @@
 using System.Buffers.Binary;
-using System.Text;
 
 namespace IPGS.RemoteControl.CcuUI.Services;
 
 /// <summary>
 /// A minimalist, zero-dependency AVI (MJPEG) writer for recording remote sessions.
+/// Completely zero-allocation: uses UTF-8 literals and stack memory for all headers and chunks.
 /// </summary>
 public sealed class SessionRecorder : IDisposable
 {
@@ -13,16 +13,14 @@ public sealed class SessionRecorder : IDisposable
     private readonly int _height;
     private readonly int _fps;
 
-    // A3: AddFrame chạy trên thread nhận TCP của CcuClient trong khi Dispose chạy
-    // trên UI thread — PHẢI serialize bằng lock + cờ _disposed, nếu không
-    // _stream.Position/Write ném ObjectDisposedException BÊN TRONG event invocation
-    // của client → có thể giết receive-loop → mất luôn stream màn hình.
+    // A3: AddFrame runs on CcuClient's TCP receive thread while Dispose runs on UI thread
+    // Must serialize with lock + _disposed flag to prevent ObjectDisposedException
     private readonly object _sync = new();
     private bool _disposed;
 
     private int _frameCount;
     private long _moviOffset;
-    private readonly List<(string Id, uint Length, uint Offset)> _index = new();
+    private readonly List<(uint Offset, uint Length)> _index = new();
 
     /// <summary>Chiều rộng khung hình đã khai báo trong AVI header.</summary>
     public int Width => _width;
@@ -30,15 +28,22 @@ public sealed class SessionRecorder : IDisposable
     /// <summary>Chiều cao khung hình đã khai báo trong AVI header.</summary>
     public int Height => _height;
 
-    public SessionRecorder(string path, int width, int height, int fps = 15)
+    /// <summary>Khởi tạo bộ ghi hình AVI tới luồng Stream bất kỳ (hỗ trợ MemoryStream trong unit test).</summary>
+    public SessionRecorder(Stream stream, int width, int height, int fps = 15)
     {
-        _width = width;
+        _stream = stream ?? throw new ArgumentNullException(nameof(stream));
+        _width  = width;
         _height = height;
-        _fps = fps;
-        _stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
-        
+        _fps    = fps > 0 ? fps : 15;
+
         // Write placeholder RIFF header (will be patched on Dispose)
         WriteHeader();
+    }
+
+    /// <summary>Khởi tạo bộ ghi hình AVI ghi trực tiếp vào đường dẫn tệp tin trên đĩa.</summary>
+    public SessionRecorder(string path, int width, int height, int fps = 15)
+        : this(new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None), width, height, fps)
+    {
     }
 
     public void AddFrame(ReadOnlySpan<byte> jpegData)
@@ -47,8 +52,7 @@ public sealed class SessionRecorder : IDisposable
 
         lock (_sync)
         {
-            // Guard sau khi Dispose: frame tới muộn từ receive-thread chỉ bị bỏ qua
-            // êm — không ném exception ngược vào event loop của CcuClient.
+            // Guard sau khi Dispose: frame tới muộn từ receive-thread chỉ bị bỏ qua êm
             if (_disposed || !_stream.CanWrite) return;
 
             // Ensure 2-byte alignment for chunks
@@ -62,7 +66,7 @@ public sealed class SessionRecorder : IDisposable
             _stream.Write(jpegData);
             if (pad) _stream.WriteByte(0);
 
-            _index.Add(("00dc", (uint)jpegData.Length, offset));
+            _index.Add((offset, (uint)jpegData.Length));
             _frameCount++;
         }
     }
@@ -74,21 +78,22 @@ public sealed class SessionRecorder : IDisposable
             if (_disposed) return;
             _disposed = true;
 
-            if (!_stream.CanWrite)
+            if (!_stream.CanWrite || !_stream.CanSeek)
             {
                 _stream.Dispose();
                 return;
             }
+
             // Write idx1
             long idx1Offset = _stream.Position;
-            WriteFourCC("idx1");
+            WriteFourCC("idx1"u8);
             WriteUInt32((uint)(_index.Count * 16));
-            foreach (var entry in _index)
+            foreach (var (offset, length) in _index)
             {
-                WriteFourCC(entry.Id);
+                WriteFourCC("00dc"u8);
                 WriteUInt32(0x10); // AVIIF_KEYFRAME
-                WriteUInt32(entry.Offset);
-                WriteUInt32(entry.Length);
+                WriteUInt32(offset);
+                WriteUInt32(length);
             }
 
             long totalSize = _stream.Position;
@@ -108,7 +113,8 @@ public sealed class SessionRecorder : IDisposable
             _stream.Position = _moviOffset - 8;
             WriteUInt32((uint)(idx1Offset - _moviOffset + 4));
 
-            _stream.Close();
+            _stream.Flush();
+            _stream.Dispose();
         }
     }
 
@@ -116,15 +122,15 @@ public sealed class SessionRecorder : IDisposable
     {
         uint microsecondsPerFrame = (uint)(1000000 / _fps);
 
-        WriteFourCC("RIFF");
+        WriteFourCC("RIFF"u8);
         WriteUInt32(0); // Placeholder for total size
-        WriteFourCC("AVI ");
+        WriteFourCC("AVI "u8);
 
-        WriteFourCC("LIST");
+        WriteFourCC("LIST"u8);
         WriteUInt32(192); // hdrl size
-        WriteFourCC("hdrl");
+        WriteFourCC("hdrl"u8);
 
-        WriteFourCC("avih");
+        WriteFourCC("avih"u8);
         WriteUInt32(56);
         WriteUInt32(microsecondsPerFrame); // dwMicroSecPerFrame
         WriteUInt32(0); // dwMaxBytesPerSec
@@ -141,14 +147,14 @@ public sealed class SessionRecorder : IDisposable
         WriteUInt32(0);
         WriteUInt32(0);
 
-        WriteFourCC("LIST");
+        WriteFourCC("LIST"u8);
         WriteUInt32(116); // strl size
-        WriteFourCC("strl");
+        WriteFourCC("strl"u8);
 
-        WriteFourCC("strh");
+        WriteFourCC("strh"u8);
         WriteUInt32(56);
-        WriteFourCC("vids");
-        WriteFourCC("MJPG");
+        WriteFourCC("vids"u8);
+        WriteFourCC("MJPG"u8);
         WriteUInt32(0); // dwFlags
         WriteUInt16(0); // wPriority
         WriteUInt16(0); // wLanguage
@@ -165,36 +171,29 @@ public sealed class SessionRecorder : IDisposable
         WriteUInt16((ushort)_width);
         WriteUInt16((ushort)_height);
 
-        WriteFourCC("strf");
+        WriteFourCC("strf"u8);
         WriteUInt32(40);
         WriteUInt32(40); // biSize
         WriteUInt32((uint)_width); // biWidth
         WriteUInt32((uint)_height); // biHeight
         WriteUInt16(1); // biPlanes
         WriteUInt16(24); // biBitCount
-        WriteFourCC("MJPG"); // biCompression
+        WriteFourCC("MJPG"u8); // biCompression
         WriteUInt32((uint)(_width * _height * 3)); // biSizeImage
         WriteUInt32(0); // biXPelsPerMeter
         WriteUInt32(0); // biYPelsPerMeter
         WriteUInt32(0); // biClrUsed
         WriteUInt32(0); // biClrImportant
 
-        WriteFourCC("LIST");
+        WriteFourCC("LIST"u8);
         WriteUInt32(0); // Placeholder for movi size
-        WriteFourCC("movi");
+        WriteFourCC("movi"u8);
         _moviOffset = _stream.Position;
     }
 
     private void WriteFourCC(ReadOnlySpan<byte> fcc)
     {
         _stream.Write(fcc);
-    }
-
-    private void WriteFourCC(string fcc)
-    {
-        Span<byte> bytes = stackalloc byte[4];
-        Encoding.ASCII.GetBytes(fcc, bytes);
-        _stream.Write(bytes);
     }
 
     private void WriteUInt16(ushort val)

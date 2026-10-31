@@ -434,9 +434,15 @@ public sealed class RemoteControlClient : IRemoteControlClient
         return SendLockedAsync(MessageType.ChatText, payload, CancellationToken.None);
     }
 
+    public const int MaxClipboardTextLength = 1024 * 1024; // 1MB text safety shield (F-ROUND5-2)
+
     public Task SendClipboardTextAsync(string text)
     {
         if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        if (text.Length > MaxClipboardTextLength)
+        {
+            text = text.Substring(0, MaxClipboardTextLength);
+        }
         var payload = MessageCodec.EncodeStringMessage(text);
         return SendLockedAsync(MessageType.ClipboardData, payload, CancellationToken.None);
     }

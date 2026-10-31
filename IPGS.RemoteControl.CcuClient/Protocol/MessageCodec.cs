@@ -263,6 +263,9 @@ public static class MessageCodec
         if (jpegLen != payload.Length - 24)
             throw new ProtocolException(
                 $"FRAME_JPEG declared jpegLen {jpegLen} B does not match actual payload {payload.Length - 24} B");
+        if (width < 0 || width > 8192 || height < 0 || height > 8192)
+            throw new ProtocolException(
+                $"FRAME_JPEG dimensions {width}x{height} exceed allowable bounds (0..8192)");
         var jpeg      = payload.AsMemory(24, jpegLen);
         return new FrameJpegMessage(frameId, tsMs, width, height, jpeg);
     }
