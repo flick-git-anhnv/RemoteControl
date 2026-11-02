@@ -17,10 +17,11 @@ CTO (L1)
 ├── Product Manager (L2) → Business Analyst (L4)
 ├── Engineering Manager (L2)
 │   ├── Tech Lead (L3) → Senior Dev (L4) → Junior Dev (L5)
-│   │   ├── Code Migrator (L4, Gemini Pro khi lập plan) ← CHỈ khi user yêu cầu migrate code
-│   │   └── GitHub Repo Researcher (L4, Gemini Flash) ← CHỈ khi user gửi link GitHub nghiên cứu
+│   │   ├── Code Migrator (L4, Opus khi lập plan) ← CHỈ khi user yêu cầu migrate code
+│   │   └── GitHub Repo Researcher (L4, Sonnet) ← CHỈ khi user gửi link GitHub nghiên cứu
 │   ├── QA Lead (L3) → QA Engineer (L5)
-│   │   └── UX/UI Reviewer (L5) ← gọi khi code vừa đổi/thêm giao diện
+│   │   ├── UX-UI Reflection (L4) ← phản biện UI thật/headless, logic hiển thị, loop sửa-review trước QA sign-off
+│   │   └── Documentation Reviewer (L4) ← kiểm soát, phản biện & thẩm định độc lập nội dung, template, format tài liệu SDLC/manual
 │   ├── DevOps Lead (L3) → DevOps Engineer (L5)
 │   ├── Project Manager (L3)
 │   └── Documentation Writer (L4) ← CHỈ khi user yêu cầu
@@ -35,7 +36,7 @@ CTO (L1)
 
 | Yêu cầu | Workflow | Chain tóm tắt |
 |---|---|---|
-| Tính năng mới | WF-FEATURE | PM→BA→UX→EM→[CTO]→PJM→TL→SD/JD→TL→[UXR nếu đổi UI]→QAE→QAL→DOE→DOL |
+| Tính năng mới | WF-FEATURE | PM→BA→UX→EM→[CTO]→PJM→TL→SD/JD→TL→[UXR nếu đổi UI]→[DOCR thẩm định docs]→QAE→QAL→DOE→DOL |
 | Bug fix | WF-BUGFIX | QAE/SD→SD→TL→[UXR nếu đổi UI]→QAE→[QAL P0/P1]→DOE |
 | Incident SEV1/2 | WF-INCIDENT | DOE→DOL→EM+CTO→SD→TL→QAE→DOL |
 | PR thường | WF-REVIEW-STD | SD→TL→merge |
@@ -47,13 +48,14 @@ CTO (L1)
 | UI/UX | WF-UI | PM→UX→PM→EM |
 | Hotfix (P1/P2) | WF-HOTFIX | SD→TL→[UXR nếu đổi UI]→QAE→DOL |
 | Refactor | WF-REFACTOR | SD→TL→SD→TL→[UXR nếu đổi UI]→QAE→EM |
-| Tài liệu | WF-DOCS | PM→DOC-WRITER — CHỈ khi user yêu cầu |
-| Convert .md | WF-CONVERT | DOC-WRITER — CHỈ khi user yêu cầu |
+| Tài liệu | WF-DOCS | PM→DOC-WRITER→DOC-REVIEWER→[DOC-WRITER sửa nếu có]→DOC-REVIEWER (approve)→DOC-WRITER (xuất bản) — CHỈ khi user yêu cầu |
+| Convert .md | WF-CONVERT | DOC-WRITER (convert)→DOC-REVIEWER (kiểm tra R1) — CHỈ khi user yêu cầu |
 | Typo/UI nhỏ P3 | WF-FASTTRACK | JD→TL→[UXR nếu đổi UI]→QAE→DOE |
-| Migrate framework/ngôn ngữ | WF-MIGRATE | CODE-MIGRATOR (plan, Gemini Pro)→SD/JD (code, Gemini Flash)→CODE-MIGRATOR (review)→QAE — CHỈ khi user yêu cầu |
+| Migrate framework/ngôn ngữ | WF-MIGRATE | CODE-MIGRATOR (plan, Opus)→SD/JD (code, Sonnet)→CODE-MIGRATOR (review)→QAE — CHỈ khi user yêu cầu |
 | Nghiên cứu repo GitHub (user gửi link) — cải tiến KZTEK hoặc học tập/tham khảo | WF-GITHUB-RESEARCH | GITHUB-REPO-RESEARCHER (Phase 0→nhánh→clone→**phân tích repo**)→hỏi mục đích→**Mode A** (đề xuất riêng→user duyệt→áp dụng→user xác nhận merge→main) HOẶC **Mode B** (giải thích nguyên lý/áp dụng tương tác đến khi user nắm rõ→tài liệu tổng hợp→merge) — CHỈ khi user gửi link |
 
-`[UXR nếu đổi UI]` = chèn bước UX/UI REVIEWER (chạy app, chụp screenshot, đánh giá C1–C7) khi code vừa sửa/thêm giao diện. Bỏ qua nếu thay đổi chỉ ở backend/logic.
+`[UXR nếu đổi UI]` = chèn bước UX-UI REFLECTION (khảo sát app thật hoặc Avalonia Headless, phản biện 4 trục R1-R4, loop sửa & re-review) khi code vừa sửa/thêm giao diện. Bỏ qua nếu thay đổi chỉ ở backend/logic.
+`[DOCR thẩm định docs]` = chèn bước DOCUMENTATION REVIEWER: thẩm định 5 trục (nội dung kỹ thuật, template, format, ảnh app thật/headless, xuất bản R1) cho tài liệu SDLC được tạo/sửa; cấp DOC-REVIEW report, BLOCK nếu có lỗi Critical.
 
 Chi tiết từng workflow: `GEMINI.md` §4
 
@@ -68,7 +70,7 @@ Pre-0 → Glob docs/plans/PLAN-*.md (cũ) VÀ docs/plans/PLAN-*/PLAN-MASTER.md (
 
 Bước 0 → Dispatcher hiển thị phân tích (xem format §5)
 Bước N → Mỗi bước ⬜/🔄 trong plan chạy TÁCH biệt session chính (xem §16.5 GEMINI.md):
-         LOCAL → invoke_subagent tool | WEB → RemoteTrigger
+         LOCAL → invoke_subagent tool (subagent) | WEB → RemoteTrigger
          → agent/trigger tự commit+push+cập nhật step file (chi tiết) + PLAN-MASTER.md (1 dòng status), trả tóm tắt ngắn về session chính
 Cuối   → Dispatcher tổng kết + phân tích tái sử dụng (§18 GEMINI.md)
 ```
@@ -111,9 +113,11 @@ Trạng thái: ✅/⚠️/🔴 | Artifacts: [...] | Tiếp theo: [...]
 
 ## 6. Rules cứng (không ngoại lệ)
 
+> **Tra GOTCHAS.md:** Trước khi debug lỗi lạ, lọc theo **Category** ở đầu GOTCHAS.md (`[SCRIPT]`, `[ENCODING]`, `[UI-BINDING]`, `[CONFIG]`...) → chỉ đọc entries thuộc category đó. Không cần đọc toàn bộ file.
+
 | # | Rule |
 |---|------|
-| R1 | Mọi `.md` tạo/sửa → chạy `python scripts/md_to_docx_kztek.py <file>` ngay |
+| R1 | Mọi `.md` tạo/sửa → chạy `python C:/Users/Admin/.gemini/scripts/md_to_docx_kztek.py <file>` ngay |
 | R2 | Coding agent → đọc `code-graph/CODE-GRAPH.md` TRƯỚC source files |
 | R3 | Thay đổi code → cập nhật `CODE-GRAPH.md` + xuất `CODE-GRAPH.pdf` cùng session |
 | R4 | Không self-merge, không self-approve bất kỳ artifact nào |
@@ -125,6 +129,9 @@ Trạng thái: ✅/⚠️/🔴 | Artifacts: [...] | Tiếp theo: [...]
 | R10 | Mỗi bước trong plan PHẢI chạy session riêng (LOCAL: Agent subagent \| WEB: RemoteTrigger), tự commit+push+cập nhật step file + PLAN-MASTER.md, không dồn hết vào session chính. Chi tiết §16.5 GEMINI.md |
 | R11 | Mỗi bước xong PHẢI ghi "Handoff Log" vào CHÍNH step file của bước đó (không phải MASTER); bước sau PHẢI được nhúng Handoff Log của bước liền trước vào prompt — KHÔNG tự đọc lại/suy luận lại điều bước trước đã xác định. Chi tiết §16.2 + §16.5 Bước 4 GEMINI.md |
 | R12 | Plan MỚI dùng cấu trúc folder `PLAN-[slug]-[date]/PLAN-MASTER.md` + `steps/STEP-*.md` (§16.2 GEMINI.md). Plan cũ (1 file) đang dở → giữ nguyên định dạng cũ đến khi xong, KHÔNG ép migrate giữa chừng. |
+| R13 | Bắt buộc đủ 17 tài liệu SDLC (Kztek standard), đánh số tuần tự chuẩn 01 đến 17 theo thứ tự tạo lập (01_VS đến 17_Admin_Guide), cấm xáo trộn index. Document Quality Gate: chạy `/check-docs --strict`, BLOCK merge/deploy nếu MISSING hoặc OUTDATED (>14 ngày). Chi tiết §15.5 GEMINI.md |
+| R14 | 3 quy chuẩn UI/UX bắt buộc: (1) Mọi nút, text, icon+text đều center vertical; (2) Chức năng lặp lại phải có phím tắt (hotkey/tooltip); (3) Cột DataGrid/Table phải để auto size `*` lấp đầy khung hình. Chi tiết §20.5 GEMINI.md |
+| R15 | Quy chuẩn Tài liệu Kztek: (1) Reverse Code-to-Doc: Đọc code thật, trích xuất chính xác Forms/API/DB/Phím tắt, cấm bịa; (2) Độ chi tiết tối thiểu: Đủ 5 phần; (3) CẤM SƠ SÀI TOÀN BỘ 17 TÀI LIỆU SDLC (Zero-Tolerance Anti-Superficial Rule): Đạt đích DUY NHẤT một nhân viên mới tinh chưa biết gì, sau khi đọc xong tự hiểu và sử dụng/vận hành/cấu hình được phần mềm đã có mà không cần ai hướng dẫn; (4) User Manual Toàn trình: Đủ từ CẤU HÌNH BAN ĐẦU đến THAO TÁC SỬ DỤNG, bao phủ 100% chức năng/controls, giải thích chi tiết ý nghĩa từng trường nhập liệu; (5) Tách bản riêng cho từng biến thể màn hình/phần cứng (Kiosk dọc 1080x1920 và Kiosk ngang 1920x1080 thành 2 bản manual riêng chi tiết từng màn hình); (6) Hướng dẫn chi tiết từng loại camera thực tế (ZCU phải có guide chi tiết Dahua, Milesight, Hikvision, Tiandy từ web config, vẽ polygon đến đẩy port 10676); (7) 100% Sơ đồ là ảnh trực quan: sequenceDiagram, flowchart, graph TD, topo mạng VLANs bắt buộc là ảnh .png, cấm code block thô và cấm cây chữ ASCII; (8) Giới hạn ảnh: Max cao 5.5", max rộng 5.8", không quá 1 trang A4, chống tràn trang; (9) Khử sạch LaTeX: Cấm \ge 98%, chuyển 100% sang Unicode "≥ 98%"; (10) Bảng biểu: Cột mô tả chiếm 35%-55%; (11) Đóng vai người nhận (Recipient Persona): Documentation Reviewer đóng vai nhân viên mới tinh, nếu không hiểu hoặc không tự làm được -> VETO/BLOCK ngay. Chi tiết §5.2 RULES.md |
 
 ---
 
@@ -147,7 +154,8 @@ Trạng thái: ✅/⚠️/🔴 | Artifacts: [...] | Tiếp theo: [...]
 | **DevOps Engineer** | DAILY | Tham gia WF-DEVOPS/FEATURE/BUGFIX, CI/CD |
 | **Project Manager** | DAILY | Tham gia WF-FEATURE/SPRINT, tracking tiến độ |
 | **UI/UX Designer** | DAILY | Tham gia WF-FEATURE/UI — thiết kế mockup |
-| **UX/UI Reviewer** | DAILY (có điều kiện) | Tự động chèn vào workflow khi có thay đổi UI — không gọi nếu chỉ backend |
+| **UX-UI Reflection** | DAILY (có điều kiện) | Tự động chèn vào workflow khi có thay đổi UI — phản biện có bằng chứng thật/headless |
+| **Documentation Reviewer** | DAILY (có điều kiện) | Tự động chèn vào Document Quality Gate (WF-FEATURE, WF-DOCS, WF-REFACTOR) — thẩm định chất lượng tài liệu độc lập 5 trục |
 | **task-planner** | DAILY | Chạy mỗi task mới để tạo/load plan file (Pre-0) |
 | **md-optimizer** | DAILY (khi cần) | Utility — tối ưu file .md mới tạo; gọi sau khi tạo agent/skill mới |
 | **code-migrator** | LIBRARY | CHỈ khi user yêu cầu rõ migrate framework/ngôn ngữ/UI stack (WF-MIGRATE) |
@@ -165,19 +173,17 @@ Trạng thái: ✅/⚠️/🔴 | Artifacts: [...] | Tiếp theo: [...]
 
 | Agent | Model |
 |---|---|
-| CTO, Tech Lead | `gemini-3.6-pro` |
-| Code Migrator | `gemini-3.6-pro` — CHỈ dùng khi lập plan/khảo sát/review (G1,G2,G5-review); code thực tế giao Gemini Flash-agent |
-| GitHub Repo Researcher | `gemini-3.6-flash` — CHỈ hoạt động khi user gửi link GitHub |
-| Tất cả còn lại | `gemini-3.6-flash` |
-| Task cơ học có template (smoke-test log, deploy checklist, MD→DOCX, CRUD lặp lại đã có pattern) | `gemini-3.6-flash-lite` — downshift theo §13.1b GEMINI.md; KHÔNG áp dụng cho bước review/approve |
+| CTO, Tech Lead, Code Migrator (chỉ khi khảo sát/lập plan/review migrate) | `gemini-3.6-pro` |
+| Toàn bộ agent còn lại (PM, BA, EM, Senior/Junior Dev, QA Lead/Engineer, DevOps Lead/Engineer, UI/UX Designer, UX-UI Reflection, Documentation Reviewer, Project Manager, Documentation Writer, GitHub Repo Researcher, md-optimizer, task-planner) | `gemini-3.6-flash` |
+| Task cơ học có template rõ (§13.1b GEMINI.md — downshift theo BƯỚC, không đổi model mặc định của agent) | `gemini-3.6-flash-lite` |
 
-Không tự nâng model — escalate lên agent cấp cao hơn. Downshift xuống Gemini Flash-Lite là tự quyết theo bảng trên, không cần hỏi user; task đầu tiên của 1 pattern mới vẫn dùng model mặc định.
+Không tự nâng model — escalate lên agent cấp cao hơn khi task vượt thẩm quyền. TUYỆT ĐỐI không downshift Haiku cho bước REVIEW / APPROVE / SIGN-OFF (Two-Eyes §8).
 
 ---
 
 ## 7b. Song song hoá (Parallel Execution)
 
-Khi 2 bước trong 1 workflow ĐỘC LẬP nhau (cùng nhận input từ 1 bước trước, không bên nào review/approve bên kia) → được phép gọi nhiều subagent trong CÙNG 1 lời gọi invoke_subagent thay vì tuần tự. Ký hiệu `∥` trong bảng workflow (`GEMINI.md` §4). Điều kiện đầy đủ: `RULES.md` §3.4. TUYỆT ĐỐI KHÔNG song song hoá cặp bước có quan hệ review/approve (vi phạm Two-Eyes).
+Khi 2 bước trong 1 workflow ĐỘC LẬP nhau (cùng nhận input từ 1 bước trước, không bên nào review/approve bên kia) → được phép gọi nhiều subagent trong CÙNG 1 lời gọi invoke_subagent tool thay vì tuần tự. Ký hiệu `∥` trong bảng workflow (`GEMINI.md` §4). Điều kiện đầy đủ: `RULES.md` §3.4. TUYỆT ĐỐI KHÔNG song song hoá cặp bước có quan hệ review/approve (vi phạm Two-Eyes).
 
 ---
 
@@ -194,5 +200,5 @@ Khi 2 bước trong 1 workflow ĐỘC LẬP nhau (cùng nhận input từ 1 bư�
 ---
 
 > Chi tiết đầy đủ: `GEMINI.md` (tài liệu gốc)
-> Agent definitions: `.gemini/agents/[name].md`
+> Agent definitions: `C:/Users/Admin/.gemini/agents/[name].md`
 > Workflow details: `GEMINI.md` §4

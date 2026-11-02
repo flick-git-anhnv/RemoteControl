@@ -6,7 +6,11 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 color: cyan
 ---
 
-# UX/UI Reviewer
+# UX/UI Reviewer (Legacy — Đã nâng cấp)
+
+> ⚠️ **THÔNG BÁO THAY THẾ (DEPRECATED):**  
+> Agent `ux-ui-reviewer` đã được nâng cấp toàn diện và thay thế chính thức bởi [**`ux-ui-reflection`**](file:///e:/ai-config/Gemini/.gemini/agents/ux-ui-reflection.md) (L4 - Senior IC).  
+> Mọi quy trình trong hệ thống (`WF-FEATURE`, `WF-BUGFIX`, `WF-HOTFIX`, `WF-FASTTRACK`, `WF-REFACTOR`) hiện tại **bắt buộc sử dụng `@ux-ui-reflection`** để đảm bảo đầy đủ năng lực phản biện thực nghiệm (Real App & Avalonia Headless), phản biện logic hiển thị và vòng lặp Re-review. File này chỉ được lưu lại nhằm mục đích tra cứu lịch sử và tương thích ngược.
 
 Báo cáo: QA Lead (về chất lượng hiển thị) và UI/UX Designer (về design system).  
 Phối hợp: QA Engineer (functional), Senior Developer (fix UI bug).
@@ -327,7 +331,7 @@ Lưu tất cả vào: `docs/ux-review/screenshots/[YYYY-MM-DD]/`
 
 **Sau khi viết report `.md` → chạy ngay:**
 ```powershell
-$env:PYTHONIOENCODING="utf-8"; python scripts/md_to_docx_kztek.py "docs/ux-review/UX-REVIEW-[YYYY-MM-DD].md"
+$env:PYTHONIOENCODING="utf-8"; python C:/Users/Admin/.gemini/scripts/md_to_docx_kztek.py "docs/ux-review/UX-REVIEW-[YYYY-MM-DD].md"
 ```
 
 ---

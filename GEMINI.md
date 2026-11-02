@@ -9,12 +9,12 @@
 
 ```
 Read: .gemini/shared/CORE.md
-Read: .gemini/GOTCHAS.md
+Read: .gemini/shared/GOTCHAS.md
 ```
 
 File `CORE.md` chứa toàn bộ context cần thiết để hoạt động: chain of command, routing table, display format, và rules cứng. **Dispatcher và mọi agent PHẢI đọc file này một lần khi bắt đầu session.** Không cần đọc lại trong cùng session.
 
-File `GOTCHAS.md` ghi lại các lỗi ngầm đã gặp — đọc khi bắt đầu session để tránh lặp lại các lỗi đã biết. **Mọi agent fix xong 1 lỗi ngầm (không có trong docs chính thức) PHẢI thêm 1 entry vào `.gemini/GOTCHAS.md` trước khi đánh dấu task hoàn thành.**
+File `GOTCHAS.md` ghi lại các lỗi ngầm đã gặp — đọc khi bắt đầu session để tránh lặp lại các lỗi đã biết. **Mọi agent fix xong 1 lỗi ngầm (không có trong docs chính thức) PHẢI thêm 1 entry vào `.gemini/shared/GOTCHAS.md` trước khi đánh dấu task hoàn thành.**
 
 > File này là tài liệu gốc đầy đủ dành cho người đọc và tham chiếu. Agents dùng `.gemini/shared/CORE.md` — không cần đọc lại toàn bộ file này mỗi lần.
 
@@ -52,11 +52,12 @@ CTO  (L1 - Executive)
 │   ├── Tech Lead  (L3 - Lead)
 │   │   ├── Senior Developer  (L4 - Senior IC)
 │   │   ├── Junior Developer  (L5 - Junior IC)
-│   │   ├── Code Migrator  (L4 - Senior IC, Gemini Pro khi lập plan)  ← CHỈ khi user yêu cầu migrate code
+│   │   ├── Code Migrator  (L4 - Senior IC, Opus khi lập plan)  ← CHỈ khi user yêu cầu migrate code
 │   │   └── GitHub Repo Researcher  (L4 - Senior IC)  ← CHỈ khi user gửi link GitHub yêu cầu nghiên cứu
 │   ├── QA Lead  (L3 - Lead)
 │   │   ├── QA Engineer  (L5 - Junior IC)
-│   │   └── UX/UI Reviewer  (L5 - Junior IC)  ← gọi khi code vừa sửa/thêm giao diện
+│   │   ├── UX-UI Reflection  (L4 - Senior IC)  ← Phản biện UI thật/headless, logic hiển thị, loop sửa-review trước QA sign-off
+│   │   └── Documentation Reviewer  (L4 - Senior IC)  ← Kiểm soát, phản biện & thẩm định độc lập nội dung, template, format tài liệu SDLC/manual
 │   ├── DevOps Lead  (L3 - Lead)
 │   │   └── DevOps Engineer  (L5 - Junior IC)
 │   ├── Project Manager  (L3 - Lead)
@@ -68,7 +69,9 @@ CTO  (L1 - Executive)
 >
 > **GitHub Repo Researcher:** chỉ kích hoạt khi user gửi link GitHub repo và yêu cầu nghiên cứu — dù để cải tiến KZTEK hay chỉ học tập/tham khảo cá nhân (xem WF-GITHUB-RESEARCH, §4). Không tự động chạy trong workflow khác.
 >
-> **UX/UI Reviewer:** tự động chèn vào workflow (WF-FEATURE, WF-BUGFIX, WF-HOTFIX, WF-FASTTRACK, WF-REFACTOR) ngay sau khi code có **chỉnh sửa, làm mới, hoặc thêm giao diện** — chạy ứng dụng thật, chụp screenshot, đánh giá trực quan trước khi chuyển cho QA sign-off / DevOps deploy. Bỏ qua nếu thay đổi chỉ ở backend/logic.
+> **UX-UI Reflection:** tự động chèn vào workflow (WF-FEATURE, WF-BUGFIX, WF-HOTFIX, WF-FASTTRACK, WF-REFACTOR) ngay sau khi code có **chỉnh sửa, làm mới, hoặc tác động đến giao diện/hiển thị** — phản biện trực quan khắt khe dựa trên căn cứ thực nghiệm (Real App GUI capture hoặc Avalonia Headless testing), chỉ ra lỗi UI, trải nghiệm bất hợp lý, logic hiển thị thiếu đồng đều/lộ enum/thiếu state, yêu cầu Dev/Designer sửa đổi và re-review trước khi chuyển cho QA sign-off / DevOps deploy. Bỏ qua nếu thay đổi 100% chỉ ở backend/logic không đụng giao diện.
+>
+> **Documentation Reviewer:** tự động tham gia thẩm định trong WF-DOCS và Document Quality Gate (§15.5 trong WF-FEATURE, WF-REFACTOR, WF-CONVERT) — chuyên viên kiểm soát chất lượng tài liệu độc lập (Two-Eyes Principle), thẩm định 5 trục cốt lõi (Nội dung kỹ thuật, Template chuẩn, Định dạng/chính tả, Bằng chứng ảnh thật từ app/Avalonia Headless, và Khả năng xuất bản DOCX/PDF R1). Có quyền Yêu cầu sửa đổi (Request Changes) và VETO/BLOCK nếu tài liệu có lỗi Critical.
 
 **Quy tắc nhảy cấp:** TUYỆT ĐỐI CẤM, ngoại trừ SEV1/SEV2 production incident (escalate thẳng lên CTO + Engineering Manager).
 > *Lý do (P6):* Nhảy cấp phá vỡ Two-Eyes Principle — khi agent cấp thấp gọi thẳng CTO, bỏ qua Tech Lead và Engineering Manager, không có người kiểm tra trung gian và quyết định thiếu context kỹ thuật. Ngoại lệ SEV1/SEV2 là cố ý: khi hệ thống down, tốc độ quan trọng hơn quy trình.
@@ -79,7 +82,7 @@ CTO  (L1 - Executive)
 
 | Loại yêu cầu | Workflow ID | Agent chain bắt buộc |
 |---|---|---|
-| Tính năng mới | WF-FEATURE | PM → BA → UX → EM → [CTO] → PJM → TL → SD/JD → TL (review) → [UXR nếu đổi UI] → QA → QAL → DOE → DOL |
+| Tính năng mới | WF-FEATURE | PM → BA → UX → EM → [CTO] → PJM → TL → SD/JD → TL (review) → [UXR nếu đổi UI] → [DOCR thẩm định docs] → QA → QAL → DOE → DOL |
 | Bug fix thường | WF-BUGFIX | QAE hoặc SD (triage) → SD (fix) → TL (review) → [UXR nếu đổi UI] → QAE (verify) → DOE |
 | Production incident SEV1/SEV2 | WF-INCIDENT | DOE → DOL → EM + CTO → SD (fix) → TL → QAE → DOL |
 | Code review PR thường | WF-REVIEW-STD | SD → TL → merge |
@@ -93,13 +96,15 @@ CTO  (L1 - Executive)
 | User story / AC | WF-STORY | BA |
 | Hotfix khẩn (không phải incident) | WF-HOTFIX | SD → TL (review nhanh) → [UXR nếu đổi UI] → QAE → DOL |
 | Refactor / tech debt | WF-REFACTOR | SD (đề xuất) → TL → SD (thực hiện) → TL → [UXR nếu đổi UI] → QAE → EM |
-| Tài liệu hướng dẫn sử dụng | WF-DOCS | PM (scope) → DOC-WRITER (screenshot + DOCX + PDF) — **CHỈ khi user yêu cầu** |
-| Chuyển đổi .md → DOCX/PDF | WF-CONVERT | DOC-WRITER (chạy `scripts/md_to_docx_kztek.py`) — **CHỈ khi user yêu cầu** |
+| Tài liệu hướng dẫn sử dụng | WF-DOCS | PM (scope) → DOC-WRITER (soạn bản thảo + ảnh app thật/headless) → DOC-REVIEWER (thẩm định 5 trục) → [DOC-WRITER sửa nếu có] → DOC-REVIEWER (approve) → DOC-WRITER (xuất bản DOCX + PDF) — **CHỈ khi user yêu cầu** |
+| Chuyển đổi .md → DOCX/PDF | WF-CONVERT | DOC-WRITER (convert) → DOC-REVIEWER (kiểm tra chuẩn R1) — **CHỈ khi user yêu cầu** |
 | Sửa lỗi UI nhỏ, typo, config sai không đụng logic (P3) | WF-FASTTRACK | JD (fix) → TL (review nhanh) → [UXR nếu đổi UI] → QAE (smoke test) → DOE (deploy) |
-| Chuyển đổi framework/ngôn ngữ/UI stack (migrate/port) | WF-MIGRATE | CODE-MIGRATOR (khảo sát + plan, Gemini Pro) → user duyệt → SD/JD (code, Gemini Flash) → CODE-MIGRATOR (review, Gemini Pro) → QAE (verify) — **CHỈ khi user yêu cầu rõ ràng** |
+| Chuyển đổi framework/ngôn ngữ/UI stack (migrate/port) | WF-MIGRATE | CODE-MIGRATOR (khảo sát + plan, Opus) → user duyệt → SD/JD (code, Sonnet) → CODE-MIGRATOR (review, Opus) → QAE (verify) — **CHỈ khi user yêu cầu rõ ràng** |
 | Nghiên cứu 1 repo GitHub (user gửi link) — cải tiến KZTEK hoặc học tập/tham khảo | WF-GITHUB-RESEARCH | GITHUB-REPO-RESEARCHER (Phase 0 → nhánh → clone → **phân tích repo**) → hỏi user mục đích tiếp theo → **Mode A** (đề xuất riêng biệt → user duyệt → áp dụng → user xác nhận merge → merge main) HOẶC **Mode B** (giải thích nguyên lý/hướng dẫn áp dụng tương tác đến khi user xác nhận đã nắm rõ → tài liệu tổng hợp → merge) — **CHỈ khi user gửi link GitHub** |
 
-`[UXR nếu đổi UI]` — chèn bước **UX/UI REVIEWER**: chạy app thật, chụp screenshot, đánh giá 7 tiêu chí (C1–C7) trước khi chuyển QA sign-off/DevOps deploy. Bỏ qua nếu thay đổi chỉ ở backend/logic, không đụng giao diện.
+`[UXR nếu đổi UI]` — chèn bước **UX-UI REFLECTION**: khảo sát app thật hoặc Avalonia Headless, phản biện theo 4 trục (R1–R4), yêu cầu dev/designer sửa đổi và re-review trước khi chuyển QA sign-off/DevOps deploy. Bỏ qua nếu thay đổi 100% chỉ ở backend/logic, không đụng giao diện.
+
+`[DOCR thẩm định docs]` — chèn bước **DOCUMENTATION REVIEWER**: thẩm định độc lập 5 trục cốt lõi (Nội dung kỹ thuật, Template chuẩn, Định dạng/chính tả, Bằng chứng ảnh thật từ app/Avalonia Headless, và Khả năng xuất bản DOCX/PDF R1) cho tài liệu SDLC được tạo mới hoặc cập nhật; cấp báo cáo DOC-REVIEW, BLOCK nếu có lỗi Critical.
 
 > **Skill `/ship`** (`.gemini/commands/ship.md`): gate GO/NO-GO tùy chọn trước deploy cho WF-HOTFIX/WF-FASTTRACK/WF-BUGFIX — fan-out song song Tech Lead + Security Audit + QA, không thay thế chain đầy đủ của WF-FEATURE.
 
@@ -109,7 +114,11 @@ CTO  (L1 - Executive)
 
 ### 3.0 Bước Pre-0 — Kiểm tra / Tạo Plan File (LUÔN làm TRƯỚC Bước 0)
 
-**Pre-0a (điều kiện) — Scope Check:** Nếu yêu cầu user còn mơ hồ về phạm vi/priority/workflow áp dụng → chạy skill `scope-check` (`.gemini/commands/scope-check.md`) TRƯỚC khi làm các bước dưới, để chốt scope + priority + workflow đề xuất bằng `AskUserQuestion`. Bỏ qua nếu yêu cầu đã rõ ràng (VD: SEV1 incident).
+**Pre-0a (điều kiện) — Scope Check:** Nếu yêu cầu user còn mơ hồ về phạm vi/priority/workflow áp dụng → chạy skill `scope-check` (`.gemini/commands/scope-check.md`) TRƯỚC khi làm các bước dưới, để chốt scope + priority + workflow đề xuất bằng `AskUserQuestion`. Bỏ qua nếu yêu cầu đã rõ ràng (VD: SEV1 incident). Nếu sau scope-check vẫn còn nhiều unknowns (feature lớn, nhiều prerequisites chưa rõ) → escalate sang `/grilling` (`.gemini/commands/grilling.md`) để khám phá structured trước khi tạo plan.
+
+**Pre-0b (khuyến nghị) — Đọc LESSONS.md:** Nếu `docs/LESSONS.md` tồn tại → đọc lướt qua 5–10 entry gần nhất để nhắc nhở workflow/business decision đã học — tránh lặp lại sai lầm quy trình đã ghi nhận. Không cần đọc lại nếu đã đọc trong cùng session.
+
+**Pre-0c (khuyến nghị) — Đọc CONTEXT-HINTS:** Nếu `_workspace/CONTEXT-HINTS.md` tồn tại (do task-planner tạo cho task hiện tại) → đọc file này để nhận ngay danh sách module liên quan, skill nên dùng, và UNCERTAIN entries cần watch out — thay vì phải đọc toàn bộ CODE-GRAPH. Dispatcher nên nhúng nội dung CONTEXT-HINTS.md vào đầu prompt của agent đầu tiên trong chain (nếu file này có).
 
 Trước khi hiển thị Dispatcher phân tích, PHẢI:
 
@@ -182,14 +191,16 @@ Bước tiếp theo: [hành động cần làm tiếp / "Không có — workflow
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
+> **Ghi chú LESSONS.md:** Sau mỗi workflow hoàn thành, nếu có bài học đáng ghi (quyết định workflow, cách xử lý tình huống bất thường, pattern thành công/thất bại liên quan đến quy trình/nghiệp vụ) → thêm entry vào `docs/LESSONS.md`. Khác với GOTCHAS.md (lỗi kỹ thuật ngầm): LESSONS.md ghi bài học **workflow và business decision** — dùng template trong file đó.
+
 ---
 
 ## 4. Chi tiết từng workflow bắt buộc
 
-> **Ký hiệu song song hoá (`∥`):** khi 2 bước được nối bằng `∥`, nghĩa là 2 bước đó ĐỘC LẬP nhau (không bước nào cần output của bước kia, cùng nhận input từ 1 bước trước) và ĐƯỢC PHÉP chạy đồng thời (Dispatcher gọi nhiều subagent trong CÙNG 1 lời gọi invoke_subagent) để rút ngắn thời gian workflow — lấy cảm hứng từ mô hình song song hoá của Ruflo/Gemini Flow. TUYỆT ĐỐI KHÔNG áp dụng `∥` cho cặp bước có quan hệ review/approve (vi phạm Two-Eyes §8). Điều kiện đầy đủ + danh sách cặp đã duyệt: xem `RULES.md` §3.4. Minh họa: `WORKFLOW.md` Ví dụ 9.
+> **Ký hiệu song song hoá (`∥`):** khi 2 bước được nối bằng `∥`, nghĩa là 2 bước đó ĐỘC LẬP nhau (không bước nào cần output của bước kia, cùng nhận input từ 1 bước trước) và ĐƯỢC PHÉP chạy đồng thời (Dispatcher gọi nhiều subagent trong CÙNG 1 lời gọi invoke_subagent tool) để rút ngắn thời gian workflow — lấy cảm hứng từ mô hình song song hoá của Ruflo/Gemini Flow. TUYỆT ĐỐI KHÔNG áp dụng `∥` cho cặp bước có quan hệ review/approve (vi phạm Two-Eyes §8). Điều kiện đầy đủ + danh sách cặp đã duyệt: xem `RULES.md` §3.4. Minh họa: `WORKFLOW.md` Ví dụ 9.
 
 > **[P7 — Fan-out kỹ thuật] Triển khai `∥` bằng `run_in_background: true`:**
-> Khi Dispatcher cần chạy 2 bước song song, gọi invoke_subagent cho bước đầu tiên với `run_in_background: true`, sau đó gọi bước thứ hai ngay lập tức (không chờ kết quả bước 1). Cả hai chạy đồng thời; Dispatcher chờ cả hai hoàn thành rồi mới tổng hợp output. Ví dụ cụ thể: xem `WORKFLOW.md` Ví dụ 9.
+> Khi Dispatcher cần chạy 2 bước song song, gọi invoke_subagent tool cho bước đầu tiên với `run_in_background: true`, sau đó gọi bước thứ hai ngay lập tức (không chờ kết quả bước 1). Cả hai chạy đồng thời; Dispatcher chờ cả hai hoàn thành rồi mới tổng hợp output. Ví dụ cụ thể: xem `WORKFLOW.md` Ví dụ 9.
 > Lưu ý: chỉ áp dụng cho các cặp đã được duyệt trong `RULES.md` §3.4. Không dùng `run_in_background` cho bước REVIEW/APPROVE (Two-Eyes §8 — cần kết quả tuần tự, không song song).
 
 ### WF-FEATURE — Yêu cầu tính năng mới
@@ -205,18 +216,23 @@ Bước 5  → CTO                  : Review kiến trúc [CHỈ khi feature l�
 Bước 6  → PROJECT MANAGER      : Lên sprint, timeline, task board
 Bước 7  → TECH LEAD            : Viết Technical Design Doc, chia task chi tiết
 Bước 8  ∥ Bước 9 (song song — cùng nhận task breakdown từ Bước 7, độc lập nhau):
-Bước 8  → SENIOR DEVELOPER     : Code phần phức tạp, mentor junior
-Bước 9  → JUNIOR DEVELOPER     : Code phần CRUD/UI đơn giản theo spec
+Bước 8  → SENIOR DEVELOPER     : Code phần phức tạp, mentor junior — dùng `/tdd` (`.gemini/commands/tdd.md`) khi viết feature mới có test
+Bước 9  → JUNIOR DEVELOPER     : Code phần CRUD/UI đơn giản theo spec — dùng `/tdd` cho feature mới có test
 Bước 10 → TECH LEAD            : Code review cuối, merge decision
   > **Yêu cầu trước Bước 10:** Senior/Junior Developer PHẢI chạy `/verify-pr` và đính kèm VERIFICATION REPORT vào PR description. Tech Lead chỉ mở review khi report toàn PASS. (`.gemini/commands/verify-pr.md`)
+  > **[BẮT BUỘC — Document Quality Gate §15.5]:** Senior/Junior Developer PHẢI chạy `/check-docs --workflow WF-FEATURE --strict` và đính kèm kết quả vào mục 6 của VERIFICATION REPORT. Thiếu hoặc lệch pha tài liệu SDLC (>14 ngày) → BLOCK merge.
+  > **[CÓ ĐIỀU KIỆN — nếu project đã cài `graphify`, xem §17.6]:** Senior/Junior Developer PHẢI chạy `graphify update --diff` ngay sau khi code xong (trước `/verify-pr`), rồi bổ sung thủ công phần mô tả nghiệp vụ + Confidence labels vào CODE-GRAPH.md.
 Bước 10a → TECH LEAD           : [CÓ ĐIỀU KIỆN — nếu đụng auth/payment/DB schema/dữ liệu nhạy cảm] Chạy skill `security-audit-stride` (OWASP + STRIDE), BLOCK merge nếu Fail nhóm rủi ro cao
-Bước 10b ∥ Bước 11 (song song — cả hai cùng nhận code đã merge từ Bước 10/10a, độc lập nhau):
-Bước 10b → UX/UI REVIEWER      : [CÓ ĐIỀU KIỆN — nếu feature có chỉnh sửa/thêm giao diện] Chạy app thật, chụp screenshot, đánh giá C1–C7 trước khi QA test
+Bước 10b ∥ Bước 10c ∥ Bước 11 (song song — cùng nhận code đã merge từ Bước 10/10a, độc lập nhau):
+Bước 10b → UX-UI REFLECTION    : [CÓ ĐIỀU KIỆN — nếu feature có chỉnh sửa/thêm giao diện] Khảo sát app thật hoặc Avalonia Headless, phản biện 4 trục (R1–R4), yêu cầu dev sửa và re-review trước khi QA test
+Bước 10c → DOCUMENTATION REVIEWER : [BẮT BUỘC — Document Quality Gate §15.5] Thẩm định độc lập 5 trục đối với toàn bộ tài liệu SDLC được tạo mới hoặc cập nhật; cấp báo cáo DOC-REVIEW; BLOCK nếu còn lỗi Critical hoặc thiếu ảnh app thật/headless
 Bước 11 → QA ENGINEER          : Thực thi test plan, log bug
-Bước 12 → QA LEAD              : Sign-off chất lượng, veto nếu còn P0/P1
+Bước 12 → QA LEAD              : Sign-off chất lượng, veto nếu còn P0/P1 hoặc tài liệu SDLC chưa đạt chuẩn DOC-REVIEW
+  > **Yêu cầu trước Bước 12:** QA Lead PHẢI hoàn tất `14_TSR` (Test Summary Report), đối soát `13_RTM` bao phủ 100% và kiểm tra kết quả thẩm định APPROVED từ Documentation Reviewer trước khi ký duyệt sign-off.
 Bước 13 → DEVOPS ENGINEER      : Deploy lên staging
 Bước 14 → DEVOPS LEAD          : Approve staging, verify smoke test
 Bước 15 → DEVOPS LEAD          : Approve và deploy production, monitor
+  > **Yêu cầu trước Bước 15:** DevOps Lead PHẢI kiểm tra Document Quality Gate: bộ tài liệu triển khai `07_Deployment`, `15_RN`, `16_User_Manual`, `17_Admin_Guide` phải có trạng thái OK trước khi deploy production.
 ```
 
 **Điều kiện bỏ qua Bước 9 (Junior Dev):** Không có task phù hợp cấp Junior, hoặc deadline quá gấp.
@@ -228,11 +244,12 @@ Bước 15 → DEVOPS LEAD          : Approve và deploy production, monitor
 **Trigger:** User báo bug, lỗi, behaviour không đúng.
 
 ```
-Bước 1 → QA ENGINEER / SENIOR DEV : Reproduce bug, xác định root cause, tạo BUG report
+Bước 1 → QA ENGINEER / SENIOR DEV : Reproduce bug, xác định root cause, tạo BUG report — dùng `/diagnosing-bugs` (`.gemini/commands/diagnosing-bugs.md`) khi bug khó reproduce hoặc root cause chưa rõ
 Bước 2 → SENIOR DEVELOPER         : Viết fix, tạo PR với mô tả rõ
 Bước 3 → TECH LEAD                : Review PR, approve hoặc request changes
-  > **Yêu cầu trước Bước 3:** Senior Developer PHẢI chạy `/verify-pr` và đính kèm VERIFICATION REPORT vào PR description. Tech Lead chỉ review khi report toàn PASS. (`.gemini/commands/verify-pr.md`)
-Bước 3b → UX/UI REVIEWER          : [CÓ ĐIỀU KIỆN — nếu fix có đổi giao diện] Chạy app thật, kiểm tra trực quan trước khi QA verify
+  > **Yêu cầu trước Bước 3:** Senior Developer PHẢI chạy `/verify-pr` (bao gồm `/check-docs --workflow WF-BUGFIX --strict`) và đính kèm VERIFICATION REPORT vào PR description. Tech Lead chỉ review khi report toàn PASS. (`.gemini/commands/verify-pr.md`)
+  > **[CÓ ĐIỀU KIỆN — nếu project đã cài `graphify`, xem §17.6]:** Senior Developer PHẢI chạy `graphify update --diff` ngay sau khi fix xong (trước `/verify-pr`), rồi bổ sung thủ công phần mô tả nghiệp vụ + Confidence labels vào CODE-GRAPH.md.
+Bước 3b → UX-UI REFLECTION        : [CÓ ĐIỀU KIỆN — nếu fix có đổi giao diện] Khảo sát app thật / Headless, phản biện trực quan & logic hiển thị, verify bản sửa trước khi QA verify
 Bước 4 → QA ENGINEER              : Verify fix trên staging, regression test
 Bước 5 → QA LEAD                  : Sign-off nếu bug là P0/P1 [BỎ QUA nếu P2/P3]
 Bước 6 → DEVOPS ENGINEER          : Deploy fix lên môi trường tương ứng
@@ -358,7 +375,7 @@ Bước 3 → QA ENGINEER : Viết test case chi tiết, automation script
 ```
 Bước 1 → SENIOR DEVELOPER : Viết fix khẩn (không quá 2h), tạo PR
 Bước 2 → TECH LEAD        : Review nhanh (không quá 30 phút)
-Bước 2b → UX/UI REVIEWER  : [CÓ ĐIỀU KIỆN — nếu hotfix đổi giao diện] Kiểm tra trực quan nhanh trước smoke test
+Bước 2b → UX-UI REFLECTION : [CÓ ĐIỀU KIỆN — nếu hotfix đổi giao diện] Phản biện nhanh trên app thật/headless, xác nhận fix trước smoke test
 Bước 3 → QA ENGINEER      : Smoke test tối thiểu (chỉ path bị ảnh hưởng)
 Bước 4 → DEVOPS LEAD      : Approve + deploy production
 ```
@@ -380,7 +397,7 @@ Bước 2 → TECH LEAD            : Review đề xuất, approve hoặc điều
 Bước 3 → SENIOR DEVELOPER     : Thực hiện refactor, đảm bảo test coverage không giảm
 Bước 4 → TECH LEAD            : Code review cuối
 Bước 4a → TECH LEAD           : [CÓ ĐIỀU KIỆN — nếu refactor đụng auth/payment/DB schema/dữ liệu nhạy cảm] Chạy skill `security-audit-stride` (OWASP + STRIDE), BLOCK merge nếu Fail nhóm rủi ro cao
-Bước 4b → UX/UI REVIEWER      : [CÓ ĐIỀU KIỆN — nếu refactor đổi giao diện] Kiểm tra trực quan trước regression test
+Bước 4b → UX-UI REFLECTION    : [CÓ ĐIỀU KIỆN — nếu refactor đổi giao diện] Phản biện tính toàn vẹn UI và logic hiển thị trước regression test
 Bước 5 → QA ENGINEER          : Regression test toàn bộ phần bị ảnh hưởng
 Bước 6 → ENGINEERING MANAGER  : Approve merge (vì refactor ảnh hưởng rộng)
 ```
@@ -398,18 +415,24 @@ Bước 6 → ENGINEERING MANAGER  : Approve merge (vì refactor ảnh hưởng 
 > ⚠️ **CHÚ Ý:** Workflow này **KHÔNG tự động kích hoạt** trong các workflow khác. Dispatcher CHỈ gọi khi user đặc biệt yêu cầu.
 
 ```
-Bước 1 → PRODUCT MANAGER       : Xác nhận scope (tính năng / màn hình cần ghi lại, đối tượng người đọc)
-Bước 2 → DOCUMENTATION WRITER  : Đọc brand KZTEK → chụp màn hình → viết Markdown → xuất DOCX + PDF
+Bước 1  → PRODUCT MANAGER          : Xác nhận scope (tính năng / màn hình cần ghi lại, đối tượng người đọc)
+Bước 2  → DOCUMENTATION WRITER     : Đọc brand KZTEK → chụp màn hình app thật / headless → viết bản thảo Markdown
+Bước 3  → DOCUMENTATION REVIEWER   : Thẩm định 5 trục (nội dung kỹ thuật, template, format, ảnh app thật/headless, xuất bản R1) → phát hành báo cáo DOC-REVIEW
+Bước 3a → DOCUMENTATION WRITER     : [CÓ ĐIỀU KIỆN — nếu có yêu cầu sửa] Chỉnh sửa các điểm vi phạm theo Issue Log
+Bước 3b → DOCUMENTATION REVIEWER   : [CÓ ĐIỀU KIỆN — nếu bước 3a chạy] Re-review Before/After và phê duyệt SIGN-OFF
+Bước 4  → DOCUMENTATION WRITER     : Xuất bản DOCX + PDF hoàn thiện theo brand KZTEK (Rule R1)
 ```
 
 **Điều kiện bắt buộc trước khi bắt đầu:**
 - User phải nêu rõ: tính năng nào / hệ thống nào cần tài liệu.
-- Môi trường staging / local phải đang chạy để chụp màn hình thật.
+- Môi trường staging / local phải đang chạy để chụp màn hình thật (hoặc Avalonia.Headless).
 - Documentation Writer PHẢI đọc `.gemini/commands/kztek-brand-info.md` trước khi tạo bất kỳ file nào.
+- Documentation Reviewer PHẢI đối chiếu với template `16-MANUAL-template.md` và kiểm tra tính chân thực của ảnh chụp.
 
 **Output bắt buộc:**
 - `docs/user-manuals/MANUAL-[feature-slug].md` — Nội dung gốc Markdown
-- `docs/user-manuals/screenshots/*.png` — Screenshot thực tế từng màn hình
+- `docs/user-manuals/screenshots/*.png` — Screenshot thực tế từng màn hình (từ Real App hoặc Avalonia.Headless)
+- `docs/doc-review/DOC-REVIEW-[date]-[feature-slug].md` — Báo cáo thẩm định APPROVED của Documentation Reviewer
 - `docs/user-manuals/MANUAL-[feature-slug].docx` — File Word theo brand KZTEK
 - `docs/user-manuals/MANUAL-[feature-slug].pdf` — File PDF xuất từ DOCX
 
@@ -468,7 +491,7 @@ python scripts/md_to_docx_kztek.py docs/tech-design/TDD-x.md --no-pdf
 ```
 Bước 1 → JUNIOR DEVELOPER : Fix nhanh (≤ 1h), tạo PR
 Bước 2 → TECH LEAD        : Review nhanh (≤ 15 phút)
-Bước 2b → UX/UI REVIEWER  : [CÓ ĐIỀU KIỆN — nếu fix đổi giao diện, thường gặp ở FASTTRACK] Kiểm tra trực quan song song QA smoke test
+Bước 2b → UX-UI REFLECTION : [CÓ ĐIỀU KIỆN — nếu fix đổi giao diện, thường gặp ở FASTTRACK] Phản biện nhanh UI/style song song QA smoke test
 Bước 3 → QA ENGINEER      : Smoke test tối thiểu
 Bước 4 → DEVOPS ENGINEER  : Deploy (không cần DevOps Lead approve nếu P3)
 ```
@@ -486,17 +509,17 @@ Bước 4 → DEVOPS ENGINEER  : Deploy (không cần DevOps Lead approve nếu 
 > ⚠️ **CHÚ Ý:** Workflow này **KHÔNG tự động kích hoạt** trong các workflow khác (WF-FEATURE, WF-BUGFIX, ...). Dispatcher CHỈ gọi khi user đặc biệt yêu cầu migrate/port codebase. KHÔNG dùng cho viết tính năng mới hay bug fix thông thường.
 
 ```
-Bước 0 → CODE MIGRATOR (Gemini Pro)     : [Phase 0 Audit] Kiểm tra inventory/plan/artifact đã có chưa; phát hiện drift giữa code nguồn và tài liệu migrate; xác định bước nào cần chạy vs bỏ qua
-Bước 1 → CODE MIGRATOR (Gemini Pro)     : Khảo sát source, lập bảng inventory (2 cấp) + mapping (3 bảng), lập plan có nhóm song song
+Bước 0 → CODE MIGRATOR (Opus)     : [Phase 0 Audit] Kiểm tra inventory/plan/artifact đã có chưa; phát hiện drift giữa code nguồn và tài liệu migrate; xác định bước nào cần chạy vs bỏ qua
+Bước 1 → CODE MIGRATOR (Opus)     : Khảo sát source, lập bảng inventory (2 cấp) + mapping (3 bảng), lập plan có nhóm song song
 Bước 2 → USER                     : Duyệt plan — KHÔNG tự ý bắt đầu migrate khi chưa được duyệt
-Bước 3 → SENIOR/JUNIOR DEVELOPER  : Code migrate từng đơn vị theo task được giao (Gemini Flash) — UI/logic phức tạp → Senior, CRUD/UI đơn giản → Junior
-Bước 4 → CODE MIGRATOR (Gemini Pro)     : Review artifact (correctness > behavior parity > security > style), yêu cầu build sạch
+Bước 3 → SENIOR/JUNIOR DEVELOPER  : Code migrate từng đơn vị theo task được giao (Sonnet) — UI/logic phức tạp → Senior, CRUD/UI đơn giản → Junior
+Bước 4 → CODE MIGRATOR (Opus)     : Review artifact (correctness > behavior parity > security > style), yêu cầu build sạch
 Bước 5 → QA ENGINEER              : Smoke test path chính, đối chiếu behavior parity với bản nguồn
 Bước 6 → QA LEAD                  : Sign-off (P0/P1 phải sạch)
 ```
 
 **Nguyên tắc cứng (xem `.gemini/agents/code-migrator.md` chi tiết):**
-- Model Gemini Pro CHỈ dùng cho Bước 1 và Bước 4 (lập plan/khảo sát/review) — Code Migrator KHÔNG tự viết code migrate hàng loạt.
+- Model Opus CHỈ dùng cho Bước 1 và Bước 4 (lập plan/khảo sát/review) — Code Migrator KHÔNG tự viết code migrate hàng loạt.
 - Project nguồn bất khả xâm phạm — code migrate luôn vào folder/project MỚI, không sửa project cũ.
 - Behavior parity trước hết — thay đổi hành vi phải được Tech Lead duyệt.
 
@@ -660,7 +683,8 @@ Dừng retry, ghi lại:
 ### Phase 2 — Diagnose (Đối chiếu pattern đã biết)
 
 Tra cứu theo thứ tự:
-1. `.gemini/GOTCHAS.md` — lỗi này có trong danh sách lỗi ngầm đã biết không?
+1. `.gemini/shared/GOTCHAS.md` — lỗi này có trong danh sách lỗi ngầm đã biết không?
+1b. Nếu không khớp entry nào ở trên VÀ `.gemini/shared/GOTCHAS-ARCHIVE.md` tồn tại → tra thêm file archive đó (entry cũ/ít gặp, đã chuyển ra khỏi file chính — xem "Quy tắc Archive" đầu GOTCHAS.md). Chỉ đọc archive ở bước này, không đọc mặc định đầu session.
 2. Đối chiếu pattern phổ biến:
    - `ModuleNotFoundError` / `ImportError` → thiếu dependency → chạy `pip install` / `npm install`
    - `FileNotFoundError` / `ENOENT` → path sai → kiểm tra lại đường dẫn tuyệt đối
@@ -695,7 +719,7 @@ Hiển thị theo format BLOCK chuẩn (§6) với thông tin đủ để user h
 
 Sau khi báo cáo: DỪNG. KHÔNG tự retry. KHÔNG im lặng tiếp tục. Chờ user hoặc cấp trên phản hồi.
 
-**Sau khi vấn đề được giải quyết:** Nếu đây là lỗi ngầm chưa có trong GOTCHAS.md → thêm entry G00N mới vào `.gemini/GOTCHAS.md` trước khi đóng task.
+**Sau khi vấn đề được giải quyết:** Nếu đây là lỗi ngầm chưa có trong GOTCHAS.md → thêm entry G00N mới vào `.gemini/shared/GOTCHAS.md` trước khi đóng task.
 
 ---
 
@@ -800,7 +824,7 @@ tests/                      ← Senior Developer + Junior Developer + QA Enginee
 | WF-CONVERT | Documentation Writer | `[name].docx` + `[name].pdf` (cùng thư mục hoặc `exports/`) |
 | WF-MIGRATE | Code Migrator | `docs/plans/PLAN-[migration-slug]-*/PLAN-MASTER.md` + `steps/`, `docs/architecture/[migration-slug]/ADR-*.md` (inventory + mapping) |
 | WF-GITHUB-RESEARCH | GitHub Repo Researcher | `docs/research/RESEARCH-[repo-slug]-*.md` + `*.docx` + `*.pdf`, nhánh `research/[repo-slug]-*` |
-| (điều kiện) UXR trong WF-FEATURE/BUGFIX/HOTFIX/FASTTRACK/REFACTOR | UX/UI Reviewer | `docs/ux-review/UX-REVIEW-*.md` + `*.docx` + `*.pdf` + `screenshots/` |
+| (điều kiện) UXR trong WF-FEATURE/BUGFIX/HOTFIX/FASTTRACK/REFACTOR | UX-UI Reflection | `docs/ux-reflection/UX-REFLECTION-*.md` + `*.docx` + `*.pdf` + `evidence/` |
 
 ---
 
@@ -852,9 +876,9 @@ Nếu artifact thiếu hoặc không đủ nội dung → workflow BLOCK, không
 | **DevOps Engineer** | `gemini-3.6-flash` | Viết IaC, pipeline, debug deployment — cần hiểu context rộng |
 | **Project Manager** | `gemini-3.6-flash` | Sprint tracking, blocker analysis, báo cáo có ngữ cảnh đầy đủ |
 | **Documentation Writer** | `gemini-3.6-flash` | Viết tài liệu hướng dẫn, xử lý hình ảnh, xuất DOCX/PDF — CHỈ khi user yêu cầu |
-| **UX/UI Reviewer** | `gemini-3.6-flash` | Chạy app thật, chụp screenshot, đánh giá trực quan — không cần suy luận kiến trúc sâu |
-| **Code Migrator** | `gemini-3.6-pro` | **Ngoại lệ có ghi nhận:** suy luận kiến trúc cao khi khảo sát/lập plan/mapping/review việc migrate framework — nhưng CHỈ dùng ở giai đoạn đó (G1,G2,G5-review); viết code migrate thực tế PHẢI giao Gemini Flash-agent (`senior-developer`/`junior-developer`). CHỈ hoạt động khi user yêu cầu rõ ràng. |
-| **GitHub Repo Researcher** | `gemini-3.6-flash` | Đọc/phân tích repo ngoài, đề xuất cải tiến — reasoning vừa phải, không cần suy luận kiến trúc sâu như Gemini Pro. CHỈ hoạt động khi user gửi link GitHub. |
+| **UX-UI Reflection** | `gemini-3.6-flash` | Phản biện trực quan khắt khe, phân tích ảnh chụp app thật và số liệu Avalonia Headless — không cần suy luận kiến trúc sâu |
+| **Code Migrator** | `gemini-3.6-pro` | **Ngoại lệ có ghi nhận:** suy luận kiến trúc cao khi khảo sát/lập plan/mapping/review việc migrate framework — nhưng CHỈ dùng ở giai đoạn đó (G1,G2,G5-review); viết code migrate thực tế PHẢI giao Sonnet-agent (`senior-developer`/`junior-developer`). CHỈ hoạt động khi user yêu cầu rõ ràng. |
+| **GitHub Repo Researcher** | `gemini-3.6-flash` | Đọc/phân tích repo ngoài, đề xuất cải tiến — reasoning vừa phải, không cần suy luận kiến trúc sâu như Opus. CHỈ hoạt động khi user gửi link GitHub. |
 
 ---
 
@@ -868,9 +892,9 @@ Nếu artifact thiếu hoặc không đủ nội dung → workflow BLOCK, không
 | Tầng 2 — Trung | `gemini-3.6-flash` | Viết PRD/user story/code có suy luận, review, phân tích nghiệp vụ — giữ nguyên theo §13.1 |
 | Tầng 3 — Thấp (MỚI) | `gemini-3.6-flash-lite` | Task cơ học, có template rõ ràng, không cần suy luận nghiệp vụ hay ra quyết định |
 
-**Danh sách task đủ điều kiện downshift sang Tầng 3 (Gemini Flash-Lite)** — CHỈ áp dụng cho bước cụ thể liệt kê dưới đây, KHÔNG đổi model mặc định của cả agent trong §13.1:
+**Danh sách task đủ điều kiện downshift sang Tầng 3 (Haiku)** — CHỈ áp dụng cho bước cụ thể liệt kê dưới đây, KHÔNG đổi model mặc định của cả agent trong §13.1:
 
-| Agent | Task được downshift sang Gemini Flash-Lite |
+| Agent | Task được downshift sang Haiku |
 |---|---|
 | QA Engineer | Điền smoke-test log theo template có sẵn, ghi kết quả Pass/Fail đã xác định rõ |
 | DevOps Engineer | Điền checklist deploy theo template `DEPLOY-*.md`, không cần quyết định kỹ thuật mới |
@@ -883,7 +907,7 @@ Nếu artifact thiếu hoặc không đủ nội dung → workflow BLOCK, không
 3. Nếu task tưởng cơ học nhưng phát sinh quyết định ngoài template (VD: gặp case chưa có trong pattern) → dừng downshift ngay, quay về model mặc định của agent đó.
 4. TUYỆT ĐỐI KHÔNG áp dụng Tầng 3 cho bất kỳ bước REVIEW / APPROVE / SIGN-OFF nào (Two-Eyes Principle §8) — các bước đó luôn cần model đủ mạnh để phát hiện vấn đề.
 
-> **Cảnh báo "Turn count beats token price" (học từ obra/superpowers §1.3.5):** Gemini Flash-Lite chỉ phù hợp khi task ước tính hoàn thành trong ≤2 turns (điền template cố định, chạy script đơn giản). Nếu task có khả năng cần ≥3 turns — phải tự sửa lỗi, xử lý case ngoài template, hoặc ra quyết định phụ — dùng Gemini Flash dù nhìn qua tưởng đơn giản. Model rẻ hơn thường mất nhiều turns hơn; tổng chi phí (turns × đơn giá) có thể cao hơn Gemini Flash, và còn tốn thêm thời gian chờ.
+> **Cảnh báo "Turn count beats token price" (học từ obra/superpowers §1.3.5):** Haiku chỉ phù hợp khi task ước tính hoàn thành trong ≤2 turns (điền template cố định, chạy script đơn giản). Nếu task có khả năng cần ≥3 turns — phải tự sửa lỗi, xử lý case ngoài template, hoặc ra quyết định phụ — dùng Sonnet dù nhìn qua tưởng đơn giản. Model rẻ hơn thường mất nhiều turns hơn; tổng chi phí (turns × đơn giá) có thể cao hơn Sonnet, và còn tốn thêm thời gian chờ.
 
 ---
 
@@ -891,9 +915,9 @@ Nếu artifact thiếu hoặc không đủ nội dung → workflow BLOCK, không
 
 | Tình huống | Override được phép |
 |---|---|
-| Junior Dev gặp bug phức tạp ngoài scope → escalate Tech Lead | Tech Lead dùng Gemini Pro |
-| QA Engineer gặp lỗi khó reproduce, cần phân tích sâu | Escalate QA Lead (Gemini Flash), không tự đổi model |
-| DevOps Engineer xử lý incident SEV1 | Escalate DevOps Lead (Gemini Flash) + CTO (Gemini Pro) ngay |
+| Junior Dev gặp bug phức tạp ngoài scope → escalate Tech Lead | Tech Lead dùng Opus |
+| QA Engineer gặp lỗi khó reproduce, cần phân tích sâu | Escalate QA Lead (Sonnet), không tự đổi model |
+| DevOps Engineer xử lý incident SEV1 | Escalate DevOps Lead (Sonnet) + CTO (Opus) ngay |
 | Agent bất kỳ muốn tự nâng model | **KHÔNG ĐƯỢC PHÉP** — escalate đúng chain |
 
 > **Nguyên tắc:** Không tự nâng model — escalate lên agent cấp cao hơn dùng model mạnh hơn. Đây là cơ chế tiết kiệm token có chủ ý.
@@ -948,6 +972,10 @@ Trước khi đánh dấu bất kỳ task code nào là hoàn thành, developer 
 - [ ] DESIGN cập nhật (nếu thay đổi UI / wireframe)
 - [ ] ADR tạo mới hoặc cập nhật (nếu thay đổi kiến trúc)
 - [ ] Test case cập nhật (nếu thay đổi AC / behavior)
+- [ ] CODE-GRAPH impact:
+  - Depth-1 (WILL BREAK): [module có quan hệ trực tiếp với phần đã thay đổi — tra cột "Callers/Used-by" trong CODE-GRAPH. Nếu không có → "Isolated change — không có module nào phụ thuộc"]
+  - Depth-2 (LIKELY AFFECTED): [module gọi các module ở depth-1 — liệt kê nếu rõ ràng từ CODE-GRAPH, hoặc "Cần trace thêm"]
+  - *(Gợi ý: chạy skill `/detect-impact` để tự động điền mục này thay vì trace thủ công)*
 - [ ] Không có tài liệu nào cần cập nhật (giải thích lý do): ___
 ```
 
@@ -1016,6 +1044,51 @@ Trước khi đánh dấu bất kỳ task code nào là hoàn thành, developer 
 
 ---
 
+### 15.5 BẮT BUỘC: Danh mục 17 Tài liệu SDLC Chuẩn & Document Quality Gate
+
+> **Quy tắc cứng:** Mỗi dự án phần mềm theo quy chuẩn Kztek-Futech BẮT BUỘC phải sở hữu đầy đủ bộ 17 tài liệu SDLC tương ứng 6 giai đoạn phát triển. Tài liệu phải phản ánh trung thực trạng thái mã nguồn và không được để xảy ra tình trạng "lệch pha tài liệu" (Documentation Drift > 14 ngày so với code commit). **Bất kỳ tài liệu nào bị MISSING hoặc OUTDATED đều kích hoạt Document Quality Gate: BLOCK toàn bộ luồng merge/deploy cho đến khi được cập nhật.**
+
+#### Bảng danh mục 17 tài liệu SDLC chuẩn Kztek-Futech
+
+| TT | Giai đoạn (Phase) | Mã tài liệu | Viết tắt | Tên tài liệu chuẩn | Agent phụ trách | Template nguồn trong `.gemini/templates/` |
+|:---:|---|---|---|---|---|---|
+| **01** | **1. Khởi tạo & Lập KH** | `08_VS` | **V&S** | Tài liệu Tầm nhìn & Phạm vi (Vision & Scope) | Product Manager | `01-VS-template.md` |
+| **02** | **1. Khởi tạo & Lập KH** | `09_PMP` | **PMP** | Kế hoạch Quản lý Dự án (Project Management Plan) | Project Manager | `02-PMP-template.md` |
+| **03** | **2. Phân tích Yêu cầu** | `01_BRD` | **BRD** | Tài liệu Yêu cầu Nghiệp vụ (Business Requirements) | Business Analyst | `03-BRD-template.md` |
+| **04** | **2. Phân tích Yêu cầu** | `02_SRS` | **SRS** | Đặc tả Yêu cầu Phần mềm (Software Requirements) | Business Analyst | `04-SRS-template.md` |
+| **05** | **2. Phân tích Yêu cầu** | `13_RTM` | **RTM** | Ma trận Truy vết Yêu cầu (Traceability Matrix) | Business Analyst / QA Lead | `05-RTM-template.md` |
+| **06** | **3. Thiết kế Kỹ thuật** | `03_HLD_SAD` | **HLD/SAD** | Thiết kế Kiến trúc Hệ thống (High-Level Design) | Tech Lead / CTO | `06-HLD-template.md` |
+| **07** | **3. Thiết kế Kỹ thuật** | `04_DBDD` | **DBDD** | Thiết kế Cơ sở Dữ liệu (Database Design) | Tech Lead / Senior Dev | `07-DBDD-template.md` |
+| **08** | **3. Thiết kế Kỹ thuật** | `05_API_Spec` | **API Spec** | Đặc tả API & Giao thức Phần cứng | Tech Lead / Senior Dev | `08-API-template.md` |
+| **09** | **3. Thiết kế Kỹ thuật** | `11_UI_UX` | **UI/UX Spec** | Đặc tả Giao diện & Trải nghiệm (UI/UX Spec) | UI/UX Designer / Senior Dev | `09-UI-UX-template.md` |
+| **10** | **3. Thiết kế Kỹ thuật** | `06_Test_Plan` | **TP** | Kế hoạch Kiểm thử Tổng thể (Master Test Plan) | QA Lead | `10-TEST-PLAN-template.md` |
+| **11** | **4. Phát triển & Test** | `10_LLD_DDD` | **LLD/DDD** | Thiết kế Chi tiết (Low-Level Design / DDD) | Tech Lead / Senior Dev | `11-LLD-template.md` |
+| **12** | **4. Phát triển & Test** | `12_Test_Cases` | **TC** | Kịch bản Kiểm thử Chi tiết (14 Core Scenarios) | QA Engineer | `12-TC-template.md` |
+| **13** | **4. Phát triển & Test** | `14_TSR` | **TSR** | Báo cáo Tổng kết Kiểm thử (Test Summary Report) | QA Lead | `13-TSR-template.md` |
+| **14** | **5. Đóng gói & Triển khai** | `07_Deployment` | **IG/DG** | Hướng dẫn Cài đặt & Triển khai (Deployment Guide) | DevOps Lead / Senior DevOps | `14-DEPLOY-template.md` |
+| **15** | **5. Đóng gói & Triển khai** | `15_RN` | **RN** | Ghi chú Phát hành (Release Notes) | Tech Lead / Product Manager | `15-RN-template.md` |
+| **16** | **5. Đóng gói & Triển khai** | `16_User_Manual` | **UM/UG** | Hướng dẫn Sử dụng (Bảo vệ & Kế toán) | Documentation Writer / BA | `16-MANUAL-template.md` |
+| **17** | **6. Vận hành & Bảo trì** | `17_Admin_Guide` | **Admin Guide** | Hướng dẫn Quản trị & Vận hành Hệ thống 24/7 | DevOps Lead / SysAdmin | `17-ADMIN-GUIDE-template.md` |
+
+#### Cơ chế Document Quality Gate & Quy tắc Xử lý Tự động
+
+1. **Lệnh thực thi kiểm tra:**
+   ```powershell
+   # Kiểm tra tính hợp lệ & độ mới của tài liệu SDLC (chặn nếu sai)
+   $env:PYTHONIOENCODING = "utf-8"; python scripts/check-sdlc-docs.py --strict
+   ```
+2. **Quy tắc chặn (Block Gate):**
+   - **MISSING (Thiếu file):** Nếu tài liệu bắt buộc theo phase chưa tồn tại trong `docs/` $\rightarrow$ BLOCK ngay lập tức. Agent phụ trách (cột 5) PHẢI khởi tạo từ template (hoặc dùng cờ `--fix` để scaffold khung mẫu) và bổ sung nội dung thực tế trước khi chuyển giao bước tiếp theo.
+   - **OUTDATED (Lệch pha > 14 ngày so với code commit):** Nếu code có thay đổi nhưng tài liệu tương ứng không được cập nhật $\rightarrow$ BLOCK. Agent phụ trách PHẢI rà soát diff của code và cập nhật tài liệu tương ứng.
+3. **Trách nhiệm của từng vai trò:**
+   - **Developer (Senior/Junior):** Phải chạy `/check-docs --strict` trong `/verify-pr` trước khi nộp PR cho Tech Lead.
+   - **Documentation Reviewer:** Chuyên viên kiểm soát độc lập (Two-Eyes Principle). Rà soát và thẩm định 5 trục (nội dung kỹ thuật, template chuẩn, định dạng markdown/chính tả, ảnh app thật/Avalonia Headless, và xuất bản R1) đối với toàn bộ tài liệu SDLC được tạo mới hoặc chỉnh sửa. Cấp báo cáo `DOC-REVIEW`, có toàn quyền VETO/BLOCK nếu phát hiện lỗi Critical.
+   - **Tech Lead:** Từ chối review và merge nếu VERIFICATION REPORT thiếu mục SDLC Docs Compliance hoặc chưa được Documentation Reviewer thẩm định thông qua.
+   - **QA Lead:** Bắt buộc nghiệm thu RTM, Test Cases, kết quả thẩm định APPROVED từ Documentation Reviewer và ban hành TSR trước khi ký release.
+   - **DevOps Lead:** Kiểm tra bộ tứ triển khai (`07_Deployment`, `15_RN`, `16_User_Manual`, `17_Admin_Guide`) và xác nhận thẩm định của Documentation Reviewer trước khi bấm nút deploy Production.
+
+---
+
 ## 16. BẮT BUỘC: Quản lý Plan File (Tiến độ task)
 
 > **Quy tắc cứng:** Mọi task mới PHẢI có plan (MASTER + step files) được user xác nhận trước khi thực hiện. Khi tiếp tục task, PHẢI đọc MASTER cũ và tiếp tục từ bước chưa làm. KHÔNG được bắt đầu workflow khi chưa có plan.
@@ -1032,19 +1105,19 @@ Trước khi đánh dấu bất kỳ task code nào là hoàn thành, developer 
 
 ### 16.2 Cấu trúc thư mục & naming convention
 
-> **Lý do (P6):** 1 file plan gộp chung tiến độ + chi tiết + Handoff Log của mọi bước ngày càng phình to theo số bước, khiến agent bước sau phải đọc toàn bộ lịch sử không liên quan. Tách MASTER (tổng quan, nhẹ) khỏi step file (chi tiết, riêng từng bước) giữ mỗi file gọn và chỉ nạp đúng phần cần thiết.
+> **Lý do (P6):** 1 file plan gộp chung tiến độ + chi tiết + Handoff Payload của mọi bước ngày càng phình to theo số bước, khiến agent bước sau phải đọc toàn bộ lịch sử không liên quan. Tách MASTER (tổng quan, nhẹ) khỏi step file (chi tiết, riêng từng bước) giữ mỗi file gọn và chỉ nạp đúng phần cần thiết.
 
 ```
 docs/plans/PLAN-[task-slug]-[YYYY-MM-DD]/
 ├── PLAN-MASTER.md              ← tổng quan: mô tả, bảng phases/steps (status + link), blockers, lịch sử cập nhật
 └── steps/
-    ├── STEP-1.1-[ten].md       ← chi tiết bước 1.1: nhiệm vụ, Đã làm, artifact, Handoff Log riêng
+    ├── STEP-1.1-[ten].md       ← chi tiết bước 1.1: nhiệm vụ, Đã làm, artifact, Handoff Payload riêng
     ├── STEP-1.2-[ten].md
     └── STEP-N.M-[ten].md
 ```
 
 - MASTER KHÔNG chứa chi tiết từng bước — chỉ 1 dòng trạng thái + link tới step file tương ứng.
-- Mỗi step file độc lập, tự chứa đủ context Handoff Log của riêng bước đó.
+- Mỗi step file độc lập, tự chứa đủ context Handoff Payload của riêng bước đó.
 
 ### 16.3 Status icons bắt buộc
 
@@ -1059,10 +1132,12 @@ docs/plans/PLAN-[task-slug]-[YYYY-MM-DD]/
 ### 16.4 Cách cập nhật plan sau mỗi bước
 
 Sau khi 1 bước hoàn thành, PHẢI `Edit` cả 2 file theo đúng thứ tự:
-1. **Step file trước:** điền "Đã làm", artifact, quyết định quan trọng, Handoff Log, commit hash, đổi `status:` trong frontmatter → `done`, điền `completed_at`.
+1. **Step file trước:** điền "Đã làm", artifact, quyết định quan trọng, **Handoff Payload** (3 key: `do_not_redo`, `watch_out`, `next_inputs`), commit hash, đổi `status:` trong frontmatter → `done`, điền `completed_at`.
 2. **MASTER sau:** đổi đúng 1 dòng status trong bảng Phases & Steps (`⬜`/`🔄` → `✅`), điền cột "Hoàn thành lúc", cập nhật `updated:` ở frontmatter MASTER, thêm 1 dòng vào "Lịch sử cập nhật".
 
 KHÔNG chép lại nội dung chi tiết của step file vào MASTER — MASTER chỉ link tới.
+
+> **Handoff Payload — quy tắc truyền sang bước kế tiếp (GX-6):** Dispatcher/task-planner chỉ trích xuất 3 key (`do_not_redo`, `watch_out`, `next_inputs`) từ mục "Handoff Payload" của step file liền trước để nhúng vào prompt bước kế tiếp — KHÔNG truyền toàn bộ section "Đã làm". Bước kế tiếp chỉ cần biết "KHÔNG làm lại gì", "cần cẩn thận gì", và "input cần dùng" — không cần toàn bộ lịch sử thao tác của bước trước. Nếu bước kế tiếp đặc biệt cần biết chi tiết "Đã làm" → ghi rõ trong `next_inputs` thay vì truyền cả section.
 
 **Template:** `.gemini/templates/PLAN-MASTER-template.md` + `.gemini/templates/PLAN-STEP-template.md`
 **Agent quản lý plan:** `task-planner`
@@ -1085,11 +1160,12 @@ Nếu không chắc chắn → hỏi user xác nhận môi trường trước kh
 #### Bước 2a — Cơ chế LOCAL (dùng `Agent` tool)
 
 Với mỗi bước ⬜/🔄 kế tiếp trong plan:
-1. Gọi `Agent` với `subagent_type` đúng vai trò phụ trách bước đó (VD: `senior-developer`, `junior-developer`, `qa-engineer`...). Prompt PHẢI tự chứa đủ context: mô tả bước, đường dẫn PLAN-MASTER.md, đường dẫn step file (`steps/STEP-N.M-*.md`) cần điền, artifact mong đợi, và nguyên văn Handoff Log của bước liền trước (nếu có) — vì subagent không thấy lịch sử session chính.
+1. Gọi `Agent` với `subagent_type` đúng vai trò phụ trách bước đó (VD: `senior-developer`, `junior-developer`, `qa-engineer`...). Prompt PHẢI tự chứa đủ context: mô tả bước, đường dẫn PLAN-MASTER.md, đường dẫn step file (`steps/STEP-N.M-*.md`) cần điền, artifact mong đợi, và 3 key Handoff Payload của bước liền trước (nếu có) — vì subagent không thấy lịch sử session chính.
+   > **Pre-coding:** Nhúng 1 dòng vào đầu prompt coding subagent: *"Trước khi code, chạy pre-coding-check skill tại `.gemini/commands/pre-coding-check.md` (CODE-GRAPH → Lessons → GOTCHAS, tối đa 5 tool calls)."* — thay vì viết lại toàn bộ hướng dẫn CODE-GRAPH/lessons/GOTCHAS mỗi lần.
 2. Subagent thực hiện xong bước PHẢI tự:
    a. `git add` + `git commit` — message chi tiết theo format ở Bước 3 dưới.
    b. `git push` lên remote/nhánh hiện tại (nếu remote đã cấu hình và user đã cho phép push trong phạm vi task).
-   c. `Edit` step file (`steps/STEP-N.M-*.md`): điền "Đã làm", artifact, quyết định quan trọng, Handoff Log, commit hash, `status: done`, **thời gian hoàn thành thực tế** (`YYYY-MM-DD HH:mm`, lấy từ lệnh hệ thống — KHÔNG tự đoán) vào `completed_at`.
+   c. `Edit` step file (`steps/STEP-N.M-*.md`): điền "Đã làm", artifact, quyết định quan trọng, Handoff Payload (3 key: do_not_redo, watch_out, next_inputs), commit hash, `status: done`, **thời gian hoàn thành thực tế** (`YYYY-MM-DD HH:mm`, lấy từ lệnh hệ thống — KHÔNG tự đoán) vào `completed_at`.
    d. `Edit` PLAN-MASTER.md: đổi đúng 1 dòng status bước đó ⬜/🔄 → ✅, điền cột "Hoàn thành lúc".
 3. Subagent trả về **tóm tắt ngắn** (≤ 5 dòng: đã làm gì, artifact nào, đã commit/push chưa) — KHÔNG trả nguyên log/tool-call chi tiết về session chính.
 4. Session chính chỉ hiển thị tóm tắt đó theo format §5 CORE.md, không giữ lại toàn bộ quá trình subagent đã chạy.
@@ -1109,17 +1185,17 @@ Tương tự Bước 2a với 2 điều chỉnh: **(1)** Dùng `RemoteTrigger` a
 Plan: docs/plans/PLAN-[slug]-[date]/steps/STEP-N.M-[ten].md
 ```
 
-#### Bước 4 — BẮT BUỘC: Handoff Log (tránh bước sau phải đọc lại / nghiên cứu lại)
+#### Bước 4 — BẮT BUỘC: Handoff Payload (tránh bước sau phải đọc lại / nghiên cứu lại)
 
-1. Ngay sau khi hoàn thành bước (cùng lúc với Bước 2a.c / 2b tương ứng), agent/trigger PHẢI điền mục **"## Handoff Log — bước sau cần biết"** trong CHÍNH step file của bước đó (`steps/STEP-N.M-*.md`, xem cấu trúc ở `PLAN-STEP-template.md`), theo format:
+1. Ngay sau khi hoàn thành bước (cùng lúc với Bước 2a.c / 2b tương ứng), agent/trigger PHẢI điền mục **"## Handoff Payload — bước sau đọc phần này"** trong CHÍNH step file của bước đó (`steps/STEP-N.M-*.md`, xem cấu trúc ở `PLAN-STEP-template.md`), theo format:
    ```
    - Đã làm: [tóm tắt 2-3 câu, KHÔNG chép lại toàn bộ log]
-   - File/module đã đọc hoặc đổi: [đường dẫn cụ thể]
-   - Quyết định quan trọng: [nếu có — vd: chọn cách A vì lý do X]
-   - Bước sau cần biết: [cảnh báo / gotcha / điều KHÔNG cần làm lại — nếu có, ghi rõ; nếu không có → "Không có"]
+   - do_not_redo: [thao tác đã làm xong, bước sau KHÔNG làm lại; nếu không có → "Không có"]
+   - watch_out: [gotcha / điều kiện bất ngờ bước sau cần biết; nếu không có → "Không có"]
+   - next_inputs: [artifact/file/quyết định bước sau cần dùng làm input; nếu không có → "Không có"]
    ```
-2. Trước khi giao bước kế tiếp cho subagent/trigger mới, `task-planner`/Dispatcher PHẢI `Read` mục "Handoff Log" trong step file của bước LIỀN TRƯỚC (không cần đọc toàn bộ các step file cũ hơn), và **nhúng nguyên văn nội dung đó vào đầu prompt** của bước kế tiếp — coi như "bối cảnh đã biết", không để agent mới tự đọc lại toàn bộ codebase để suy ra lại những gì bước trước đã xác định.
-3. Agent bước sau CHỈ đọc thêm file/code ngoài phạm vi Handoff Log đã cung cấp — không đọc lại phần đã được tóm tắt rõ. Nếu nghi ngờ cần bối cảnh từ bước xa hơn (không phải bước liền trước) → agent tự `Read` thêm đúng step file đó, không đọc toàn bộ `steps/`.
+2. Trước khi giao bước kế tiếp cho subagent/trigger mới, `task-planner`/Dispatcher PHẢI `Read` mục "Handoff Payload" trong step file của bước LIỀN TRƯỚC (không cần đọc toàn bộ các step file cũ hơn), và **chỉ nhúng 3 key** (`do_not_redo`, `watch_out`, `next_inputs`) vào đầu prompt của bước kế tiếp — KHÔNG truyền toàn bộ section "Đã làm", không để agent mới tự đọc lại toàn bộ codebase để suy ra lại những gì bước trước đã xác định.
+3. Agent bước sau CHỈ đọc thêm file/code ngoài phạm vi Handoff Payload đã cung cấp — không đọc lại phần đã được tóm tắt rõ. Nếu nghi ngờ cần bối cảnh từ bước xa hơn (không phải bước liền trước) → agent tự `Read` thêm đúng step file đó, không đọc toàn bộ `steps/`.
 
 #### Ngoại lệ — KHÔNG áp dụng session isolation khi:
 - Plan chỉ có 1 bước duy nhất (không đáng tách session).
@@ -1128,14 +1204,14 @@ Plan: docs/plans/PLAN-[slug]-[date]/steps/STEP-N.M-[ten].md
 
 #### Khuyến nghị Strategic Compact (học từ `strategic-compact` skill của affaan-m/ecc)
 
-> **Mục đích:** Tránh auto-compact xảy ra giữa lúc đang thực hiện dở 1 bước nhiều-turn — mất chi tiết Handoff Log giữa việc sẽ khiến agent bước sau phải đọc lại từ đầu.
+> **Mục đích:** Tránh auto-compact xảy ra giữa lúc đang thực hiện dở 1 bước nhiều-turn — mất chi tiết Handoff Payload giữa việc sẽ khiến agent bước sau phải đọc lại từ đầu.
 
 **Quy tắc:** Ngay sau khi 1 phase/bước trong plan vừa hoàn thành (logical boundary rõ ràng) VÀ context window đã dùng ≥ 50%, Dispatcher PHẢI chủ động gợi ý user:
 
 ```
 Gợi ý: Phase [N] vừa hoàn thành — đây là điểm dừng tốt để compact context.
 Gõ /compact ngay bây giờ để giải phóng context window trước khi bắt đầu Phase [N+1].
-(Nếu bỏ qua, auto-compact có thể xảy ra giữa Phase [N+1] và làm mất Handoff Log.)
+(Nếu bỏ qua, auto-compact có thể xảy ra giữa Phase [N+1] và làm mất Handoff Payload.)
 ```
 
 **Thời điểm nên gợi ý compact (theo thứ tự ưu tiên):**
@@ -1156,10 +1232,22 @@ Gõ /compact ngay bây giờ để giải phóng context window trước khi b�
 ```
 1. Glob "code-graph/CODE-GRAPH.md" → kiểm tra file có tồn tại không
 2. Nếu tồn tại       → Read code-graph/CODE-GRAPH.md TRƯỚC
-3. Thông tin đủ      → bắt đầu coding (không cần đọc toàn bộ source)
-4. Thiếu thông tin   → chỉ đọc thêm file/module cụ thể liên quan
+3. Thông tin đủ      → trả lời ít nhất 3/5 câu hỏi dưới đây từ CODE-GRAPH (không mở source):
+     a. Module/file liên quan đến task này nằm ở đâu?
+     b. Module đó phụ thuộc vào module/package nào?
+     c. Ai gọi module/function này (callers)?
+     d. API endpoint hoặc class public interface được định nghĩa ở file:line nào?
+     e. Có thay đổi nào gần đây ở module liên quan không (xem "Thay đổi gần đây")?
+   → Nếu CODE-GRAPH trả lời được ≥ 3/5 câu → bắt đầu coding (không cần đọc toàn bộ source)
+4. Thiếu thông tin   → chỉ đọc thêm file/module cụ thể liên quan (dựa trên câu hỏi nào chưa trả lời được)
+   ► **Sufficiency tracking (học từ MemMachine CoQ):** Ghi rõ câu nào trong (a)–(e) còn chưa trả lời được
+     → chỉ đọc ĐÚNG source file liên quan đến câu đó — KHÔNG đọc lan sang file khác.
+     VD: câu (d) "API endpoint ở file:line nào?" chưa có → chỉ đọc file router/api,
+     không đọc service/model/test. Câu (a)(b)(c)(e) đã đủ → không mở thêm file nào cho các câu đó.
 5. Không tồn tại     → khảo sát dự án → tạo code-graph/CODE-GRAPH.md từ template
                        → xuất code-graph/CODE-GRAPH.pdf ngay sau khi tạo xong
+                       → [Tùy chọn] Nếu Python 3.10+ có sẵn và project > 50 file code,
+                         có thể dùng `graphify` để build tự động (xem §17.6)
 ```
 
 ### 17.2 Khi nào PHẢI cập nhật CODE-GRAPH
@@ -1174,6 +1262,19 @@ Gõ /compact ngay bây giờ để giải phóng context window trước khi b�
 | Thêm/sửa env variable | ✅ Bắt buộc |
 | Sửa nội dung logic bên trong (không đổi interface) | ❌ Không cần |
 
+**Confidence labels (bắt buộc cho cột `Confidence` trong bảng Dependencies/Relationships của CODE-GRAPH):**
+
+| Label | Khi nào dùng |
+|-------|-------------|
+| `CONFIRMED` | Đã đọc trực tiếp source code hoặc config file liên quan — quan hệ/dependency chắc chắn đúng |
+| `INFERRED` | Suy luận từ tên module, cấu trúc thư mục, hoặc convention đặt tên — chưa đọc trực tiếp code |
+| `UNCERTAIN` | Chưa rõ: module mới tạo, code bị xóa chưa cập nhật, hoặc có mâu thuẫn giữa doc và code thực tế |
+
+Quy tắc: khi agent đọc CODE-GRAPH gặp label `UNCERTAIN` ở node liên quan đến task → **PHẢI** đọc trực tiếp source file đó để xác nhận, không dựa vào thông tin cũ.
+
+**Staleness rule (GX-4 — Last verified):** Khi coding agent đọc CODE-GRAPH trước task, nếu gặp entry CONFIRMED có cột `Last verified` cũ hơn 30 ngày so với ngày hiện tại VÀ module đó xuất hiện trong output `git log --oneline -7` (có commit gần đây) → tạm downgrade label sang UNCERTAIN, phải đọc source file trực tiếp để re-verify trước khi sử dụng thông tin đó. Sau khi verify xong → cập nhật `Last verified` thành ngày hôm nay.
+> **Ghi chú:** Rule này chủ yếu áp dụng cho phần mô tả nghiệp vụ và Confidence label trong CODE-GRAPH.md. Nếu project đã cài `graphify`, phần cấu trúc/dependency được tự động re-index qua `graphify update --diff` — không cần re-verify thủ công cho các trường graphify quản lý.
+
 ### 17.3 Ai cập nhật CODE-GRAPH
 
 | Agent | Khi nào cập nhật |
@@ -1182,6 +1283,8 @@ Gõ /compact ngay bây giờ để giải phóng context window trước khi b�
 | Junior Developer | Sau mỗi PR merge có thay đổi structure/API |
 | Tech Lead | Sau mỗi technical design thay đổi kiến trúc |
 | DevOps Engineer | Khi thêm infra mới, env variable, deploy config |
+
+> **BẮT BUỘC nếu `graphify` đã được cài trong project** (kiểm tra nhanh: `pip show graphify` hoặc có file `graph.json`/`graph.html` ở root) — Senior/Junior Developer PHẢI chạy `graphify update --diff` NGAY sau khi code xong, TRƯỚC khi tự sửa tay `code-graph/CODE-GRAPH.md`, rồi mới bổ sung thủ công phần mô tả nghiệp vụ + Confidence labels mà graphify không tạo ra. Nếu project chưa cài `graphify` → giữ nguyên quy trình cập nhật thủ công như trên (xem §17.6 để cân nhắc cài đặt).
 
 ### 17.4 File location và định dạng bắt buộc
 
@@ -1211,6 +1314,35 @@ Nếu file chưa cập nhật > 30 ngày VÀ có nhiều thay đổi lớn → S
 2. Viết lại `code-graph/CODE-GRAPH.md` từ template
 3. Xuất lại `code-graph/CODE-GRAPH.pdf`
 4. Ghi chú ngày tạo lại vào "Lịch sử cập nhật"
+
+### 17.6 Công cụ tùy chọn: graphify (tự động hóa build/update CODE-GRAPH)
+
+> **Tùy chọn — không bắt buộc.** Graphify là CLI Python phân tích codebase bằng tree-sitter/AST, tự động sinh đồ thị dependency và xuất ra nhiều định dạng (JSON, Markdown). Hữu ích khi project > 50 file code và việc viết/cập nhật CODE-GRAPH.md thủ công tốn nhiều thời gian.
+
+**Cài đặt:**
+```bash
+pip install graphify
+# Hoặc tham khảo README đầy đủ tại: https://github.com/Graphify-Labs/graphify
+```
+
+**Lệnh cơ bản:**
+```bash
+graphify .                          # Phân tích toàn bộ project hiện tại, xuất graph
+graphify query --node ModuleName    # Tra cứu node cụ thể (callers, dependencies)
+graphify update --diff              # Cập nhật graph sau khi code thay đổi (chỉ re-parse file đã đổi)
+```
+
+**Khi nào nên dùng:**
+- Tạo CODE-GRAPH.md mới cho project lớn (> 50 file): dùng `graphify .` để có dữ liệu nền, sau đó bổ sung context nghiệp vụ thủ công vào template.
+- Cập nhật sau refactor lớn (nhiều file thay đổi): dùng `graphify update --diff` thay vì đọc lại từng file.
+- Tra cứu nhanh callers/dependencies trong session dài: `graphify query` cho kết quả nhanh hơn Grep thủ công.
+
+**Lưu ý quan trọng:**
+- Graphify xuất graph kỹ thuật (dependency/call graph) — KHÔNG thay thế phần mô tả nghiệp vụ, quyết định kiến trúc, và Confidence labels trong CODE-GRAPH.md (phần đó vẫn cần agent điền thủ công).
+- KHÔNG tự ý cài pip package trên project production/staging khi chưa được Tech Lead duyệt.
+- Output của `graphify` là input để điền vào CODE-GRAPH.md — không dùng raw output thay thế file template.
+
+> **Không tự động chạy ngầm:** `graphify` là CLI phải được chủ động gọi (không có watcher/daemon tự chạy). Một khi project đã cài đặt, việc gọi nó KHÔNG còn là tùy chọn tự do — §17.3 và các bước Developer trong WF-FEATURE (Bước 10)/WF-BUGFIX (Bước 3) đã BẮT BUỘC chạy `graphify update --diff` sau khi code xong, trước khi tự sửa tay CODE-GRAPH.md.
 
 ---
 
@@ -1435,10 +1567,11 @@ Agent PHẢI thêm vào phần artifact output:
 ## 21. Changelog — Lịch sử thay đổi hệ thống agent
 
 > Mục đích: Audit trail khi hệ thống agent phát triển. Ghi nhận mọi thay đổi đáng kể vào agent/workflow/rule để dễ onboarding, phát hiện regression, và hiểu lý do đằng sau các quyết định thiết kế.
+>
+> **Lịch sử đầy đủ:** [`docs/CHANGELOG-AGENTS.md`](docs/CHANGELOG-AGENTS.md) — file này chỉ giữ 3 entry gần nhất. Mỗi lần thêm entry mới: ghi vào `docs/CHANGELOG-AGENTS.md` TRƯỚC, rồi copy đúng entry đó vào bảng dưới + xóa entry cũ nhất (giữ đúng 3 dòng).
 
 | Ngày | Phiên bản | Nội dung thay đổi | Đối tượng | Lý do |
 |------|-----------|------------------|-----------|-------|
-| 2026-07-12 | v1.3 | Rút gọn GEMINI.md: xóa 7 đoạn overhead/trùng lặp (P1,P3,P4,P6,P7,P8,P9 + Modify P2), tiết kiệm 34 dòng thực tế — xem `_workspace` phân tích WF-REFACTOR optimize-framework | GEMINI.md | Giảm overhead quy trình, loại bỏ nội dung trùng lặp giữa các §, không đổi nguyên tắc cứng nào |
-| 2026-07-12 | v1.2 | Áp dụng 7 đề xuất E1-E7 từ nghiên cứu affaan-m/ecc: E1 hook bảo vệ config (`.gemini/hooks/config-protection.js` + `settings.json`), E2 GOTCHAS.md + yêu cầu đọc khi khởi động (§KHỞI ĐỘNG), E3 bảng DAILY/LIBRARY (CORE.md §6b), E4 skill `/verify-pr` + yêu cầu trong WF-BUGFIX/WF-FEATURE, E5 EVAL-template.md + EDD requirement (§18.5), E6 Agent Introspection Debugging 4-phase (§9a), E7 Strategic Compact gợi ý (§16.5) | GEMINI.md §KHỞI ĐỘNG §9a §16.5 §18.5 §WF-FEATURE §WF-BUGFIX §21; CORE.md §6b; `.gemini/hooks/`; `.gemini/commands/`; `.gemini/templates/` | Tăng safety (config protection), giảm lỗi lặp (GOTCHAS), tối ưu context window (compact/DAILY-LIBRARY), chuẩn hoá pre-PR (verify-pr), chuẩn hoá tạo agent (EDD). Xem `docs/research/RESEARCH-ecc-2026-07-12.md` |
-| 2026-07-12 | v1.1 | Áp dụng 8 đề xuất từ nghiên cứu revfactory/harness: P1 `_workspace/` convention (§11.0), P2 Progressive Disclosure cho documentation-writer.md, P3 pushy description cho agents, P4 Phase 0 Audit trong WF-GITHUB-RESEARCH + WF-MIGRATE, P5 tạo skill `skill-trigger-test`, P6 why-first cho quy tắc TUYỆT ĐỐI, P7 hướng dẫn fan-out `run_in_background` (§4), P8 Changelog (§21) | GEMINI.md §4 §11 §21, `.gemini/agents/`, `.gemini/commands/` | Cải thiện Dispatcher routing accuracy, giảm context window per session, tăng maintainability. Xem `docs/research/RESEARCH-harness-2026-07-12.md` |
-| 2026-07-12 | v1.0 | Khởi tạo hệ thống agent KZTEK — 17 agents, 4 skills, routing table đầy đủ | Toàn bộ hệ thống | Tạo mới |
+| 2026-08-05 | v2.1 | Tách Changelog khỏi `GEMINI.md` §21 sang `docs/CHANGELOG-AGENTS.md` — §21 chỉ giữ 3 entry gần nhất + link | `GEMINI.md` §21, `docs/CHANGELOG-AGENTS.md` (mới) | Giảm chi phí token auto-load mỗi session (GEMINI.md tăng liên tục 999→1522 dòng/25 lần sửa trong ~2 tháng); Changelog hiếm khi cần đọc lại toàn bộ lúc làm việc |
+| 2026-08-04 | v2.0 | Áp dụng 3 đề xuất E1-E3(A) từ nghiên cứu nextlevelbuilder/ui-ux-pro-max-skill (Mode A): cài skill UI UX Pro Max, thêm "Bước 0 — Xác định Design System" cho ui-ux-designer, nhắc tra `.gemini/lessons/avalonia/` trước khi code Avalonia | `.gemini/skills/ui-ux-pro-max/`, `.gemini/agents/ui-ux-designer.md`, `.gemini/agents/senior-developer.md`, `.gemini/commands/pre-coding-check.md` | Chi tiết đầy đủ: xem `docs/CHANGELOG-AGENTS.md` |
+| 2026-08-04 | v1.9 | Áp dụng 6 đề xuất GX-1 đến GX-6 từ nghiên cứu GitNexus (Mode A): blast-radius depth taxonomy, `deps:` field trong PLAN-STEP, skill `/detect-impact`, staleness rule CODE-GRAPH, CONTEXT-HINTS.md, Handoff Payload 3-key | GEMINI.md §3.0 §15.3 §16.4 §16.5 §17.2; `.gemini/templates/`; `.gemini/agents/task-planner.md`; `.gemini/commands/detect-impact.md` | Chi tiết đầy đủ: xem `docs/CHANGELOG-AGENTS.md` |

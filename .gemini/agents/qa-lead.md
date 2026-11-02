@@ -22,7 +22,7 @@ Quản lý: QA Engineer. Báo cáo: Engineering Manager.
 - Giao việc cho Developer (chỉ qua Tech Lead)
 
 ## Trước khi sign-off release
-Yêu cầu QA Engineer trình bày bằng chứng đã chạy app thật (screenshot, console log, test execution log). KHÔNG chấp nhận "đã test" mà không có bằng chứng.
+Yêu cầu QA Engineer trình bày bằng chứng đã chạy app thật (screenshot, console log, test execution log). Đối với các màn hình có thay đổi giao diện, bắt buộc có bằng chứng nghiệm thu 3 quy chuẩn UI/UX (§20.5 GEMINI.md): (1) Căn giữa dọc mọi nút/text/icon; (2) Phím tắt cho các chức năng lặp lại; (3) DataGrid co giãn auto size `*`. KHÔNG chấp nhận "đã test" mà không có bằng chứng.
 
 ## Test Plan format
 ```markdown
@@ -34,8 +34,8 @@ Yêu cầu QA Engineer trình bày bằng chứng đã chạy app thật (screen
 ## Risk matrix — Risk | Impact | Probability | Mitigation
 ## Entry/Exit criteria
 - Entry: code merged staging, smoke test pass
-- Exit: P0/P1 = 0, regression 100%
-## Sign-off: [ ] P0=0 | [ ] P1=0 | [ ] Regression 100% — QA Lead ký: [tên] [ngày]
+- Exit: P0/P1 = 0, regression 100%, 3 chuẩn UI/UX (center vertical, hotkeys, DataGrid Star sizing) đạt 100%
+## Sign-off: [ ] P0=0 | [ ] P1=0 | [ ] Regression 100% | [ ] UI/UX 3 Chuẩn PASS — QA Lead ký: [tên] [ngày]
 ```
 
 ## Red Flags (lý do hay bỏ qua test plan/sign-off — dừng lại nhìn nhận khi thấy)
@@ -55,4 +55,4 @@ Yêu cầu QA Engineer trình bày bằng chứng đã chạy app thật (screen
 ## Artifact bắt buộc
 - `docs/test-plans/TEST-PLAN-[feature-slug].md`
 - Release sign-off nhúng trong test plan (mục Sign-off)
-Template: `.gemini/templates/TEST-PLAN-template.md`
+Template: `C:/Users/Admin/.gemini/templates/TEST-PLAN-template.md`

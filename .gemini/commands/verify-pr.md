@@ -80,14 +80,31 @@ Nhìn lướt diff của lần thay đổi này, check nhanh 4 điểm:
 - [ ] Logic thay đổi có đúng với yêu cầu (user story / AC) không?
 - [ ] Có side effect ngoài ý muốn không? (sửa 1 nơi nhưng ảnh hưởng module khác)
 - [ ] Comment và đặt tên biến có rõ ràng không?
+- [ ] (Nếu có thay đổi UI) Đã tuân thủ 3 quy chuẩn UI/UX (§20.5 GEMINI.md): (1) Căn giữa dọc nút/text/icon; (2) Phím tắt cho thao tác lặp lại; (3) DataGrid cấu hình auto size `*`.
 
 **Tiêu chí PASS:** Không có vấn đề đáng kể khi đọc lại.
 
 ---
 
+### Bước 5b — SDLC Documents Compliance Check (`/check-docs`)
+
+Chạy lệnh kiểm tra tính đầy đủ và tính mới của các tài liệu kỹ thuật liên quan đến thay đổi này:
+
+```powershell
+$env:PYTHONIOENCODING = "utf-8"; python scripts/check-sdlc-docs.py --strict
+```
+
+- [ ] Các tài liệu SDLC liên quan đến PR (SRS, HLD, LLD, DBDD, API, Test Cases, Deployment) đã được tạo hoặc cập nhật chưa?
+- [ ] Có xuất hiện cảnh báo `MISSING` hoặc `OUTDATED` trong báo cáo kiểm tra không?
+
+**Tiêu chí PASS:** Báo cáo trả về `DOCUMENT QUALITY GATE: PASSED` (0 missing, 0 outdated).
+**Tiêu chí FAIL:** Có tài liệu bị thiếu hoặc lỗi thời → BLOCK PR, yêu cầu hoàn thiện tài liệu trước khi nộp Tech Lead.
+
+---
+
 ### Bước 6 — Tổng hợp VERIFICATION REPORT
 
-Sau khi hoàn thành 5 bước trên, tạo report theo format sau và **đính kèm vào PR description**:
+Sau khi hoàn thành các bước trên, tạo report theo format sau và **đính kèm vào PR description**:
 
 ```
 ## VERIFICATION REPORT
@@ -100,12 +117,13 @@ Generated: YYYY-MM-DD HH:MM | Branch: [branch-name] | By: [Developer name/role]
 | 3 | Test | PASS / FAIL / SKIP | [số test, số pass/fail, thời gian chạy] |
 | 4 | Security Quick Note | PASS / FAIL / SKIP | [phát hiện gì nếu có] |
 | 5 | Diff Self-review | PASS / FAIL / SKIP | [vấn đề gì nếu có] |
+| 6 | SDLC Docs Compliance | PASS / FAIL / SKIP | [/check-docs report, 0 missing, 0 outdated] |
 
 **Tổng kết:** [READY FOR REVIEW / BLOCKED — lý do]
 ```
 
 **Quy tắc tổng kết:**
-- `READY FOR REVIEW` — tất cả 5 bước đều PASS (hoặc SKIP có ghi lý do hợp lệ)
+- `READY FOR REVIEW` — tất cả các bước đều PASS (hoặc SKIP có ghi lý do hợp lệ)
 - `BLOCKED` — bất kỳ bước nào FAIL → không được nộp PR cho Tech Lead
 
 ---
@@ -123,6 +141,7 @@ Generated: 2026-07-12 14:30 | Branch: feature/parking-led-status | By: Senior De
 | 3 | Test | PASS | `dotnet test` — 47/47 passed, 3.2s |
 | 4 | Security Quick Note | PASS | Không có hard-code credential, không có injection risk |
 | 5 | Diff Self-review | PASS | Loại bỏ 1 debug log còn sót; naming rõ ràng |
+| 6 | SDLC Docs Compliance | PASS | `/check-docs`: 17/17 docs OK, 0 missing, 0 outdated |
 
 **Tổng kết:** READY FOR REVIEW
 ```

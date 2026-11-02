@@ -42,4 +42,4 @@ Hợp tác: Engineering Manager (resource/timeline), UI/UX Designer, Tech Lead (
 
 ## Artifact bắt buộc
 `docs/prd/PRD-[feature-slug].md`
-Template: `.gemini/templates/PRD-template.md`
+Template: `C:/Users/Admin/.gemini/templates/PRD-template.md`

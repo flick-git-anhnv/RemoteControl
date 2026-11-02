@@ -8,7 +8,7 @@ status: active
 # EVAL: QA Engineer
 
 > **Mục đích:** Định nghĩa pass/fail criteria cho `qa-engineer` agent — Eval-Driven Development (EDD).
-> **Khi chạy:** Sau khi sửa `.gemini/agents/qa-engineer.md` hoặc thay đổi quy trình test trong GEMINI.md, chạy lại toàn bộ eval.
+> **Khi chạy:** Sau khi sửa `C:/Users/Admin/.gemini/agents/qa-engineer.md` hoặc thay đổi quy trình test trong GEMINI.md, chạy lại toàn bộ eval.
 
 ---
 

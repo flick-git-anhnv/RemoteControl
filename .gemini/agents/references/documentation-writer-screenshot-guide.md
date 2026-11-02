@@ -159,6 +159,11 @@ try {
 ## F. Quét màn hình theo loại ứng dụng
 
 ```powershell
+# Avalonia — liệt kê tất cả Window, UserControl, Page từ file AXAML
+Get-ChildItem -Recurse -Filter "*.axaml" |
+    Select-String -Pattern "<(Window|UserControl|Page)" |
+    ForEach-Object { "$($_.Filename):$($_.LineNumber) — $($_.Line.Trim())" }
+
 # Windows Forms — liệt kê tất cả Form
 Get-ChildItem -Recurse -Filter "*.cs" |
     Select-String -Pattern "class \w+ *: *(Form|UserControl|MetroForm|BaseForm)" |
@@ -179,7 +184,7 @@ Get-ChildItem -Recurse -Filter "*.cshtml" | Select-Object FullName
 # Phương án 1: docx2pdf (Windows/macOS — cần MS Word)
 pip install docx2pdf
 $env:PYTHONIOENCODING = "utf-8"
-python scripts/md_to_docx_kztek.py docs/user-manuals/MANUAL-[feature-slug].md
+python C:/Users/Admin/.gemini/scripts/md_to_docx_kztek.py docs/user-manuals/MANUAL-[feature-slug].md
 
 # Phương án 2: LibreOffice (Linux)
 soffice --headless --convert-to pdf docs/user-manuals/MANUAL-[feature-slug].docx --outdir docs/user-manuals/
@@ -187,4 +192,111 @@ soffice --headless --convert-to pdf docs/user-manuals/MANUAL-[feature-slug].docx
 # Phương án 3: pypandoc
 pip install pypandoc
 python -c "import pypandoc; pypandoc.convert_file('docs/user-manuals/MANUAL-[feature-slug].md', 'pdf', outputfile='docs/user-manuals/MANUAL-[feature-slug].pdf', extra_args=['--pdf-engine=xelatex'])"
+```
+
+---
+
+## H. Render UI ứng dụng Avalonia bằng Avalonia.Headless
+
+### 1. Khi nào dùng
+BẮT BUỘC cho toàn bộ ứng dụng Avalonia khi làm tài liệu hướng dẫn. Tránh được hoàn toàn các lỗi gotcha Win32/X11 (lệch DPI, mất focus, Alt+F4 sai cửa sổ, không chạy được trên máy không có display).
+
+### 2. Nguyên lý hoạt động
+Avalonia cung cấp package `Avalonia.Headless` cho phép khởi tạo ứng dụng Avalonia mà không cần hiển thị cửa sổ vật lý, vẽ trực tiếp vào framebuffer trong bộ nhớ và chụp ảnh frame bằng `window.CaptureRenderedFrame()` hoặc `WriteableBitmap`.
+
+### 3. Hướng dẫn viết script render UI Headless (nếu project chưa có sẵn)
+
+Documentation Writer có thể tạo một console runner hoặc test project nhỏ (ví dụ `tools/HeadlessDocRenderer/` hoặc script C#) với các bước:
+
+**Bước 1: Cấu hình project (`HeadlessDocRenderer.csproj`)**
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="11.*" />
+    <PackageReference Include="Avalonia.Skia" Version="11.*" />
+    <!-- Tham chiếu đến project Avalonia chính của giải pháp -->
+    <ProjectReference Include="..\..\src\MyApp\MyApp.csproj" />
+  </ItemGroup>
+</Project>
+```
+
+**Bước 2: Viết mã nguồn render (`Program.cs`)**
+```csharp
+using System;
+using System.IO;
+using Avalonia;
+using Avalonia.Headless;
+using Avalonia.Media.Imaging;
+using MyApp; // Namespace ứng dụng Avalonia chính
+using MyApp.Views;
+using MyApp.ViewModels;
+
+namespace HeadlessDocRenderer;
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
+
+    public static AppBuilder BuildAvaloniaApp() =>
+        AppBuilder.Configure<App>()
+            .UseHeadless(new AvaloniaHeadlessPlatformOptions
+            {
+                UseHeadlessDrawing = true
+            })
+            .AfterSetup(_ =>
+            {
+                RenderAllScreens();
+            });
+
+    static void RenderAllScreens()
+    {
+        var outDir = Path.GetFullPath("docs/user-manuals/screenshots");
+        Directory.CreateDirectory(outDir);
+
+        // 1. Render MainWindow (Default)
+        var mainWin = new MainWindow
+        {
+            DataContext = new MainViewModel(),
+            Width = 1366,
+            Height = 768
+        };
+        mainWin.Show();
+        SaveFrame(mainWin, Path.Combine(outDir, "main-default.png"));
+
+        // 2. Render Form nhập liệu (Filled State)
+        var userVm = new UserEditViewModel { UserName = "NguyenVanA", Role = "Admin" };
+        var userWin = new UserEditWindow { DataContext = userVm, Width = 800, Height = 600 };
+        userWin.Show();
+        SaveFrame(userWin, Path.Combine(outDir, "user-edit-filled.png"));
+
+        // 3. Render Form lỗi validation (Error State)
+        var errorVm = new UserEditViewModel { UserName = "" };
+        errorVm.Validate(); // Kích hoạt trạng thái lỗi
+        var errorWin = new UserEditWindow { DataContext = errorVm, Width = 800, Height = 600 };
+        errorWin.Show();
+        SaveFrame(errorWin, Path.Combine(outDir, "user-edit-error-required.png"));
+
+        Console.WriteLine("[Headless] Render hoàn tất 100% screenshots!");
+        Environment.Exit(0);
+    }
+
+    static void SaveFrame(Avalonia.Controls.Window window, string outputPath)
+    {
+        using var frame = window.CaptureRenderedFrame();
+        frame.Save(outputPath);
+        Console.WriteLine($"Đã render: {outputPath}");
+    }
+}
+```
+
+**Bước 3: Chạy script render**
+```powershell
+dotnet run --project tools/HeadlessDocRenderer/HeadlessDocRenderer.csproj
 ```

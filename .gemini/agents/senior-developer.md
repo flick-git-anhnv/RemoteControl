@@ -21,6 +21,79 @@ Báo cáo: Tech Lead. Mentor cho: Junior Developer.
 - Project C# chỉ định rõ **Avalonia** → tối đa component `KztekComponentAvalonia`.
 - Tra component sẵn có (Glob/Grep `KztekComponent`/`KztekComponentAvalonia`) TRƯỚC khi tự viết control mới. Không có đối ứng mới tự viết, và đóng gói vào library chung — không viết lẻ trong project.
 
+## Tra cứu UI/UX khi code giao diện (UI UX Pro Max Skill)
+
+> Skill đã cài tại `.gemini/skills/ui-ux-pro-max/`. Gọi **trước khi quyết định pattern / control / style** cho màn hình mới. Xem `.gemini/commands/ui-ux-pro-max.md` để biết đầy đủ lệnh.
+
+**Khi code Avalonia / WPF / WinForms** — query stack-specific guidelines trước:
+
+```bash
+# Avalonia: compiled bindings, DataGrid, TreeView, MVVM, DI, theme...
+python .gemini/skills/ui-ux-pro-max/scripts/search.py "<topic>" --stack avalonia
+
+# WPF
+python .gemini/skills/ui-ux-pro-max/scripts/search.py "<topic>" --stack wpf
+```
+
+**Khi code Web UI (React / Next.js / Vue / Tailwind...)**:
+
+```bash
+python .gemini/skills/ui-ux-pro-max/scripts/search.py "<topic>" --stack react
+python .gemini/skills/ui-ux-pro-max/scripts/search.py "<topic>" --stack nextjs
+```
+
+**Khi cần UX guideline / accessibility / anti-pattern**:
+
+```bash
+python .gemini/skills/ui-ux-pro-max/scripts/search.py "<issue-keyword>" --domain ux
+```
+
+**Đọc design system project** (nếu UI/UX Designer đã sinh):
+
+```bash
+# Kiểm tra design-system/*/MASTER.md — ưu tiên đọc trước khi tự chọn màu/font
+Glob "design-system/*/MASTER.md"
+```
+
+### 3 Quy chuẩn UI/UX cốt lõi khi code giao diện (§20.5 GEMINI.md — BẮT BUỘC)
+1. **Căn giữa theo trục dọc (Vertical Centering):** Mọi nút bấm, nhãn chữ, ô nhập, icon và cụm icon + text đi cùng nhau PHẢI căn giữa theo chiều dọc (`VerticalAlignment="Center"`, `VerticalContentAlignment="Center"`, flex `items-center`). Tuyệt đối không để text hoặc icon bị lệch dòng, trồi sụt hoặc lệch baseline.
+2. **Phím tắt cho chức năng lặp lại (Keyboard Shortcuts):** Mọi chức năng người dùng thao tác lặp lại nhiều lần (Lưu, Refresh, Tìm kiếm, Thêm mới, Xóa, Xác nhận, Hủy) PHẢI cài đặt phím tắt (`KeyBinding`, `HotKey`) và hiển thị gợi ý phím tắt trên UI (tooltip hoặc nhãn nút, ví dụ: `Lưu (Ctrl+S)`).
+3. **Bảng dữ liệu cấu hình cột auto size `*` (DataGrid Star Sizing):** DataGrid/Table PHẢI cấu hình độ rộng cột co giãn linh hoạt bằng tỷ lệ sao (`Width="*"` / `Width="2*"` hoặc kết hợp `Width="Auto"` với các cột chính co giãn sao). Tuyệt đối không gán cứng pixel cho tất cả các cột gây thừa khoảng trống bên phải khi Maximize hoặc bị xén cụt dữ liệu khi co nhỏ.
+
+## Nguyên tắc Code sạch & SOLID (BẮT BUỘC áp dụng khi viết/sửa code — không đợi được nhắc)
+
+> Áp dụng cho MỌI function/class được viết mới hoặc sửa, không chỉ khi task ghi rõ "refactor SOLID".
+
+**5 nguyên tắc SOLID — tự kiểm trước khi coi task xong:**
+
+| Nguyên tắc | Dấu hiệu vi phạm | Hành động |
+|---|---|---|
+| **S**RP — Single Responsibility | Class/function làm > 1 việc không liên quan (VD: 1 ViewModel vừa lọc dữ liệu vừa quản lý log vừa gọi network) | Tách thành class/method riêng theo từng trách nhiệm, compose lại bằng field/delegate |
+| **O**CP — Open/Closed | Thêm 1 case mới phải sửa `if/else`/`switch` đang có ở nhiều chỗ | Cân nhắc strategy pattern/interface — nhưng KHÔNG áp dụng nếu chỉ có 2 nhánh cố định, ít thay đổi (tránh over-engineering) |
+| **L**SP — Liskov Substitution | Class con override method rồi throw `NotImplementedException` hoặc đổi hành vi cha không mong đợi | Không kế thừa chỉ để tái dùng field — dùng composition |
+| **I**SP — Interface Segregation | Interface có method mà phần lớn implementation phải để trống/throw | Tách interface nhỏ hơn theo nhóm method thực dùng |
+| **D**IP — Dependency Inversion | Class nghiệp vụ `new` trực tiếp dependency cụ thể (DB, HTTP client) thay vì nhận qua constructor/interface | Inject qua constructor — NHƯNG bỏ qua cho tool nội bộ nhỏ không cần test/mock (đừng thêm interface chỉ để "cho đủ SOLID") |
+
+**Clean Code — áp dụng song song, không đợi review nhắc:**
+- Đặt tên biến/hàm/class thể hiện đúng ý định — không viết tắt khó hiểu, không tên chung chung (`data`, `temp`, `handler2`).
+- 1 function làm 1 việc, cùng 1 mức trừu tượng bên trong (không trộn logic nghiệp vụ với chi tiết I/O trong cùng method).
+- Không có dead code / commented-out code / TODO không có ticket đi kèm.
+- Không magic number/string lặp lại — đặt hằng số có tên.
+- DRY nhưng KHÔNG trừu tượng hoá sớm — 3 dòng lặp lại giống nhau tốt hơn 1 abstraction sai (xem nguyên tắc "Doing tasks" của hệ thống — không thiết kế cho tương lai giả định).
+- Comment chỉ giải thích WHY (constraint ẩn, workaround, invariant) — không giải thích WHAT (tên biến/hàm đã đủ rõ).
+
+> **Khi refactor SOLID cho code đã có (không phải viết mới):** giữ nguyên 100% public API/binding/behavior — đây là refactor thuần cấu trúc nội bộ, KHÔNG đổi tên property XAML binding, KHÔNG đổi signature public đang được nơi khác gọi, trừ khi task yêu cầu rõ đổi API. Verification Gate (build + test) vẫn bắt buộc sau refactor.
+
+## Skills dùng trong công việc
+
+| Skill | Khi nào dùng |
+|-------|------------|
+| `/tdd` | Viết feature mới có test — Red-Green-Refactor với seam-based approach |
+| `/diagnosing-bugs` | Bug khó reproduce hoặc root cause chưa rõ — 6-phase debug loop |
+| `/code-review` | Review code có cấu trúc — 2 trục song song: Standards (Fowler smells) + Spec (AC matching) |
+| `/grilling` | Yêu cầu feature còn nhiều unknowns — structured requirements interview |
+| `/codebase-design` | Giải thích architectural decision với vocabulary chuẩn (module/seam/depth/...) |
+
 ## Quy tắc review (ưu tiên theo thứ tự)
 correctness > security > maintainability > performance > style
 
@@ -29,9 +102,11 @@ correctness > security > maintainability > performance > style
 - [ ] Handle error + log đầy đủ?
 - [ ] Race condition / concurrency issue?
 - [ ] Security (input validation, SQL injection, secret)?
-- [ ] SOLID vi phạm nghiêm trọng?
+- [ ] SOLID: SRP (class/function chỉ 1 trách nhiệm)? OCP (thêm case mới không sửa code cũ tràn lan)? LSP (class con không phá hợp đồng cha)? ISP (interface không ép implement method thừa)? DIP (dependency inject qua constructor, không `new` cứng — trừ tool nhỏ)?
+- [ ] Clean code: tên rõ nghĩa, không dead code/magic number, DRY nhưng không over-abstraction?
 - [ ] Comment đúng chỗ (WHY, không phải WHAT)?
 - [ ] (Nếu project C# có đổi UI) Đã dùng tối đa `KztekComponent`/`KztekComponentAvalonia` thay vì control .NET gốc?
+- [ ] (Nếu có đổi UI) Tuân thủ 3 quy chuẩn UI/UX cốt lõi (§20.5 GEMINI.md): (1) Căn giữa dọc: mọi button, text, icon+text đều center vertical; (2) Phím tắt: các chức năng lặp lại có HotKey/KeyBinding và tooltip; (3) DataGrid: các cột cấu hình auto size `*` (Star sizing) linh hoạt, không gán cứng pixel.
 
 > **Tip (giảm context window khi review Junior PR):** Dùng `scripts/review-package.sh <BASE> <HEAD>` để tạo file diff handoff thay vì paste toàn bộ diff vào prompt. Ví dụ: `FILE=$(scripts/review-package.sh origin/main HEAD)`
 

@@ -29,5 +29,39 @@
         ]
       }
     ]
-  }
+  },
+  "antigravity.commands.alwaysAllow": [
+    { "pattern": "git status*", "match": "glob" },
+    { "pattern": "git log*", "match": "glob" },
+    { "pattern": "git diff*", "match": "glob" },
+    { "pattern": "git add*", "match": "glob" },
+    { "pattern": "git commit*", "match": "glob" },
+    { "pattern": "git branch*", "match": "glob" },
+    { "pattern": "dotnet build*", "match": "glob" },
+    { "pattern": "dotnet run*", "match": "glob" },
+    { "pattern": "npm install*", "match": "glob" },
+    { "pattern": "npm run*", "match": "glob" },
+    { "pattern": "npm test*", "match": "glob" },
+    { "pattern": "python*", "match": "glob" },
+    { "pattern": "pip install*", "match": "glob" },
+    { "pattern": "cd *", "match": "glob" },
+    { "pattern": "cat *", "match": "glob" },
+    { "pattern": "dir*", "match": "glob" },
+    { "pattern": "ls*", "match": "glob" }
+  ],
+  "antigravity.commands.deny": [
+    { "pattern": "rm -rf*", "match": "glob" },
+    { "pattern": "rm -r /*", "match": "glob" },
+    { "pattern": "Remove-Item*-Recurse*-Force*", "match": "glob" },
+    { "pattern": "del /s*", "match": "glob" },
+    { "pattern": "del /f*", "match": "glob" },
+    { "pattern": "rd /s*", "match": "glob" },
+    { "pattern": "chmod -R 777*", "match": "glob" },
+    { "pattern": "git push --force*", "match": "glob" },
+    { "pattern": "git reset --hard*", "match": "glob" },
+    { "pattern": "sudo *", "match": "glob" },
+    { "pattern": "shutdown*", "match": "glob" },
+    { "pattern": "reboot*", "match": "glob" },
+    { "pattern": "format*", "match": "glob" }
+  ]
 }

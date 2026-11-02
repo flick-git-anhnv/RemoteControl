@@ -12,8 +12,9 @@
 ## 2. Quality
 - [ ] Test có ý nghĩa (không chỉ viết để đạt coverage) — unit + integration cho logic mới.
 - [ ] Code review đã qua đúng chain (Two-Eyes §8 GEMINI.md) — không self-merge, không self-approve.
-- [ ] Security audit đã chạy nếu đụng auth/payment/DB schema/dữ liệu nhạy cảm (`security-audit-stride`, xem `.gemini/references/security-audit-checklist.md`).
+- [ ] Security audit đã chạy nếu đụng auth/payment/DB schema/dữ liệu nhạy cảm (`security-audit-stride`, xem `C:/Users/Admin/.gemini/references/security-audit-checklist.md`).
 - [ ] Không còn P0/P1 bug mở liên quan đến task này (QA có quyền VETO — §8, §9 GEMINI.md).
+- [ ] (Nếu có giao diện) Đạt 3 chuẩn UI/UX (§20.5 GEMINI.md): buttons/labels/icons center vertical; phím tắt cho thao tác lặp lại; DataGrid cột auto size `*` co giãn mượt mà.
 
 ## 3. Integration
 - [ ] Build sạch (0 lỗi) ở môi trường đích.
