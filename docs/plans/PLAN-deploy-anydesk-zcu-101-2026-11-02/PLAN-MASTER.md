@@ -2,7 +2,7 @@
 task: deploy-anydesk-zcu-101
 created: 2026-11-02
 updated: 2026-11-02
-status: in_progress
+status: completed
 workflow: WF-DEVOPS
 priority: P1
 ---
@@ -16,7 +16,7 @@ Thực hiện kết nối SSH tới thiết bị ZCU `192.168.21.101` (tài kho�
 
 ## Nguồn yêu cầu
 - Yêu cầu gốc: "cài anydesk trên thiết bị hco tôi (192.168.21.101) cho tôi xong cung cấp các thử để tôi ktra kết nối"
-- Scope đã chốt: Cài cả AnyDesk + IPGS ZCU Remote Control Agent (Port 17600), SSH `zcu`/`123456`, Unattended Password `Kztek@123456`.
+- Scope đã chốt: Cài AnyDesk (Step 3.1 ZCU Agent đã đánh dấu Skipped theo chỉ định tiếp theo của User), SSH `zcu`/`123456`, Unattended Password `Kztek@123456`.
 - Workflow: WF-DEVOPS — CI/CD / Deployment
 - Agent chain: DevOps Engineer (DOE) → DevOps Lead (DOL)
 
@@ -40,11 +40,11 @@ Thực hiện kết nối SSH tới thiết bị ZCU `192.168.21.101` (tài kho�
 ### Phase 4: Kiểm thử Kết nối AnyDesk & Nghiệm thu (Sign-off)
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
 |---|------|-------|--------|-----------|-----------------|
-| 4.1 | Kiểm tra trạng thái dịch vụ AnyDesk (Online + ID + Unattended Access) và tổng hợp bảng thông số kiểm tra kết nối cho User | devops-lead | ⬜ | `steps/STEP-4.1-verify-and-signoff.md` | — |
+| 4.1 | Kiểm tra trạng thái dịch vụ AnyDesk (Online + ID + Unattended Access) và tổng hợp bảng thông số kiểm tra kết nối cho User | devops-lead | ✅ | `steps/STEP-4.1-verify-and-signoff.md` | 2026-11-02 14:51 |
 
 ## Artifacts dự kiến (tổng)
 - [x] AnyDesk cài đặt và cấu hình Unattended Access trên `192.168.21.101` (ID: `1457821647`, Version: `8.1.0`, Status: `online`)
-- [ ] Bảng tổng hợp thông số kiểm tra kết nối (AnyDesk ID & Password + Direct LAN IP/Port + SSH/SFTP)
+- [x] Bảng tổng hợp thông số kiểm tra kết nối (AnyDesk ID & Password + Direct LAN IP/Port + SSH/SFTP)
 
 ## Blockers
 Không có
@@ -52,7 +52,7 @@ Không có
 ## Quyết định / Ghi chú tổng
 - Host đích: `192.168.21.101`, SSH user: `zcu`, password: `123456`, port SSH: `22`.
 - Mật khẩu Unattended Access của AnyDesk: `Kztek@123456`.
-- Token xác thực của IPGS ZCU Agent: `123456`, Port: `17600`.
+- Đã tắt X11 ScreenSaver & DPMS (`xset s off -dpms s noblank`) trên `DISPLAY=:0` để chống màn hình đen khi kết nối từ xa.
 
 ## Lịch sử cập nhật
 | Ngày | Cập nhật | Agent |
@@ -60,6 +60,7 @@ Không có
 | 2026-11-02 | Tạo plan triển khai AnyDesk & ZcuAgent lên 192.168.21.101 | task-planner |
 | 2026-11-02 | Hoàn thành Step 1.1: Thăm dò môi trường thiết bị 192.168.21.101 (Ubuntu 22.04.5 amd64, LXQt X11 :0) | devops-engineer |
 | 2026-11-02 | Hoàn thành Step 2.1: Cài đặt AnyDesk 8.1.0, kích hoạt service, đặt Unattended Password và lấy ID `1457821647` | devops-engineer |
+| 2026-11-02 | Hoàn thành Step 4.1: Nghiệm thu độc lập (Two-Eyes), kiểm thử kết nối LAN TCP 7070, tắt X11 DPMS/ScreenSaver và ký duyệt Sign-off | devops-lead |
 
 ---
 **Status icons:** ⬜ Todo | 🔄 In Progress | ✅ Done | 🛑 Blocked | ⏭️ Skipped
