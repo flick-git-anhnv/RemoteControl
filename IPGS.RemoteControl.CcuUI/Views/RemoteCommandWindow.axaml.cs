@@ -4,10 +4,12 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using IPGS.RemoteControl.CcuClient;
 using Renci.SshNet;
 
@@ -18,17 +20,18 @@ namespace IPGS.RemoteControl.CcuUI.Views
         public string Name { get; set; } = "";
         public string FullName { get; set; } = "";
         public bool IsDirectory { get; set; }
+        public bool IsSymbolicLink { get; set; }
         public long Size { get; set; }
         public DateTime LastModified { get; set; }
 
-        public string Icon => IsDirectory ? "📁" : "📄";
-        public Avalonia.Media.FontWeight FontWeight => IsDirectory ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.Normal;
+        public string Icon => (IsDirectory || IsSymbolicLink) ? "📁" : "📄";
+        public Avalonia.Media.FontWeight FontWeight => (IsDirectory || IsSymbolicLink) ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.Normal;
         
         public string SizeText
         {
             get
             {
-                if (IsDirectory) return "";
+                if (IsDirectory || IsSymbolicLink) return "";
                 if (Size < 1024) return $"{Size} B";
                 if (Size < 1024 * 1024) return $"{Size / 1024.0:F1} KB";
                 if (Size < 1024 * 1024 * 1024) return $"{Size / (1024.0 * 1024.0):F1} MB";
@@ -414,10 +417,11 @@ namespace IPGS.RemoteControl.CcuUI.Views
                         Name = f.Name,
                         FullName = f.FullName,
                         IsDirectory = f.IsDirectory,
+                        IsSymbolicLink = f.IsSymbolicLink,
                         Size = f.Length,
                         LastModified = f.LastWriteTime
                     })
-                    .OrderByDescending(f => f.IsDirectory)
+                    .OrderByDescending(f => f.IsDirectory || f.IsSymbolicLink)
                     .ThenBy(f => f.Name)
                     .ToList();
 
@@ -439,10 +443,11 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
             string currentPath = txtPath?.Text?.Trim() ?? "/";
-            if (currentPath == "/") return;
+            if (currentPath == "/" || string.IsNullOrEmpty(currentPath)) return;
 
-            string parent = Path.GetDirectoryName(currentPath)?.Replace("\\", "/") ?? "/";
-            if (string.IsNullOrEmpty(parent)) parent = "/";
+            currentPath = currentPath.TrimEnd('/');
+            int lastSlash = currentPath.LastIndexOf('/');
+            string parent = lastSlash <= 0 ? "/" : currentPath.Substring(0, lastSlash);
             
             await LoadDirectoryAsync(parent);
         }
@@ -458,12 +463,40 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
         public void OnFileItemDoubleTapped(object? sender, TappedEventArgs e)
         {
-            if (sender is Control c && c.DataContext is RemoteFileItem item)
+            var listBox = this.FindControl<ListBox>("PART_FileListBox") ?? sender as ListBox;
+            var item = (sender as Control)?.DataContext as RemoteFileItem
+                       ?? (e.Source as StyledElement)?.DataContext as RemoteFileItem
+                       ?? (e.Source as Visual)?.FindAncestorOfType<ListBoxItem>()?.DataContext as RemoteFileItem
+                       ?? listBox?.SelectedItem as RemoteFileItem;
+
+            if (item != null && (item.IsDirectory || item.IsSymbolicLink))
             {
-                if (item.IsDirectory)
+                e.Handled = true;
+                string targetPath = !string.IsNullOrWhiteSpace(item.FullName)
+                    ? item.FullName
+                    : (this.FindControl<TextBox>("PART_FileCurrentPath")?.Text?.TrimEnd('/') + "/" + item.Name);
+                _ = LoadDirectoryAsync(targetPath);
+            }
+        }
+
+        public void OnFileListBoxKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                var listBox = this.FindControl<ListBox>("PART_FileListBox") ?? sender as ListBox;
+                if (listBox?.SelectedItem is RemoteFileItem item && (item.IsDirectory || item.IsSymbolicLink))
                 {
-                    _ = LoadDirectoryAsync(item.FullName);
+                    e.Handled = true;
+                    string targetPath = !string.IsNullOrWhiteSpace(item.FullName)
+                        ? item.FullName
+                        : (this.FindControl<TextBox>("PART_FileCurrentPath")?.Text?.TrimEnd('/') + "/" + item.Name);
+                    _ = LoadDirectoryAsync(targetPath);
                 }
+            }
+            else if (e.Key == Key.Back)
+            {
+                e.Handled = true;
+                _ = NavigateUpAsync();
             }
         }
 
