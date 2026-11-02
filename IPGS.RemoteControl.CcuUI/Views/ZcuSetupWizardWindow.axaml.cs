@@ -18,6 +18,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
         // Thông tin SSH lấy từ hồ sơ máy tính đã lưu (nhập ở "Thêm/Sửa máy tính") —
         // không còn ô nhập SSH riêng trong wizard này để tránh trùng lặp dữ liệu.
+        private readonly string _prefillId;
         private readonly string _sshHost;
         private readonly int _sshPort;
         private readonly string _sshUser;
@@ -32,6 +33,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             InitializeComponent();
             _installerService = new ZcuRemoteInstallerService();
 
+            _prefillId = prefill.Id;
             _sshHost = prefill.Host;
             _sshPort = prefill.SshPort > 0 ? prefill.SshPort : 22;
             _sshUser = prefill.SshUsername ?? "";
@@ -49,6 +51,11 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             if (prefill.Port > 0) PART_AgentPort.Text = prefill.Port.ToString();
             if (!string.IsNullOrWhiteSpace(prefill.Token)) PART_AgentToken.Text = prefill.Token;
+
+            // Nạp lại cấu hình cài lần trước (nếu đã lưu); chưa có thì giữ giá trị mặc định trên form.
+            if (!string.IsNullOrWhiteSpace(prefill.SetupAllowedClientIPs)) PART_AllowedIPs.Text = prefill.SetupAllowedClientIPs;
+            if (prefill.SetupTargetFps is > 0) PART_TargetFps.Text = prefill.SetupTargetFps.Value.ToString();
+            if (prefill.SetupJpegQuality is > 0) PART_JpegQuality.Text = prefill.SetupJpegQuality.Value.ToString();
         }
 
         private void GenerateRandomToken()
@@ -83,6 +90,19 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
                 PART_StatusMsg.Text = "Thiếu IP/SSH user (vào 'Sửa' máy tính để bổ sung) hoặc Token Agent.";
                 return;
+            }
+
+            // Lưu cấu hình ngay khi bấm cài (kể cả cài lỗi) để lần mở sau tự nạp lại.
+            // Chỉ cập nhật máy đã có trong danh sách; máy mới được lưu sau khi cài xong (nếu tick).
+            var known = ComputerProfileStore.Instance.GetById(_prefillId)
+                ?? ComputerProfileStore.Instance.GetAll().FirstOrDefault(p =>
+                    p.Host.Equals(_sshHost, StringComparison.OrdinalIgnoreCase));
+            if (known != null)
+            {
+                known.SetupAllowedClientIPs = allowedIps;
+                known.SetupTargetFps = targetFps;
+                known.SetupJpegQuality = jpegQuality;
+                ComputerProfileStore.Instance.Save(known);
             }
 
             PART_BtnStartInstall.IsEnabled = false;
@@ -140,17 +160,28 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 // Save to computer profile if checked
                 if (PART_CheckSaveProfile.IsChecked == true)
                 {
+                    // Cập nhật CHÍNH máy đang cài (giữ Id/Tên/Ghi chú/MAC) — không tạo bản sao mới.
+                    var existing = ComputerProfileStore.Instance.GetById(_prefillId)
+                        ?? ComputerProfileStore.Instance.GetAll().FirstOrDefault(p =>
+                            p.Host.Equals(_sshHost, StringComparison.OrdinalIgnoreCase));
                     var profile = new ComputerProfile
                     {
-                        Id = Guid.NewGuid().ToString("N"),
-                        Name = $"ZCU ({_sshHost})",
+                        Id = existing?.Id ?? Guid.NewGuid().ToString("N"),
+                        Name = !string.IsNullOrWhiteSpace(existing?.Name) ? existing!.Name : $"Client ({_sshHost})",
                         Host = _sshHost,
                         Port = agentPort,
                         Token = token,
                         SshPort = _sshPort,
                         SshUsername = _sshUser,
                         SshPassword = _sshPassword,
-                        Notes = "Tự động tạo bởi ZCU Setup Wizard",
+                        Notes = existing?.Notes ?? "Tự động tạo bởi Setup Wizard",
+                        MacAddress = existing?.MacAddress,
+                        LastAppInstallerPath = existing?.LastAppInstallerPath,
+                        LastUninstallPackage = existing?.LastUninstallPackage,
+                        SetupAllowedClientIPs = allowedIps,
+                        SetupTargetFps = targetFps,
+                        SetupJpegQuality = jpegQuality,
+                        CreatedAt = existing?.CreatedAt ?? DateTimeOffset.Now,
                         LastConnectedAt = DateTimeOffset.Now
                     };
                     ComputerProfileStore.Instance.Save(profile);

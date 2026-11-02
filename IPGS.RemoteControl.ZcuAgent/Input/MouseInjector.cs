@@ -1,6 +1,7 @@
 using IPGS.RemoteControl.Protocol;
 using IPGS.RemoteControl.ZcuAgent.Interop;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace IPGS.RemoteControl.ZcuAgent.Input;
 
@@ -16,12 +17,17 @@ namespace IPGS.RemoteControl.ZcuAgent.Input;
 internal sealed class MouseInjector : IMouseInjector
 {
     private readonly ILogger<MouseInjector> _logger;
+    private readonly IOptions<AgentOptions>? _options;
     private IntPtr _display = IntPtr.Zero;
     private int    _screen;
     private bool   _initialized;
     private bool   _disposed;
 
-    public MouseInjector(ILogger<MouseInjector> logger) => _logger = logger;
+    public MouseInjector(ILogger<MouseInjector> logger, IOptions<AgentOptions>? options = null)
+    {
+        _logger = logger;
+        _options = options;
+    }
 
     // ── IMouseInjector ────────────────────────────────────────────────────
 
@@ -31,12 +37,12 @@ internal sealed class MouseInjector : IMouseInjector
         if (_initialized) return;
 
         // Separate display connection — capturer already called XInitThreads() globally
-        _display = X11.XOpenDisplay(null);
-        if (_display == IntPtr.Zero)
-            throw new InvalidOperationException("MouseInjector: XOpenDisplay failed");
+        var preferred = _options?.Value?.Display;
+        var (handle, resolved) = X11DisplayResolver.OpenAvailableDisplay(preferred, _logger);
+        _display = handle;
 
         _screen = X11.XDefaultScreen(_display);
-        _logger.LogInformation("MouseInjector: XTest display opened on screen {Screen}", _screen);
+        _logger.LogInformation("MouseInjector: XTest display '{Display}' opened on screen {Screen}", resolved, _screen);
         _initialized = true;
     }
 
@@ -48,12 +54,9 @@ internal sealed class MouseInjector : IMouseInjector
     {
         if (!_initialized || _disposed) return;
         XTest.XTestFakeMotionEvent(_display, -1, x, y, 0);
+        // Audit F-NEW-4: XFlush is sufficient to send buffered motion events.
+        // Removed XSync per-move round-trip which blocked reader loop and caused mouse lag.
         X11.XFlush(_display);
-        // XSync forces the X server to process the request and send back any pending
-        // error events (e.g. BadAccess if XTest is not permitted on this display).
-        // Without this, a rejection would be silently dropped; with the global
-        // X11ErrorTracker handler installed, it now appears in the log immediately.
-        X11.XSync(_display, false);
     }
 
     /// <summary>

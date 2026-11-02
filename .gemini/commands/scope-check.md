@@ -1,6 +1,7 @@
 ---
 name: scope-check
 description: "PHẢI dùng khi: yêu cầu user có thể map vào ≥2 workflow khác nhau, mô tả chỉ 1-2 câu không rõ priority, scope ảnh hưởng không rõ bao nhiêu module, hoặc chưa biết có cần CTO/EM duyệt kiến trúc không. Dùng ngay cả khi user tưởng đã rõ — 3 câu hỏi đúng lúc tiết kiệm 3 vòng sửa sau. Hỏi tối đa 5 câu để chốt scope, P0-P3 và workflow áp dụng TRƯỚC khi tạo Plan file. KHÔNG dùng khi: yêu cầu đã rõ workflow + priority (VD: SEV1 production down → thẳng WF-INCIDENT) hoặc user đã cung cấp đủ AC/constraint rõ ràng."
+disable-model-invocation: true
 ---
 
 # Scope Check (Chốt phạm vi nhanh)
@@ -22,6 +23,19 @@ description: "PHẢI dùng khi: yêu cầu user có thể map vào ≥2 workflow
    - **Ràng buộc thời gian:** Có deadline cụ thể không?
 2. Từ câu trả lời, xác định **Workflow ID** phù hợp theo bảng routing GEMINI.md §2.
 3. Chuyển kết quả (workflow + priority + scope tóm tắt) làm input cho Bước Pre-0 (`task-planner`) — KHÔNG tự tạo Plan file ở bước này, chỉ chốt scope.
+
+## Khi scope phức tạp → escalate sang grilling
+
+Nếu sau 5 câu scope-check mà vẫn còn nhiều unknowns (> 3 prerequisite chưa rõ, hoặc feature mới có nhiều phụ thuộc chưa xác định), scope-check PHẢI gợi ý:
+
+```
+Scope có nhiều unknowns cần khám phá có cấu trúc.
+Gợi ý: chạy `/grilling` để xây dựng design tree và giải quyết từng prerequisite — hiệu quả hơn hỏi thêm câu ngẫu nhiên.
+```
+
+Phân biệt:
+- **scope-check**: 5 câu quick để chốt workflow + priority. Đủ cho task rõ phạm vi.
+- **grilling**: full frontier exploration cho feature có nhiều unknowns. Dùng khi scope-check chưa đủ.
 
 ## Output bắt buộc
 Một khối tóm tắt ngắn:

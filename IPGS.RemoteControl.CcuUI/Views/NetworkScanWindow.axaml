@@ -27,7 +27,7 @@
         <Grid ColumnDefinitions="*,110,Auto" ColumnSpacing="10">
           <StackPanel Grid.Column="0" Spacing="4">
             <TextBlock Text="Dải IP cần quét:" FontSize="12" Foreground="#64748B"/>
-            <kz:KzTextBox x:Name="PART_SubnetBase" Watermark="192.168.1." />
+            <kz:KzTextBox x:Name="PART_SubnetBase" PlaceholderText="192.168.1." />
           </StackPanel>
 
           <StackPanel Grid.Column="1" Spacing="4">

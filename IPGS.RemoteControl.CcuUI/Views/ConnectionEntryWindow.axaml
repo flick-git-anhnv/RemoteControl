@@ -15,6 +15,25 @@
     <conv:NullableBoolIsTrueConverter x:Key="NullableBoolIsTrueConverter" />
   </Window.Resources>
 
+  <Window.Styles>
+    <!-- Nút trên header navy: viền trắng trong suốt / CTA cam -->
+    <Style Selector="kz|KzButton.hdr">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="#B8B3D6" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="kz|KzButton.hdr-cta">
+      <Setter Property="Background" Value="#F05922" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="#F05922" />
+    </Style>
+    <!-- Nút bị vô hiệu: mờ rõ ràng nhưng vẫn đọc được -->
+    <Style Selector="kz|KzButton:disabled">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+  </Window.Styles>
+
   <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
 
     <!-- ── Header bar ─────────────────────────────────────────────── -->
@@ -31,9 +50,9 @@
         </StackPanel>
         
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-          <kz:KzButton x:Name="PART_BtnScanNetwork" Content="🔍 Quét mạng..." />
-          <kz:KzButton x:Name="PART_BtnMultiRemote" Content="🚀 Remote nhiều máy (Grid View)..." Classes="kz-primary" />
-          <kz:KzButton x:Name="PART_BtnAddComputer" Content="+ Thêm máy tính" />
+          <kz:KzButton x:Name="PART_BtnScanNetwork" Content="🔍 Quét mạng..." Classes="hdr" />
+          <kz:KzButton x:Name="PART_BtnMultiRemote" Content="🚀 Remote nhiều máy (Grid View)..." Classes="hdr hdr-cta" />
+          <kz:KzButton x:Name="PART_BtnAddComputer" Content="+ Thêm máy tính" Classes="hdr" />
         </StackPanel>
       </Grid>
     </Border>
@@ -43,11 +62,13 @@
       <Grid ColumnDefinitions="*,Auto">
         <kz:KzTextBox Grid.Column="0"
                       x:Name="PART_SearchBox"
-                      Watermark="🔍 Tìm kiếm máy tính theo tên hoặc IP..."
+                      PlaceholderText="🔍 Tìm kiếm máy tính theo tên hoặc IP..."
                       Margin="0,0,12,0" />
         
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <kz:KzButton x:Name="PART_BtnTabAll"    Content="Tất cả máy tính" KzSize="Sm" />
+          <CheckBox x:Name="PART_SelectAll" Content="Chọn tất cả" VerticalAlignment="Center" Margin="0,0,8,0"
+                    IsCheckedChanged="OnSelectAllChanged" />
+          <kz:KzButton x:Name="PART_BtnTabAll"   Content="Tất cả máy tính" KzSize="Sm" />
           <kz:KzButton x:Name="PART_BtnTabRecent" Content="Lịch sử gần đây" KzSize="Sm" />
         </StackPanel>
       </Grid>
@@ -148,7 +169,7 @@
                 </StackPanel>
 
                 <!-- Actions -->
-                <StackPanel Grid.Column="2" Orientation="Vertical" Spacing="4" VerticalAlignment="Center">
+                <StackPanel Grid.Column="2" Orientation="Vertical" Spacing="6" VerticalAlignment="Center" MaxWidth="640">
                   <!-- Row 1: Basic Operations -->
                   <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                     <kz:KzButton Tag="{Binding}"
@@ -212,6 +233,18 @@
                                  ToolTip.Tip="{Binding SshStatusTooltip}"
                                  KzSize="Sm" />
                     <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemMountFolderClick"
+                                 Content="📂 Mount"
+                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="Cài &amp; mount thư mục share (Windows/Ubuntu) lên máy này"
+                                 KzSize="Sm" />
+                    <kz:KzButton Tag="{Binding}"
+                                 Click="OnItemRestartAgentClick"
+                                 Content="🔁 Restart"
+                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="Khởi động lại ứng dụng Remote Agent trên máy này"
+                                 KzSize="Sm" />
+                    <kz:KzButton Tag="{Binding}"
                                  Click="OnItemRunCommandClick"
                                  Content=">_ CMD Shell"
                                  IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
@@ -250,7 +283,7 @@
       <Grid ColumnDefinitions="*,Auto">
         <TextBlock Grid.Column="0" x:Name="PART_BulkActionText" Text="Đã chọn 0 máy tính" Foreground="White" VerticalAlignment="Center" FontWeight="SemiBold"/>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-          <kz:KzButton Content="🚀 Gửi lệnh / Upload File Hàng Loạt" Classes="kz-primary" KzSize="Sm" Click="OnBulkActionClick" />
+          <kz:KzButton Content="🚀 Thao tác hàng loạt (lệnh / upload / cài App / cài &amp; restart Agent)" Classes="kz-primary" KzSize="Sm" Click="OnBulkActionClick" />
         </StackPanel>
       </Grid>
     </Border>
@@ -259,9 +292,9 @@
     <Border Grid.Row="5" Background="#F5F5F7" Padding="16,12" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="*,Auto,100,Auto,*,Auto" RowDefinitions="Auto">
         <TextBlock Grid.Column="0" Text="Kết nối nhanh:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
-        <kz:KzTextBox Grid.Column="1" x:Name="PART_QuickHost" Watermark="IP (192.168.x.x)" Width="150" Margin="0,0,6,0"/>
+        <kz:KzTextBox Grid.Column="1" x:Name="PART_QuickHost" PlaceholderText="IP (192.168.x.x)" Width="150" Margin="0,0,6,0"/>
         <kz:KzTextBox Grid.Column="2" x:Name="PART_QuickPort" Text="17600" Width="70" Margin="0,0,6,0"/>
-        <kz:KzTextBox Grid.Column="3" x:Name="PART_QuickToken" Watermark="Token" Width="140" Margin="0,0,10,0"/>
+        <kz:KzTextBox Grid.Column="3" x:Name="PART_QuickToken" PlaceholderText="Token" Width="140" Margin="0,0,10,0"/>
         <CheckBox Grid.Column="4" x:Name="PART_QuickSaveCheck" Content="Lưu danh sách" IsChecked="True" VerticalAlignment="Center"/>
         <kz:KzButton Grid.Column="5" x:Name="PART_QuickConnectBtn" Content="Kết nối" Classes="kz-primary" KzSize="Sm"/>
       </Grid>

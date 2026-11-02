@@ -5,6 +5,22 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IPGS.RemoteControl.CcuClient;
 
+/// <summary>Dữ liệu đo kiểm hiệu năng mạng thời gian thực (F-ROUND4-1).</summary>
+public sealed class NetworkMetricsEventArgs : EventArgs
+{
+    public double Fps { get; }
+    public double RttMs { get; }
+    public double BitrateKbps { get; }
+
+    public NetworkMetricsEventArgs(double fps, double rttMs, double bitrateKbps)
+    {
+        Fps = fps;
+        RttMs = rttMs;
+        BitrateKbps = bitrateKbps;
+    }
+}
+
+
 /// <summary>
 /// TCP client that connects to a ZcuAgent, authenticates, receives JPEG frames and
 /// forwards mouse events. Implements the state machine from TDD §7.
@@ -42,8 +58,12 @@ public sealed class RemoteControlClient : IRemoteControlClient
 
     // ── Network ───────────────────────────────────────────────────────────
     private TcpClient?     _tcp;
-    private NetworkStream? _stream;
+    private Stream?        _stream;   // NetworkStream (plain) hoặc SslStream (TLS)
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+
+    // TLS: thử mã hóa trước; agent cũ không hiểu TLS → lùi về TCP thường và nhớ để khỏi thử lại.
+    private volatile bool _tlsUnsupported;
+    private volatile bool _isEncrypted;
 
     // ── PING / PONG keepalive tracking ────────────────────────────────────
     // Stored as UTC ticks (long) so Interlocked can be used for lock-free access.
@@ -56,6 +76,18 @@ public sealed class RemoteControlClient : IRemoteControlClient
     // ── Logging ───────────────────────────────────────────────────────────
     private readonly ILogger<RemoteControlClient> _logger;
 
+    // ── Telemetry (F-ROUND4-1) ───────────────────────────────────────────
+    private long  _lastPingSentTicks;
+    private ulong _lastPingNonce;
+    private long  _lastMetricTicks;
+    private int   _metricFramesReceived;
+    private long  _metricBytesReceived;
+
+    public double CurrentFps { get; private set; }
+    public double CurrentRttMs { get; private set; }
+    public double CurrentBitrateKbps { get; private set; }
+    public event EventHandler<NetworkMetricsEventArgs>? NetworkMetricsUpdated;
+
     // ── Public API ────────────────────────────────────────────────────────
     public ConnectionState State => _state;
     public event EventHandler<FrameReceivedEventArgs>?        FrameReceived;
@@ -65,6 +97,10 @@ public sealed class RemoteControlClient : IRemoteControlClient
     public event EventHandler<string>? ChatMessageReceived;
     public event EventHandler<string>? ClipboardDataReceived;
     public event EventHandler<string>? SysInfoReceived;
+    /// <summary>Báo vân tay SHA-256 chứng chỉ TLS máy đích khi kết nối thành công (audit S3).</summary>
+    public event EventHandler<string>? TlsCertificateValidated;
+    /// <summary>Vân tay SHA-256 kỳ vọng của máy đích (null nếu chấp nhận TOFU lần đầu).</summary>
+    public string? ExpectedCertFingerprint { get; set; }
 
     // ── Constructor ───────────────────────────────────────────────────────
     public RemoteControlClient(ILogger<RemoteControlClient>? logger = null)
@@ -84,6 +120,7 @@ public sealed class RemoteControlClient : IRemoteControlClient
         _token             = token;
         _authFailed        = false;
         _reconnectAttempts = 0;
+        _tlsUnsupported    = false;
 
         _globalCts?.Dispose();
         _globalCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -132,6 +169,262 @@ public sealed class RemoteControlClient : IRemoteControlClient
         return SendLockedAsync(MessageType.KeyEvent, payload, CancellationToken.None);
     }
 
+    /// <summary>Phím vật lý (X11 keycode = evdev + 8). Cần agent ≥ 1.2.</summary>
+    public Task SendRawKeyEventAsync(byte keycode, bool isDown)
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        return SendLockedAsync(MessageType.KeyEventRaw,
+            MessageCodec.EncodeKeyEventRaw(keycode, isDown), CancellationToken.None);
+    }
+
+    /// <summary>Hỏi agent danh sách màn hình (kết quả qua <see cref="MonitorListReceived"/>). Cần agent ≥ 1.2.</summary>
+    public Task RequestMonitorsAsync()
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        return SendLockedAsync(MessageType.MonitorListReq, Array.Empty<byte>(), CancellationToken.None);
+    }
+
+    /// <summary>Chọn màn hình theo index; 0xFF = toàn bộ desktop.</summary>
+    public Task SelectMonitorAsync(byte index)
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        return SendLockedAsync(MessageType.MonitorSelect, new[] { index }, CancellationToken.None);
+    }
+
+    // ── File transfer (chunked, hai chiều; agent ≥ 1.2) ───────────────────
+
+    private const int FileChunkSize = 64 * 1024;
+
+    private sealed class UploadState
+    {
+        public readonly TaskCompletionSource<string> Ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly TaskCompletionSource<string> Done  = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private sealed class DownloadState
+    {
+        public required string LocalPath { get; init; }
+        public IProgress<(long Done, long Total)>? Progress { get; init; }
+        public readonly TaskCompletionSource Completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public FileStream? Stream;
+        public int  Id = -1;
+        public long Size;
+        public long Received;
+    }
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<byte, UploadState> _uploads = new();
+    private DownloadState? _download;
+    private int _nextUploadId;
+
+    /// <summary>JSON danh sách file trên máy đích: [{"name":"a.txt","size":123}, …]</summary>
+    public event EventHandler<string>? FileListReceived;
+
+    public Task RequestFileListAsync()
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        return SendLockedAsync(MessageType.FileListReq, Array.Empty<byte>(), CancellationToken.None);
+    }
+
+    /// <summary>Gửi 1 file lên thư mục nhận của máy đích; trả về TÊN file thực tế trên máy đích (có thể đã đổi nếu trùng). Ném <see cref="IOException"/> nếu agent từ chối/lỗi.</summary>
+    public async Task<string> UploadFileAsync(string localPath, IProgress<(long Done, long Total)>? progress = null, string? remoteName = null,
+        CancellationToken ct = default, bool overwrite = false)
+    {
+        if (_state != ConnectionState.Streaming) throw new InvalidOperationException("Chưa kết nối");
+
+        var id = (byte)(1 + (Interlocked.Increment(ref _nextUploadId) % 0x7F)); // 1..0x7F
+        var st = new UploadState();
+        _uploads[id] = st;
+
+        try
+        {
+            await using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
+            // Tiền tố \u0001 báo agent: người dùng đã đồng ý ghi đè file trùng tên (nếu không, agent tự đổi tên).
+            var name = System.Text.Encoding.UTF8.GetBytes((overwrite ? "\u0001" : "") + (remoteName ?? Path.GetFileName(localPath)));
+            var begin = new byte[9 + name.Length];
+            begin[0] = id;
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt64BigEndian(begin.AsSpan(1), (ulong)fs.Length);
+            name.CopyTo(begin, 9);
+            await SendLockedAsync(MessageType.FileBegin, begin, ct).ConfigureAwait(false);
+
+            await WaitAckAsync(st.Ready.Task, 15_000, ct).ConfigureAwait(false);
+
+            var buf = new byte[1 + FileChunkSize];
+            buf[0] = id;
+            long sent = 0;
+            int n;
+            try
+            {
+                while ((n = await fs.ReadAsync(buf.AsMemory(1, FileChunkSize), ct).ConfigureAwait(false)) > 0)
+                {
+                    await SendLockedAsync(MessageType.FileChunk, buf.AsMemory(0, 1 + n), ct).ConfigureAwait(false);
+                    sent += n;
+                    progress?.Report((sent, fs.Length));
+                    if (st.Done.Task.IsFaulted) break; // agent báo lỗi giữa chừng
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Kết thúc sớm → agent thấy thiếu dữ liệu và xoá file .part.
+                try { await SendLockedAsync(MessageType.FileEnd, new[] { id }, CancellationToken.None).ConfigureAwait(false); } catch { }
+                throw;
+            }
+
+            await SendLockedAsync(MessageType.FileEnd, new[] { id }, ct).ConfigureAwait(false);
+            return await WaitAckAsync(st.Done.Task, 60_000, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _uploads.TryRemove(id, out _);
+        }
+    }
+
+    /// <summary>
+    /// Tạo thư mục (đường dẫn tương đối, vd ".paste-ab12/Báo cáo/2026") trong thư mục nhận của máy đích — dùng cho
+    /// thư mục rỗng khi dán cả thư mục. Trả về đường dẫn tương đối thực tế.
+    /// </summary>
+    public async Task<string> CreateRemoteDirectoryAsync(string relativeDir, CancellationToken ct = default)
+    {
+        if (_state != ConnectionState.Streaming) throw new InvalidOperationException("Chưa kết nối");
+
+        var id = (byte)(1 + (Interlocked.Increment(ref _nextUploadId) % 0x7F));
+        var st = new UploadState();
+        _uploads[id] = st;
+        try
+        {
+            var name = System.Text.Encoding.UTF8.GetBytes(relativeDir.TrimEnd('/') + "/");
+            var begin = new byte[9 + name.Length];
+            begin[0] = id; // size = 0
+            name.CopyTo(begin, 9);
+            await SendLockedAsync(MessageType.FileBegin, begin, ct).ConfigureAwait(false);
+            return await WaitAckAsync(st.Done.Task, 15_000, ct).ConfigureAwait(false);
+        }
+        finally { _uploads.TryRemove(id, out _); }
+    }
+
+    /// <summary>Tải file (theo tên trong thư mục nhận của máy đích) về <paramref name="localPath"/>.</summary>
+    public Task DownloadFileAsync(string remoteName, string localPath,
+        IProgress<(long Done, long Total)>? progress = null, CancellationToken ct = default)
+        => DownloadCoreAsync(MessageType.FileGet, remoteName, localPath, progress, ct);
+
+    /// <summary>
+    /// Tải file theo đường dẫn tuyệt đối trên ZCU. Agent chỉ chấp nhận đường dẫn thuộc danh sách file
+    /// người dùng vừa Copy trên ZCU (<see cref="ClipboardFileListReceived"/>) — không đọc file tuỳ ý.
+    /// </summary>
+    public Task DownloadRemotePathAsync(string remotePath, string localPath,
+        IProgress<(long Done, long Total)>? progress = null, CancellationToken ct = default)
+        => DownloadCoreAsync(MessageType.FileGetPath, remotePath, localPath, progress, ct);
+
+    /// <summary>Đặt các file (đã upload, theo tên trả về từ UploadFileAsync) lên clipboard ZCU như vừa Copy trong trình quản lý file.</summary>
+    public Task SetRemoteClipboardFilesAsync(IEnumerable<string> uploadedNames)
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        var json = System.Text.Json.JsonSerializer.Serialize(uploadedNames);
+        return SendLockedAsync(MessageType.ClipboardFiles, MessageCodec.EncodeStringMessage(json), CancellationToken.None);
+    }
+
+    /// <summary>JSON [{path,name,size}] khi người dùng Copy file trong trình quản lý file của ZCU.</summary>
+    public event EventHandler<string>? ClipboardFileListReceived;
+
+    private async Task DownloadCoreAsync(MessageType request, string remoteRef, string localPath,
+        IProgress<(long Done, long Total)>? progress, CancellationToken ct)
+    {
+        if (_state != ConnectionState.Streaming) throw new InvalidOperationException("Chưa kết nối");
+
+        var st = new DownloadState { LocalPath = localPath, Progress = progress };
+        if (Interlocked.CompareExchange(ref _download, st, null) is not null)
+            throw new InvalidOperationException("Đang có một file được tải");
+
+        try
+        {
+            await SendLockedAsync(request, System.Text.Encoding.UTF8.GetBytes(remoteRef), ct).ConfigureAwait(false);
+            using var reg = ct.Register(() => st.Completed.TrySetCanceled(ct));
+            await st.Completed.Task.ConfigureAwait(false);
+        }
+        catch
+        {
+            try { st.Stream?.Dispose(); File.Delete(localPath); } catch { /* ignore */ }
+            throw;
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _download, null, st);
+        }
+    }
+
+    private static async Task<string> WaitAckAsync(Task<string> ack, int timeoutMs, CancellationToken ct)
+    {
+        var done = await Task.WhenAny(ack, Task.Delay(timeoutMs, ct)).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
+        if (done != ack) throw new TimeoutException("Máy đích không phản hồi (agent có thể là bản cũ < 1.2)");
+        return await ack.ConfigureAwait(false); // ném IOException nếu agent báo lỗi
+    }
+
+    private void HandleFileAck(byte[] payload)
+    {
+        if (payload.Length < 2) return;
+        byte id = payload[0], status = payload[1];
+        var msg = System.Text.Encoding.UTF8.GetString(payload.AsSpan(2));
+
+        if (_uploads.TryGetValue(id, out var up))
+        {
+            switch (status)
+            {
+                case 0: up.Ready.TrySetResult(msg); break;
+                case 1: up.Ready.TrySetResult(msg); up.Done.TrySetResult(msg); break;
+                default:
+                    var ex = new IOException(msg);
+                    up.Ready.TrySetException(ex); up.Done.TrySetException(ex);
+                    break;
+            }
+        }
+        else if (status == 2 && _download is { } dl && (id == 0 || id == dl.Id))
+        {
+            dl.Completed.TrySetException(new IOException(msg));
+        }
+    }
+
+    private async Task HandleFileBeginFromServerAsync(byte[] payload)
+    {
+        if (payload.Length < 10 || _download is not { } dl) return;
+        dl.Id   = payload[0];
+        dl.Size = (long)System.Buffers.Binary.BinaryPrimitives.ReadUInt64BigEndian(payload.AsSpan(1));
+        try
+        {
+            dl.Stream = new FileStream(dl.LocalPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+        }
+        catch (Exception ex) { dl.Completed.TrySetException(ex); }
+        await Task.CompletedTask.ConfigureAwait(false);
+    }
+
+    private async Task HandleFileChunkFromServerAsync(byte[] payload)
+    {
+        if (payload.Length < 1 || _download is not { } dl || dl.Id != payload[0] || dl.Stream is null) return;
+        try
+        {
+            await dl.Stream.WriteAsync(payload.AsMemory(1)).ConfigureAwait(false);
+            dl.Received += payload.Length - 1;
+            dl.Progress?.Report((dl.Received, dl.Size));
+        }
+        catch (Exception ex) { dl.Completed.TrySetException(ex); }
+    }
+
+    private async Task HandleFileEndFromServerAsync(byte[] payload)
+    {
+        if (payload.Length < 1 || _download is not { } dl || dl.Id != payload[0] || dl.Stream is null) return;
+        try
+        {
+            await dl.Stream.FlushAsync().ConfigureAwait(false);
+            await dl.Stream.DisposeAsync().ConfigureAwait(false);
+            dl.Stream = null;
+            if (dl.Received == dl.Size) dl.Completed.TrySetResult();
+            else dl.Completed.TrySetException(new IOException($"Thiếu dữ liệu ({dl.Received}/{dl.Size} B)"));
+        }
+        catch (Exception ex) { dl.Completed.TrySetException(ex); }
+    }
+
+    /// <summary>JSON danh sách màn hình: [{"index":0,"name":"HDMI-1","x":0,"y":0,"w":1920,"h":1080}, …]</summary>
+    public event EventHandler<string>? MonitorListReceived;
+
     // ── Phase 6 Methods ───────────────────────────────────────────────────
 
     public Task SendChatMessageAsync(string message)
@@ -141,11 +434,24 @@ public sealed class RemoteControlClient : IRemoteControlClient
         return SendLockedAsync(MessageType.ChatText, payload, CancellationToken.None);
     }
 
+    public const int MaxClipboardTextLength = 1024 * 1024; // 1MB text safety shield (F-ROUND5-2)
+
     public Task SendClipboardTextAsync(string text)
     {
         if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        if (text.Length > MaxClipboardTextLength)
+        {
+            text = text.Substring(0, MaxClipboardTextLength);
+        }
         var payload = MessageCodec.EncodeStringMessage(text);
         return SendLockedAsync(MessageType.ClipboardData, payload, CancellationToken.None);
+    }
+
+    /// <summary>Yêu cầu agent gửi ngay clipboard hiện tại của ZCU (kết quả qua ClipboardDataReceived). Agent ≥ 1.2.</summary>
+    public Task RequestClipboardAsync()
+    {
+        if (_state != ConnectionState.Streaming) return Task.CompletedTask;
+        return SendLockedAsync(MessageType.ClipboardGet, Array.Empty<byte>(), CancellationToken.None);
     }
 
     public Task SetPrivacyModeAsync(bool enabled)
@@ -224,7 +530,7 @@ public sealed class RemoteControlClient : IRemoteControlClient
         _sessionCts = CancellationTokenSource.CreateLinkedTokenSource(globalCt);
         var sessionCt = _sessionCts.Token;
 
-        _tcp = new TcpClient { NoDelay = true };
+        _tcp = new TcpClient { NoDelay = true, ReceiveBufferSize = 256 * 1024, SendBufferSize = 64 * 1024 };
         // Enable TCP keepalive to catch half-open connections (TDD §14).
         _tcp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
 
@@ -236,7 +542,7 @@ public sealed class RemoteControlClient : IRemoteControlClient
         try
         {
             await _tcp.ConnectAsync(_host, _port, sessionCt).ConfigureAwait(false);
-            _stream = _tcp.GetStream();
+            _stream = await NegotiateStreamAsync(sessionCt).ConfigureAwait(false);
 
             SetState(ConnectionState.Authenticating);
 
@@ -320,6 +626,64 @@ public sealed class RemoteControlClient : IRemoteControlClient
         }
     }
 
+    // ── TLS negotiation ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Thử bắt tay TLS trên <c>_tcp</c> vừa kết nối. Chứng chỉ agent là tự ký nên không kiểm chuỗi tin cậy
+    /// (mã hóa chống nghe lén thụ động; token nằm trong kênh đã mã hóa). Nếu agent là bản cũ không hiểu
+    /// TLS, agent đóng kết nối → mở lại socket và dùng TCP thường (kèm nhớ để lần sau bỏ qua bước thử).
+    /// </summary>
+    private async Task<Stream> NegotiateStreamAsync(CancellationToken sessionCt)
+    {
+        _isEncrypted = false;
+        if (!_tlsUnsupported)
+        {
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(sessionCt);
+                cts.CancelAfter(RemoteControlConstants.HandshakeTimeoutMs);
+
+                var ssl = new System.Net.Security.SslStream(
+                    _tcp!.GetStream(), leaveInnerStreamOpen: false,
+                    userCertificateValidationCallback: (sender, cert, chain, errors) =>
+                    {
+                        if (cert is null) return false;
+                        var hash = cert.GetCertHashString(System.Security.Cryptography.HashAlgorithmName.SHA256);
+                        if (!string.IsNullOrEmpty(ExpectedCertFingerprint))
+                        {
+                            if (!string.Equals(hash, ExpectedCertFingerprint, StringComparison.OrdinalIgnoreCase))
+                            {
+                                _logger.LogWarning("TLS Certificate Fingerprint Mismatch! Expected {Expected}, got {Actual}",
+                                    ExpectedCertFingerprint, hash);
+                                return false;
+                            }
+                        }
+                        TlsCertificateValidated?.Invoke(this, hash);
+                        return true;
+                    });
+                await ssl.AuthenticateAsClientAsync(new System.Net.Security.SslClientAuthenticationOptions
+                {
+                    TargetHost = _host,
+                    EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12
+                                        | System.Security.Authentication.SslProtocols.Tls13,
+                }, cts.Token).ConfigureAwait(false);
+
+                _isEncrypted = true;
+                return ssl;
+            }
+            catch (Exception ex) when (!sessionCt.IsCancellationRequested)
+            {
+                _logger.LogInformation(ex, "TLS handshake với {Host} thất bại — agent có thể là bản cũ, lùi về TCP thường", _host);
+                _tlsUnsupported = true;
+                try { _tcp?.Dispose(); } catch { /* ignore */ }
+                _tcp = new TcpClient { NoDelay = true, ReceiveBufferSize = 256 * 1024, SendBufferSize = 64 * 1024 };
+                _tcp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                await _tcp.ConnectAsync(_host, _port, sessionCt).ConfigureAwait(false);
+            }
+        }
+        return _tcp!.GetStream();
+    }
+
     // ── Receive loop ──────────────────────────────────────────────────────
 
     private async Task ReceiveLoopAsync(CancellationToken sessionCt)
@@ -328,6 +692,21 @@ public sealed class RemoteControlClient : IRemoteControlClient
         {
             var (type, payload) = await MessageCodec
                 .ReadMessageAsync(_stream!, sessionCt).ConfigureAwait(false);
+
+            _metricBytesReceived += 5 + payload.Length;
+            if (type == MessageType.FrameJpeg) _metricFramesReceived++;
+
+            long nowTicks = DateTime.UtcNow.Ticks;
+            double elapsedSec = (nowTicks - _lastMetricTicks) / (double)TimeSpan.TicksPerSecond;
+            if (elapsedSec >= 1.0)
+            {
+                CurrentFps = Math.Round(_metricFramesReceived / elapsedSec, 1);
+                CurrentBitrateKbps = Math.Round((_metricBytesReceived * 8.0 / 1000.0) / elapsedSec, 1);
+                _metricFramesReceived = 0;
+                _metricBytesReceived = 0;
+                _lastMetricTicks = nowTicks;
+                NetworkMetricsUpdated?.Invoke(this, new NetworkMetricsEventArgs(CurrentFps, CurrentRttMs, CurrentBitrateKbps));
+            }
 
             switch (type)
             {
@@ -345,6 +724,12 @@ public sealed class RemoteControlClient : IRemoteControlClient
                 case MessageType.Pong:
                     // Update PONG timestamp — checked by PingSenderLoop for timeout.
                     Interlocked.Exchange(ref _lastPongTicks, DateTime.UtcNow.Ticks);
+                    var pongNonce = MessageCodec.DecodePingPong(payload);
+                    if (pongNonce == _lastPingNonce && _lastPingSentTicks > 0)
+                    {
+                        var rtt = (DateTime.UtcNow.Ticks - _lastPingSentTicks) / (double)TimeSpan.TicksPerMillisecond;
+                        CurrentRttMs = Math.Max(0.1, Math.Round(rtt, 1));
+                    }
                     break;
 
                 case MessageType.Bye:
@@ -358,6 +743,22 @@ public sealed class RemoteControlClient : IRemoteControlClient
                 
                 case MessageType.ClipboardData:
                     ClipboardDataReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
+                    break;
+
+                case MessageType.ClipboardFileList:
+                    ClipboardFileListReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
+                    break;
+
+                case MessageType.FileAck:   HandleFileAck(payload); break;
+                case MessageType.FileBegin: await HandleFileBeginFromServerAsync(payload).ConfigureAwait(false); break;
+                case MessageType.FileChunk: await HandleFileChunkFromServerAsync(payload).ConfigureAwait(false); break;
+                case MessageType.FileEnd:   await HandleFileEndFromServerAsync(payload).ConfigureAwait(false); break;
+                case MessageType.FileList:
+                    FileListReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
+                    break;
+
+                case MessageType.MonitorList:
+                    MonitorListReceived?.Invoke(this, MessageCodec.DecodeStringMessage(payload));
                     break;
 
                 case MessageType.SysInfoResp:
@@ -437,6 +838,8 @@ public sealed class RemoteControlClient : IRemoteControlClient
                 try
                 {
                     var nonce = (ulong)rng.NextInt64();
+                    _lastPingSentTicks = DateTime.UtcNow.Ticks;
+                    _lastPingNonce = nonce;
                     await SendLockedAsync(MessageType.Ping,
                         MessageCodec.EncodePingPong(nonce), sessionCt).ConfigureAwait(false);
                 }
@@ -451,7 +854,10 @@ public sealed class RemoteControlClient : IRemoteControlClient
 
     // ── Send helper (serialises concurrent writes) ────────────────────────
 
-    private async Task SendLockedAsync(MessageType type, byte[] payload, CancellationToken ct)
+    private Task SendLockedAsync(MessageType type, byte[] payload, CancellationToken ct)
+        => SendLockedAsync(type, (ReadOnlyMemory<byte>)payload, ct);
+
+    private async Task SendLockedAsync(MessageType type, ReadOnlyMemory<byte> payload, CancellationToken ct)
     {
         var stream = _stream;
         if (stream is null) return;
@@ -479,6 +885,11 @@ public sealed class RemoteControlClient : IRemoteControlClient
         // Exchange nulls atomically to prevent double-close.
         var stream = Interlocked.Exchange(ref _stream, null);
         var tcp    = Interlocked.Exchange(ref _tcp, null);
+
+        // Đang upload/download dở thì rớt kết nối → báo lỗi thay vì treo chờ.
+        var lost = new IOException("Mất kết nối trong lúc truyền file");
+        foreach (var up in _uploads.Values) { up.Ready.TrySetException(lost); up.Done.TrySetException(lost); }
+        _download?.Completed.TrySetException(lost);
 
         if (stream is not null)
         {
@@ -533,6 +944,9 @@ public sealed class RemoteControlClient : IRemoteControlClient
     /// (agent cũ bỏ qua âm thầm SysInfo/Privacy/Chat/Clipboard, không có ACK trong protocol v1).
     /// </summary>
     public string ServerName => _serverName;
+
+    /// <summary>true nếu kết nối hiện tại được mã hóa TLS; false = TCP thường (agent bản cũ).</summary>
+    public bool IsEncrypted => _isEncrypted;
 
     // ── IDisposable ───────────────────────────────────────────────────────
 

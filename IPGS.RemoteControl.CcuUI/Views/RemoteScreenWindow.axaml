@@ -31,10 +31,46 @@
                      Foreground="White"
                      FontSize="13"
                      VerticalAlignment="Center" />
+
+          <!-- TLS Security Badge (audit F-NEW-7) -->
+          <Border IsVisible="{Binding IsTlsEncrypted}"
+                  Background="#1E293B"
+                  BorderBrush="#38BDF8"
+                  BorderThickness="1"
+                  CornerRadius="4"
+                  Padding="6,2"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="{Binding TlsFingerprint, StringFormat='SHA-256: {0}'}">
+            <TextBlock Text="🔒 TLS"
+                       FontSize="11"
+                       Foreground="#38BDF8"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+          </Border>
+
+          <!-- Network Performance HUD Badge (audit F-ROUND4-1) -->
+          <Border IsVisible="{Binding IsHudVisible}"
+                  Background="#0F172A"
+                  BorderBrush="#334155"
+                  BorderThickness="1"
+                  CornerRadius="4"
+                  Padding="6,2"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="Chỉ số hiệu năng mạng thời gian thực: FPS, Độ trễ (RTT) và Băng thông tải">
+            <TextBlock Text="{Binding NetworkHudText}"
+                       FontSize="11"
+                       Foreground="#94A3B8"
+                       FontWeight="Medium"
+                       VerticalAlignment="Center" />
+          </Border>
         </StackPanel>
 
         <!-- Tools - enabled only while streaming -->
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <ComboBox Name="CmbMonitor" IsVisible="False" MinWidth="160" VerticalAlignment="Center" IsEnabled="{Binding IsStreaming}" SelectionChanged="OnMonitorChanged" ToolTip.Tip="Chọn màn hình của máy đích" />
+            <kz:KzButton Name="BtnFiles" Content="📁 File" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnFilesClick" ToolTip.Tip="Gửi/nhận file với máy đích (cần agent 1.2+)" />
+            <kz:KzButton Name="BtnCad" Content="⌨ Ctrl+Alt+Del" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnCtrlAltDelClick" ToolTip.Tip="Gửi Ctrl+Alt+Del tới máy đích (không bị hệ điều hành máy này chặn)" />
+            <ToggleButton Name="BtnScan" Content="⌨ Phím vật lý" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnScanModeClick" ToolTip.Tip="Gửi vị trí phím thay vì ký tự — gõ đúng khi layout hai máy khác nhau (cần agent 1.2+)" />
             <ToggleButton Name="BtnPrivacy" Content="🕶️ Privacy" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnPrivacyClick" ToolTip.Tip="Blank remote screen" />
             <kz:KzButton Name="BtnSysInfo" Content="📊 SysInfo" Background="#0284C7" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnSysInfoClick" ToolTip.Tip="System Inventory" />
             <ToggleButton Name="BtnRecord" Content="🔴 Record" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnRecordClick" ToolTip.Tip="Record Session" />
@@ -98,7 +134,7 @@
       DataContext is inherited from the Window (RemoteScreenViewModel),
       so RemoteScreenControl receives the same ViewModel automatically.
     -->
-    <views:RemoteScreenControl Grid.Row="3"
+    <views:RemoteScreenControl Name="RemoteScreen" Grid.Row="3"
                                HorizontalAlignment="Stretch"
                                VerticalAlignment="Stretch" />
 

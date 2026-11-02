@@ -1,5 +1,6 @@
 using IPGS.RemoteControl.ZcuAgent.Interop;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace IPGS.RemoteControl.ZcuAgent.Input;
 
@@ -24,6 +25,7 @@ namespace IPGS.RemoteControl.ZcuAgent.Input;
 internal sealed class KeyboardInjector : IKeyboardInjector
 {
     private readonly ILogger<KeyboardInjector> _logger;
+    private readonly IOptions<AgentOptions>? _options;
     private IntPtr   _display = IntPtr.Zero;
     private bool     _initialized;
     private bool     _disposed;
@@ -35,7 +37,14 @@ internal sealed class KeyboardInjector : IKeyboardInjector
     /// </summary>
     private readonly HashSet<uint> _downKeys = new();
 
-    public KeyboardInjector(ILogger<KeyboardInjector> logger) => _logger = logger;
+    /// <summary>Keycode vật lý đang giữ (scan mode) — nhả hết khi kết thúc session.</summary>
+    private readonly HashSet<byte> _downRawKeys = new();
+
+    public KeyboardInjector(ILogger<KeyboardInjector> logger, IOptions<AgentOptions>? options = null)
+    {
+        _logger = logger;
+        _options = options;
+    }
 
     // ── IKeyboardInjector ─────────────────────────────────────────────────
 
@@ -45,11 +54,11 @@ internal sealed class KeyboardInjector : IKeyboardInjector
         if (_initialized) return;
 
         // Separate display connection — capturer already called XInitThreads() globally.
-        _display = X11.XOpenDisplay(null);
-        if (_display == IntPtr.Zero)
-            throw new InvalidOperationException("KeyboardInjector: XOpenDisplay failed");
+        var preferred = _options?.Value?.Display;
+        var (handle, resolved) = X11DisplayResolver.OpenAvailableDisplay(preferred, _logger);
+        _display = handle;
 
-        _logger.LogInformation("KeyboardInjector: XTest display opened for keyboard injection");
+        _logger.LogInformation("KeyboardInjector: XTest display '{Display}' opened for keyboard injection", resolved);
         _initialized = true;
     }
 
@@ -80,10 +89,19 @@ internal sealed class KeyboardInjector : IKeyboardInjector
             _downKeys.Remove(keysym);
 
         XTest.XTestFakeKeyEvent(_display, keycode, isDown, 0);
-        // GOTCHA: XFlush is mandatory — same rule as XTestFakeButtonEvent in MouseInjector.
+        // Audit F-NEW-4: XFlush is mandatory to dispatch event without blocking on XSync
         X11.XFlush(_display);
-        // XSync surfaces any async X errors immediately (e.g. BadAccess).
-        X11.XSync(_display, false);
+    }
+
+    /// <summary>Physical key injection (scan mode): keycode dùng thẳng, layout ZCU tự dịch ra ký tự.</summary>
+    public void SendRawKey(byte keycode, bool isDown)
+    {
+        if (!_initialized || _disposed || keycode < 8) return;
+
+        if (isDown) _downRawKeys.Add(keycode); else _downRawKeys.Remove(keycode);
+
+        XTest.XTestFakeKeyEvent(_display, keycode, isDown, 0);
+        X11.XFlush(_display);
     }
 
     /// <summary>
@@ -93,10 +111,15 @@ internal sealed class KeyboardInjector : IKeyboardInjector
     /// </summary>
     public void ReleaseAllKeys()
     {
-        if (!_initialized || _disposed || _downKeys.Count == 0) return;
+        if (!_initialized || _disposed || (_downKeys.Count == 0 && _downRawKeys.Count == 0)) return;
 
         _logger.LogInformation(
-            "KeyboardInjector: releasing {Count} stuck key(s) on session end", _downKeys.Count);
+            "KeyboardInjector: releasing {Count} stuck key(s) on session end",
+            _downKeys.Count + _downRawKeys.Count);
+
+        foreach (var kc in _downRawKeys.ToArray())
+            XTest.XTestFakeKeyEvent(_display, kc, isPress: false, delay: 0);
+        _downRawKeys.Clear();
 
         // Snapshot the set before iterating because SendKey modifies _downKeys.
         var stuck = _downKeys.ToArray();
@@ -123,7 +146,7 @@ internal sealed class KeyboardInjector : IKeyboardInjector
         _disposed = true;
 
         // Best-effort release before closing display (display still open here).
-        if (_initialized && _downKeys.Count > 0)
+        if (_initialized && (_downKeys.Count > 0 || _downRawKeys.Count > 0))
             ReleaseAllKeys();
 
         if (_display != IntPtr.Zero)

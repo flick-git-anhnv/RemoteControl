@@ -29,7 +29,7 @@
         </Grid>
         <Grid ColumnDefinitions="Auto,*">
           <TextBlock Text="Lọc file:" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#475569" FontWeight="Medium" />
-          <kz:KzTextBox Grid.Column="1" x:Name="PART_TxtFilter" Watermark="Nhập tên để lọc..." />
+          <kz:KzTextBox Grid.Column="1" x:Name="PART_TxtFilter" PlaceholderText="Nhập tên để lọc..." />
         </Grid>
       </StackPanel>
     </Border>

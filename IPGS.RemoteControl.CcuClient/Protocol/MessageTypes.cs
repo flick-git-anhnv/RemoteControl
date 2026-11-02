@@ -24,10 +24,31 @@ public enum MessageType : byte
     // v1.1 — keyboard
     KeyEvent    = 0x40,  // C→S  key press / release (u32 keysym BE + u8 down)
     
+    // v1.2 — keyboard "scan mode": phím vật lý (X11 keycode), không phụ thuộc layout máy đích
+    KeyEventRaw = 0x43,  // C→S  u8 x11Keycode + u8 down
+
+    // v1.2 — multi-monitor
+    MonitorListReq = 0x53, // C→S  yêu cầu danh sách màn hình
+    MonitorList    = 0x54, // S→C  JSON [{index,name,x,y,w,h}]
+    MonitorSelect  = 0x55, // C→S  u8 index; 0xFF = toàn bộ desktop
+
+    // v1.2 — file transfer (chunked, hai chiều). Chỉ đọc/ghi trong thư mục TransferDir của agent.
+    FileBegin   = 0x70, // ↔  u8 id + u64 size BE + utf8 name (tên file, không có đường dẫn)
+    FileChunk   = 0x71, // ↔  u8 id + data
+    FileEnd     = 0x72, // ↔  u8 id
+    FileAck     = 0x73, // S→C u8 id + u8 status(0=sẵn sàng,1=hoàn tất,2=lỗi) + utf8 message
+    FileListReq = 0x74, // C→S  liệt kê file trong TransferDir
+    FileList    = 0x75, // S→C  JSON [{name,size}]
+    FileGet     = 0x76, // C→S  utf8 name — yêu cầu agent gửi file về
+    FileGetPath = 0x77, // C→S  utf8 đường dẫn tuyệt đối — chỉ chấp nhận file nằm trong danh sách ClipboardFileList agent vừa báo
+    ClipboardFiles    = 0x57, // C→S  JSON ["tên file đã upload", …] — đặt các file đó lên clipboard ZCU như vừa Copy
+    ClipboardFileList = 0x58, // S→C  JSON [{path,name,size}] — người dùng vừa Copy file trong trình quản lý file của ZCU
+
     // v2.0 — Phase 6 Enterprise Features
     ChatText    = 0x41,  // C↔S  UTF-8 text message
     PrivacyMode = 0x42,  // C→S  Boolean: true=blank screen, false=normal
     ClipboardData = 0x50, // C↔S  UTF-8 text for clipboard sync
+    ClipboardGet = 0x56, // C→S  yêu cầu agent gửi ngay clipboard hiện tại của ZCU (sau Ctrl+C trong phiên remote)
     SysInfoReq  = 0x51,  // C→S  Request system info
     SysInfoResp = 0x52,  // S→C  JSON payload with system info
 
@@ -46,6 +67,8 @@ public enum MouseButton : byte
     Right     = 3,
     WheelUp   = 4,
     WheelDown = 5,
+    WheelLeft = 6,   // X11 button 6 — cuộn ngang
+    WheelRight = 7,  // X11 button 7 — cuộn ngang
 }
 
 /// <summary>

@@ -8,7 +8,7 @@ status: draft | active | deprecated
 # EVAL: [Tên Agent/Skill]
 
 > **Mục đích:** Định nghĩa pass/fail criteria cho agent/skill trước khi implement — Eval-Driven Development (EDD). Học từ `eval-harness` skill của affaan-m/ecc.
-> **Khi tạo:** PHẢI tạo file này TRƯỚC khi viết file định nghĩa agent `.gemini/agents/[name].md` hoặc skill `.gemini/commands/[name].md`.
+> **Khi tạo:** PHẢI tạo file này TRƯỚC khi viết file định nghĩa agent `C:/Users/Admin/.gemini/agents/[name].md` hoặc skill `C:/Users/Admin/.gemini/commands/[name].md`.
 > **Khi chạy:** Sau khi implement, chạy thử từng example và ghi kết quả vào bảng "Kết quả chạy thử".
 
 ---
@@ -109,5 +109,5 @@ status: draft | active | deprecated
 
 ---
 
-> **Vị trí lưu:** `.gemini/evals/[agent-or-skill-name].md`
-> **Liên quan:** `.gemini/agents/[name].md` hoặc `.gemini/commands/[name].md`
+> **Vị trí lưu:** `C:/Users/Admin/.gemini/evals/[agent-or-skill-name].md`
+> **Liên quan:** `C:/Users/Admin/.gemini/agents/[name].md` hoặc `C:/Users/Admin/.gemini/commands/[name].md`

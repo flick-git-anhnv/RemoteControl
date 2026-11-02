@@ -1,6 +1,6 @@
 ---
 name: writing-agent-skill
-description: "PHẢI dùng khi: tạo agent/skill mới cho hệ thống KZTEK, cần viết `.gemini/agents/[name].md` hoặc `.gemini/commands/[name].md` từ đầu, muốn áp dụng quy trình TDD-for-documentation (RED viết test scenario xác nhận vi phạm → GREEN viết định nghĩa → REFACTOR tìm edge case), hoặc user nói 'tạo agent mới', 'viết skill mới', 'cần một agent để...'. KHÔNG dùng khi: chỉ muốn sửa/tối ưu agent đã có sẵn (→ `md-optimizer`), chỉ cần kiểm tra trigger accuracy của agent/skill đã tồn tại (→ `skill-trigger-test`), hoặc chỉ cần sửa nội dung body không liên quan đến quy trình tạo mới."
+description: "PHẢI dùng khi: tạo agent/skill mới cho hệ thống KZTEK, cần viết `C:/Users/Admin/.gemini/agents/[name].md` hoặc `C:/Users/Admin/.gemini/commands/[name].md` từ đầu, muốn áp dụng quy trình TDD-for-documentation (RED viết test scenario xác nhận vi phạm → GREEN viết định nghĩa → REFACTOR tìm edge case), hoặc user nói 'tạo agent mới', 'viết skill mới', 'cần một agent để...'. KHÔNG dùng khi: chỉ muốn sửa/tối ưu agent đã có sẵn (→ `md-optimizer`), chỉ cần kiểm tra trigger accuracy của agent/skill đã tồn tại (→ `skill-trigger-test`), hoặc chỉ cần sửa nội dung body không liên quan đến quy trình tạo mới."
 ---
 
 # Skill: writing-agent-skill — Tạo agent/skill mới theo TDD
@@ -65,7 +65,7 @@ Nếu không có scenario nào vi phạm → DỪNG, skill không cần thiết.
 
 Dựa trên test scenarios, viết file agent/skill mới:
 
-**Với Agent** (`.gemini/agents/[name].md`):
+**Với Agent** (`C:/Users/Admin/.gemini/agents/[name].md`):
 ```markdown
 ---
 name: [kebab-case-name]
@@ -88,7 +88,7 @@ tools: [danh sách tools cần thiết]
 [File cần tạo ra]
 ```
 
-**Với Skill** (`.gemini/commands/[name].md`):
+**Với Skill** (`C:/Users/Admin/.gemini/commands/[name].md`):
 ```markdown
 ---
 description: "[Điều kiện trigger cụ thể — khi nào invoke skill này, không chung chung]"
@@ -129,6 +129,61 @@ Nếu còn scenario Fail → quay lại Bước 3 sửa definition. KHÔNG đán
 
 ---
 
+### Bước 4b — Kiểm tra cấu trúc thông tin trong definition
+
+> Học từ `mattpocock/skills` `skills/engineering/writing-for-agents/SKILL.md` — "Information hierarchy is the most important structural decision in a skill definition."
+
+Sau khi GREEN verify pass, kiểm tra definition có cấu trúc thông tin đúng không — vì thông tin đặt sai vị trí gây agent đọc nhầm context hoặc bỏ sót instruction quan trọng.
+
+#### 3 loại thông tin trong definition
+
+| Loại | Vị trí đặt | Khi nào dùng |
+|------|-----------|-------------|
+| **In-file step** | Ngay tại bước cần dùng (inline) | Thông tin cần để thực thi bước đó, không cần ở nơi khác |
+| **In-file reference** | Section riêng ở cuối file hoặc "## References" | Bảng tra cứu, danh sách, thông tin cần đôi khi nhưng không phải mọi bước |
+| **Disclosed reference** | Pointer (đường dẫn / link) trong file | Thông tin tồn tại ở file khác — agent được chỉ đường đến, không load toàn bộ vào file hiện tại |
+
+**Ví dụ sai:** Bảng tra cứu 30 dòng nhúng giữa step 2 → agent phải đọc hết bảng mỗi lần chạy step 2, kể cả khi không cần tra.
+
+**Ví dụ đúng:** Step 2 chỉ có 1 dòng: "Tra category tại `## Category Reference` cuối file" → agent đọc bảng CHỈ khi cần tra.
+
+#### Leading words (bắt đầu mỗi instruction)
+
+Mỗi instruction PHẢI bắt đầu bằng từ hành động rõ ràng — giúp agent scan nhanh không bị nhầm description với action:
+
+```
+PHẢI / DO      → hành động bắt buộc
+KHÔNG / AVOID  → hành động cấm
+ĐỌC / READ    → thao tác đọc file/data
+GHI / WRITE   → thao tác ghi artifact
+HỎI / ASK     → interaction với user
+DỪNG / STOP   → điều kiện block
+```
+
+**Sai:** "Information about the user's scope is important to gather" → agent không biết nên làm gì.
+
+**Đúng:** "ĐỌC scope từ user message. KHÔNG giả định scope khi chưa có."
+
+#### Pruning disciplines (cắt thông tin thừa)
+
+Xóa mạnh tay các loại sau — chúng tốn token nhưng không thay đổi behavior:
+
+- Câu giải thích "tại sao" không ảnh hưởng hành động → chuyển thành comment hoặc xóa
+- Ví dụ lặp lại ý đã có trong instruction → giữ 1, xóa phần còn lại
+- Mục tiêu / vision / philosophy dài mà không có action item nào → trim xuống 1-2 câu
+- Cảnh báo về thứ agent hiếm khi gặp → chuyển sang "disclosed reference" hoặc xóa
+
+**Checklist kiểm tra nhanh (sau GREEN verify, trước REFACTOR):**
+```
+- [ ] Mỗi block thông tin có đúng loại (step/reference/disclosed)?
+- [ ] Mỗi instruction bắt đầu bằng leading word rõ ràng?
+- [ ] Bảng tra cứu dài (>10 dòng) được tách ra khỏi flow chính?
+- [ ] Không có đoạn text > 3 câu liên tiếp mà không có action item nào?
+- [ ] File < 300 dòng? Nếu không → cân nhắc bundled resources (§ Khi nào nên dùng Bundled Resources)
+```
+
+---
+
 ### Bước 5 — REFACTOR: Tìm edge case và vá
 
 Đặt câu hỏi: "LLM sẽ tìm cớ gì để bỏ qua agent/skill này?"
@@ -157,7 +212,7 @@ Với mỗi rationalization scenario bị bỏ qua → thêm dòng vào bảng R
 Vấn đề: agent/skill được viết trong session hiện tại — người viết (bạn) có toàn bộ context của cuộc hội thoại dẫn đến quyết định đó. Nhưng khi agent/skill này được gọi thật sự sau này, agent nhận nó sẽ đọc file **hoàn toàn không có context session gốc** ("cold read"). Một definition "rõ ràng" với người vừa viết ra có thể mơ hồ/thiếu sót với agent đọc lần đầu.
 
 Quy trình:
-1. Sau khi hoàn thành Bước 4 (GREEN verify) và Bước 5 (REFACTOR), spawn **1 subagent mới, chỉ đưa cho nó file định nghĩa vừa viết** (`.gemini/agents/[name].md` hoặc `.gemini/commands/[name].md`) — KHÔNG kèm theo lịch sử hội thoại, KHÔNG giải thích thêm ngoài nội dung file.
+1. Sau khi hoàn thành Bước 4 (GREEN verify) và Bước 5 (REFACTOR), spawn **1 subagent mới, chỉ đưa cho nó file định nghĩa vừa viết** (`C:/Users/Admin/.gemini/agents/[name].md` hoặc `C:/Users/Admin/.gemini/commands/[name].md`) — KHÔNG kèm theo lịch sử hội thoại, KHÔNG giải thích thêm ngoài nội dung file.
 2. Yêu cầu subagent đó tự chạy lại các Test Scenarios (Capability Eval) từ Bước 2, chỉ dựa vào những gì đọc được trong file.
 3. Ghi nhận kết quả: subagent có hiểu đúng khi nào trigger không? Có bỏ sót near-miss case nào description chưa liệt kê không? Có bước nào trong quy trình mà subagent hiểu sai ý đồ không?
 4. Nếu subagent "cold read" xử lý sai/hiểu nhầm bất kỳ điểm nào → đây là blind spot thật sự (không phải giả định) → quay lại Bước 3 sửa definition, KHÔNG tự cho là "chắc nó sẽ hiểu".
@@ -181,13 +236,13 @@ Nếu KHÔNG có tín hiệu nào ở trên → giữ single-file, không tạo 
 
 ## Checklist hoàn thành
 
-- [ ] File agent/skill đã tạo tại đúng vị trí (`.gemini/agents/` hoặc `.gemini/commands/`)
+- [ ] File agent/skill đã tạo tại đúng vị trí (`C:/Users/Admin/.gemini/agents/` hoặc `C:/Users/Admin/.gemini/commands/`)
 - [ ] Description bắt đầu bằng "Use when..." / "PHẢI dùng khi..." + điều kiện cụ thể
 - [ ] Có "KHÔNG dùng khi:" với near-miss cases
 - [ ] Có bảng Red Flags (nếu là agent/skill quan trọng hay bị bỏ qua)
 - [ ] Tất cả test scenarios từ Bước 2 đã Pass ở Bước 4
 - [ ] Đã chạy Bước 6 — Agent Definition Testing (cold-read qua subagent mới, không có context session)
-- [ ] Chạy `skill-trigger-test` để verify routing accuracy (xem `.gemini/commands/skill-trigger-test.md`)
+- [ ] Chạy `skill-trigger-test` để verify routing accuracy (xem `C:/Users/Admin/.gemini/commands/skill-trigger-test.md`)
 - [ ] Nếu agent mới → cập nhật đầy đủ routing theo §10 GEMINI.md (org chart, bảng routing, model assignment)
 - [ ] Xuất DOCX+PDF theo §19 GEMINI.md nếu file .md thuộc docs/
 

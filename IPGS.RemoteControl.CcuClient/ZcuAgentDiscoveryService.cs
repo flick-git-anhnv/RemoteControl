@@ -5,7 +5,7 @@ using IPGS.RemoteControl.Protocol;
 namespace IPGS.RemoteControl.CcuClient;
 
 /// <summary>Một máy ZCU đã cài ZcuAgent, tìm thấy qua quét mạng LAN.</summary>
-public sealed record DiscoveredZcuAgent(string Host, int Port, string ServerName, int ScreenWidth, int ScreenHeight);
+public sealed record DiscoveredZcuAgent(string Host, int Port, string ServerName, int ScreenWidth, int ScreenHeight, string? TlsCertFingerprint = null);
 
 /// <summary>
 /// Quét dải mạng LAN (subnet /24) để tìm các máy đã cài ZcuAgent — xác nhận bằng
@@ -92,9 +92,41 @@ public static class ZcuAgentDiscoveryService
             connectCts.CancelAfter(connectTimeoutMs);
             await tcp.ConnectAsync(host, port, connectCts.Token).ConfigureAwait(false);
 
-            await using var stream = tcp.GetStream();
             using var hsCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             hsCts.CancelAfter(handshakeTimeoutMs);
+
+            // Agent bản mới với RequireTls=true chỉ nhận TLS; bản cũ chỉ nhận TCP thường.
+            // Thử TLS trước, thất bại thì mở lại socket dùng TCP thường.
+            string? certFingerprint = null;
+            Stream stream;
+            try
+            {
+                var ssl = new System.Net.Security.SslStream(tcp.GetStream(), false, (sender, cert, chain, errors) =>
+                {
+                    if (cert is not null)
+                    {
+                        certFingerprint = cert.GetCertHashString(System.Security.Cryptography.HashAlgorithmName.SHA256);
+                    }
+                    return true;
+                });
+                await ssl.AuthenticateAsClientAsync(new System.Net.Security.SslClientAuthenticationOptions
+                {
+                    TargetHost = host,
+                    EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12
+                                        | System.Security.Authentication.SslProtocols.Tls13,
+                }, hsCts.Token).ConfigureAwait(false);
+                stream = ssl;
+            }
+            catch when (!cancellationToken.IsCancellationRequested)
+            {
+                tcp.Dispose();
+                var plain = new TcpClient();
+                using var reCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                reCts.CancelAfter(connectTimeoutMs);
+                await plain.ConnectAsync(host, port, reCts.Token).ConfigureAwait(false);
+                stream = new NetworkStream(plain.Client, ownsSocket: true);
+            }
+            await using var _ = stream;
 
             await MessageCodec.WriteMessageAsync(
                 stream, MessageType.Hello, MessageCodec.EncodeHello("IPGS-CCU-Scan"), hsCts.Token)
@@ -104,7 +136,7 @@ public static class ZcuAgentDiscoveryService
             if (type != MessageType.HelloAck) return null;
 
             var (_, screenW, screenH, serverName) = MessageCodec.DecodeHelloAck(payload);
-            return new DiscoveredZcuAgent(host, port, serverName, (int)screenW, (int)screenH);
+            return new DiscoveredZcuAgent(host, port, serverName, (int)screenW, (int)screenH, certFingerprint);
         }
         catch
         {

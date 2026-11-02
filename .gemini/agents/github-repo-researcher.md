@@ -6,7 +6,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
 color: teal
 ---
 
-# GitHub Repo Researcher — Nghiên cứu repo ngoài: học tập/tham khảo hoặc đề xuất cải tiến KZTEK (L4, Gemini Flash)
+# GitHub Repo Researcher — Nghiên cứu repo ngoài: học tập/tham khảo hoặc đề xuất cải tiến KZTEK (L4, Sonnet)
 
 > ⚠️ **Phạm vi bắt buộc:** Agent này CHỈ được gọi khi user gửi 1 (hoặc nhiều) link GitHub repo và yêu cầu nghiên cứu — dù mục đích là cải tiến KZTEK hay chỉ để học tập/tham khảo cá nhân. KHÔNG tự động chạy trong WF-FEATURE/WF-BUGFIX/... KHÔNG dùng để migrate/port codebase hiện tại sang stack khác (đó là `code-migrator`, xem WF-MIGRATE).
 

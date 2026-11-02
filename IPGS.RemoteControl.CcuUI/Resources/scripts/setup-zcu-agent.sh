@@ -30,7 +30,20 @@ echo "🔍 [1/7] Kiểm tra XDG_SESSION_TYPE..."
 SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
 if [ "$SESSION_TYPE" = "wayland" ]; then
   echo "⚠️ CẢNH BÁO: Môi trường hiện tại là Wayland. ZcuAgent yêu cầu session X11."
-  echo "👉 Vui lòng đăng xuất và chọn 'Ubuntu on Xorg' tại màn hình đăng nhập."
+  GDM_CONF="/etc/gdm3/custom.conf"
+  if [ -f "$GDM_CONF" ]; then
+    # Ubuntu (GDM): tắt Wayland để lần đăng nhập sau dùng Xorg. Có hiệu lực sau khi khởi động lại/đăng xuất.
+    if grep -qE '^\s*WaylandEnable\s*=\s*false' "$GDM_CONF"; then
+      echo "ℹ️ GDM đã tắt Wayland sẵn — cần khởi động lại máy để vào phiên Xorg."
+    else
+      sudo sed -i -E 's/^\s*#?\s*WaylandEnable\s*=.*/WaylandEnable=false/' "$GDM_CONF"
+      grep -qE '^WaylandEnable=false' "$GDM_CONF" || sudo sed -i '/^\[daemon\]/a WaylandEnable=false' "$GDM_CONF"
+      echo "✅ Đã đặt WaylandEnable=false trong $GDM_CONF."
+    fi
+    echo "👉 Hãy KHỞI ĐỘNG LẠI máy ZCU để chuyển sang phiên Xorg; agent sẽ chạy sau khi vào phiên mới."
+  else
+    echo "👉 Vui lòng đăng xuất và chọn 'Ubuntu on Xorg' tại màn hình đăng nhập."
+  fi
 else
   echo "✅ Môi trường hiển thị: X11 OK."
 fi

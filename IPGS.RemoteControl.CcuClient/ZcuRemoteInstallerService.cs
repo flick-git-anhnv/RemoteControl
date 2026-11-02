@@ -64,9 +64,60 @@ namespace IPGS.RemoteControl.CcuClient
             }, cancellationToken);
         }
 
+        /// <summary>
+        /// Đọc lại Port/Token của ZcuAgent đã cài từ file appsettings.json trên máy đích qua SSH
+        /// (dùng khi quên token). Trả về null nếu không tìm thấy file/không parse được.
+        /// </summary>
+        public Task<(int Port, string Token)?> ReadAgentConfigAsync(SshInstallerOptions options, CancellationToken cancellationToken = default)
+        {
+            return Task.Run<(int Port, string Token)?>(() =>
+            {
+                string username = ShellQuote.ValidateUsername(options.Username, nameof(options.Username));
+                using var ssh = CreateSshClient(options);
+                ssh.Connect();
+                string json = ExecuteCommand(ssh, $"cat /home/{username}/ipgs/remote-agent/appsettings.json 2>/dev/null");
+                ssh.Disconnect();
+                if (string.IsNullOrWhiteSpace(json)) return null;
+
+                try
+                {
+                    using var doc = JsonDocument.Parse(json);
+                    if (!doc.RootElement.TryGetProperty("RemoteControl", out var rc)) return null;
+                    string token = rc.TryGetProperty("Token", out var t) ? t.GetString() ?? "" : "";
+                    int port = rc.TryGetProperty("Port", out var p) && p.TryGetInt32(out int pv) ? pv : 17600;
+                    return string.IsNullOrEmpty(token) ? null : (port, token);
+                }
+                catch (JsonException)
+                {
+                    return null;
+                }
+            }, cancellationToken);
+        }
+
+        /// <summary>
+        /// Khởi động lại ứng dụng Remote Agent (systemd user service) trên máy đích.
+        /// Trả về trạng thái service sau khi restart ("active" nếu thành công).
+        /// </summary>
+        public Task<string> RestartAgentAsync(SshInstallerOptions options, CancellationToken cancellationToken = default)
+        {
+            return Task.Run(() =>
+            {
+                ShellQuote.ValidateUsername(options.Username, nameof(options.Username));
+                using var ssh = CreateSshClient(options);
+                ssh.Connect();
+                // SSH exec không có XDG_RUNTIME_DIR → systemctl --user cần biến này.
+                const string env = "export XDG_RUNTIME_DIR=/run/user/$(id -u); ";
+                ExecuteCommand(ssh, env + "systemctl --user restart ipgs-remote-agent.service");
+                System.Threading.Thread.Sleep(2000);
+                string status = ExecuteCommand(ssh, env + "systemctl --user is-active ipgs-remote-agent.service").Trim();
+                ssh.Disconnect();
+                return status;
+            }, cancellationToken);
+        }
+
         public Task InstallZcuAgentAsync(SshInstallerOptions options, Action<string, double>? onProgress = null, CancellationToken cancellationToken = default)
         {
-            return Task.Run(async () =>
+            return Task.Run(() =>
             {
                 void Report(string msg, double percent) => onProgress?.Invoke(msg, percent);
 
@@ -119,6 +170,38 @@ namespace IPGS.RemoteControl.CcuClient
                     ExecuteSudoCommand(ssh, "dpkg -l libx11-6 libxext6 libxtst6 wget >/dev/null 2>&1 || (systemctl stop unattended-upgrades.service 2>/dev/null || true; apt-get update -qq && apt-get install -y -qq libx11-6 libxext6 libxtst6 wget)", options.Password);
                 }
 
+                // xclip: bắt buộc cho đồng bộ clipboard hai chiều (agent gọi xclip). Best-effort — cần mạng/apt
+                // trên máy đích; thiếu xclip thì remote vẫn chạy, chỉ riêng clipboard không đồng bộ.
+                Report("📋 Kiểm tra xclip (đồng bộ clipboard)...", 45);
+                if (string.IsNullOrWhiteSpace(ExecuteCommand(ssh, "command -v xclip || true")))
+                {
+                    // Ưu tiên cài OFFLINE từ gói .deb nhúng sẵn (Resources/xclip-deb, build cho Ubuntu 22.04 jammy
+                    // amd64); khác bản/kiến trúc hoặc cài lỗi → fallback apt-get (cần mạng).
+                    string? xclipDebDir = ResolveResourceDir("xclip-deb");
+                    string codename = ExecuteCommand(ssh, ". /etc/os-release 2>/dev/null; echo $VERSION_CODENAME").Trim();
+                    string arch = ExecuteCommand(ssh, "dpkg --print-architecture 2>/dev/null").Trim();
+                    if (!string.IsNullOrEmpty(xclipDebDir) && codename == "jammy" && arch == "amd64")
+                    {
+                        using (var sftpX = CreateSftpClient(options))
+                        {
+                            sftpX.Connect();
+                            string remoteX = $"{remoteOfflineDir}/xclip-deb";
+                            if (!sftpX.Exists(remoteX)) sftpX.CreateDirectory(remoteX);
+                            foreach (var debFile in Directory.GetFiles(xclipDebDir, "*.deb"))
+                            {
+                                using var fs = File.OpenRead(debFile);
+                                sftpX.UploadFile(fs, $"{remoteX}/{Path.GetFileName(debFile)}", true);
+                            }
+                            sftpX.Disconnect();
+                        }
+                        ExecuteSudoCommand(ssh, $"dpkg -i --skip-same-version {remoteOfflineDir}/xclip-deb/*.deb >/dev/null 2>&1 || true", options.Password);
+                    }
+                    if (string.IsNullOrWhiteSpace(ExecuteCommand(ssh, "command -v xclip || true")))
+                        ExecuteSudoCommand(ssh, "apt-get update -qq; apt-get install -y -qq xclip || true", options.Password);
+                }
+                if (string.IsNullOrWhiteSpace(ExecuteCommand(ssh, "command -v xclip || true")))
+                    Report("⚠️ Máy đích chưa có xclip (không cài được qua apt) — clipboard sẽ không đồng bộ. Cài thủ công: sudo apt install xclip", 46);
+
                 Report("💻 [4/7] Kiểm tra & cài đặt .NET 8 Runtime...", 50);
                 // F20: dùng --list-runtimes thay --version — máy chỉ cài .NET RUNTIME
                 // (framework-dependent, không có SDK) khiến `dotnet --version` luôn lỗi
@@ -164,6 +247,9 @@ namespace IPGS.RemoteControl.CcuClient
                 {
                     Report("📤 [5/7] Đang tải các tệp thực thi ZcuAgent lên ZCU qua SFTP...", 75);
                     ExecuteCommand(ssh, "systemctl --user stop ipgs-remote-agent.service 2>/dev/null || true");
+                    // Dọn file cũ (giữ appsettings.json): bản cài trước có thể là self-contained, file runtime
+                    // sót lại (libhostfxr.so...) làm host bỏ qua .NET hệ thống → "No frameworks were found".
+                    ExecuteCommand(ssh, $"find {remoteInstallDir} -mindepth 1 -maxdepth 1 ! -name appsettings.json -exec rm -rf {{}} + 2>/dev/null || true");
                     using var sftp = CreateSftpClient(options);
                     sftp.Connect();
                     UploadDirectory(sftp, publishDir, remoteInstallDir);

@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
         x:Class="IPGS.RemoteControl.CcuUI.Views.HealthMonitorWindow"
         Title="Dashboard - Giám Sát Sức Khỏe Máy khách"
-        Width="600" Height="500"
+        Width="760" Height="600"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,*,Auto">
     <!-- Header -->
@@ -44,6 +44,29 @@
             </StackPanel>
           </Border>
         </Grid>
+
+        <!-- GPU / NPU / VPU (chỉ hiện khi máy khách có) -->
+        <StackPanel x:Name="PART_AcceleratorPanel" IsVisible="False" Spacing="5">
+          <TextBlock Text="GPU / NPU / VPU" FontSize="14" FontWeight="SemiBold" Margin="0,10,0,0" />
+          <Border Background="White" CornerRadius="8" BorderBrush="#E2E8F0" BorderThickness="1">
+            <DataGrid x:Name="PART_AcceleratorList"
+                      AutoGenerateColumns="False"
+                      CanUserSortColumns="False"
+                      IsReadOnly="True"
+                      GridLinesVisibility="All"
+                      HeadersVisibility="Column"
+                      x:DataType="local:AcceleratorItem">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Loại" Binding="{Binding Kind}" Width="60" />
+                <DataGridTextColumn Header="Thiết bị" Binding="{Binding Name}" Width="*" />
+                <DataGridTextColumn Header="Tải" Binding="{Binding Util}" Width="65" />
+                <DataGridTextColumn Header="Xung nhịp" Binding="{Binding Freq}" Width="90" />
+                <DataGridTextColumn Header="Nhiệt độ" Binding="{Binding Temp}" Width="80" />
+                <DataGridTextColumn Header="Ghi chú" Binding="{Binding Note}" Width="*" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </Border>
+        </StackPanel>
 
         <!-- Top Processes -->
         <TextBlock Text="Top Process Đang Chạy" FontSize="14" FontWeight="SemiBold" Margin="0,10,0,5" />

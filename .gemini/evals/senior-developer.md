@@ -8,7 +8,7 @@ status: active
 # EVAL: Senior Developer
 
 > **Mục đích:** Định nghĩa pass/fail criteria cho `senior-developer` agent — Eval-Driven Development (EDD).
-> **Khi chạy:** Sau khi sửa `.gemini/agents/senior-developer.md` hoặc thay đổi GEMINI.md §20 (quy tắc C# mặc định), chạy lại toàn bộ eval.
+> **Khi chạy:** Sau khi sửa `C:/Users/Admin/.gemini/agents/senior-developer.md` hoặc thay đổi GEMINI.md §20 (quy tắc C# mặc định), chạy lại toàn bộ eval.
 
 ---
 

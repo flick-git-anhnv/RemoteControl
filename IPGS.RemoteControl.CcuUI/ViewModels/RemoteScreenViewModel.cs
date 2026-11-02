@@ -29,6 +29,11 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     [ObservableProperty] private string?  _errorMessage;
     /// <summary>Colour of the status dot in the window toolbar.</summary>
     [ObservableProperty] private IBrush   _statusBrush   = Brushes.Gray;
+    [ObservableProperty] private bool     _isTlsEncrypted;
+    [ObservableProperty] private string?  _tlsFingerprint;
+    [ObservableProperty] private bool     _isTlsVerified;
+    [ObservableProperty] private string   _networkHudText = "⚡ -- FPS  |  📶 -- ms  |  📊 -- KB/s";
+    [ObservableProperty] private bool     _isHudVisible;
 
     // ── ZCU screen dimensions — written by background thread, read on UI thread
     // (volatile gives memory-ordering guarantee for single-reader/single-writer int).
@@ -38,6 +43,13 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     // ── Disposal flag — set on UI thread in Dispose(), read inside queued
     // Dispatcher.UIThread.Post lambdas and on the frame-decode thread (L5 fix).
     private volatile bool _disposed;
+
+    // ── Ping-Pong Double-Buffering (audit M1: triệt tiêu 124 MB/s rác LOH) ──
+    private WriteableBitmap? _frontBuffer;
+    private WriteableBitmap? _backBuffer;
+    private int _bufferW;
+    private int _bufferH;
+    private readonly object _bufferLock = new();
 
     /// <summary>
     /// Khi true, frame tới vẫn cập nhật kích thước màn hình nhưng BỎ QUA decode JPEG +
@@ -62,6 +74,16 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     // LostFocus or Dispose without relying solely on ZCU-side ReleaseAllKeys().
     private readonly HashSet<uint> _downKeysyms = new();
 
+    // Chế độ phím vật lý (scan mode): keycode X11 đang giữ + cờ bật/tắt.
+    private readonly HashSet<byte> _downRawKeys = new();
+    /// <summary>true = gửi phím theo vị trí vật lý (cần agent ≥ 1.2); false = gửi theo ký tự/keysym.</summary>
+    public bool UseScanMode { get; set; }
+
+    // Ctrl/Shift đang được giữ (theo dõi cả hai chế độ gửi phím) — dùng khi dán chậm để biết có cần bấm bù.
+    // keycode X11: ControlLeft=37, ControlRight=105, ShiftLeft=50, ShiftRight=62.
+    public bool IsCtrlHeld  => _downKeysyms.Contains(0xFFE3) || _downKeysyms.Contains(0xFFE4) || _downRawKeys.Contains(37) || _downRawKeys.Contains(105);
+    public bool IsShiftHeld => _downKeysyms.Contains(0xFFE1) || _downKeysyms.Contains(0xFFE2) || _downRawKeys.Contains(50) || _downRawKeys.Contains(62);
+
     // ── Constructor ──────────────────────────────────────────────────────────
 
     public RemoteScreenViewModel()
@@ -69,16 +91,40 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         _client = new RemoteControlClient();
         _client.FrameReceived += OnFrameReceived;
         _client.StateChanged  += OnStateChanged;
+        _client.TlsCertificateValidated += (sender, hash) =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                IsTlsEncrypted = true;
+                TlsFingerprint = hash;
+                IsTlsVerified  = true;
+            });
+        };
+        _client.NetworkMetricsUpdated += (sender, metrics) =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                string bitrateStr = metrics.BitrateKbps >= 1000.0
+                    ? $"{metrics.BitrateKbps / 1000.0:F1} MB/s"
+                    : $"{metrics.BitrateKbps:F0} KB/s";
+                NetworkHudText = $"⚡ {metrics.Fps:F0} FPS  |  📶 {metrics.RttMs:F0} ms  |  📊 {bitrateStr}";
+                IsHudVisible = IsStreaming;
+            });
+        };
     }
 
     // ── Public commands called by code-behind ────────────────────────────────
 
     /// <summary>Starts the connection loop (fire-and-forget via CcuClient).</summary>
-    public Task ConnectAsync(string host, int port, string token)
+    public Task ConnectAsync(string host, int port, string token, string? expectedFingerprint = null)
     {
-        IsFaulted     = false;
-        ErrorMessage  = null;
-        StatusText    = "Đang kết nối...";
+        IsFaulted        = false;
+        ErrorMessage     = null;
+        StatusText       = "Đang kết nối...";
+        IsTlsEncrypted   = false;
+        IsTlsVerified    = false;
+        TlsFingerprint   = null;
+        _client.ExpectedCertFingerprint = expectedFingerprint;
         return _client.ConnectAsync(host, port, token);
     }
 
@@ -148,6 +194,38 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         _ = _client.SendMouseButtonAsync(button.Value, isDown, zx, zy);
     }
 
+    /// <summary>
+    /// Cuộn chuột: X11 mô phỏng con lăn bằng nút 4/5 (dọc) và 6/7 (ngang), mỗi "nấc" là một cặp
+    /// nhấn+nhả. Delta của Avalonia: Y &gt; 0 = cuộn lên; X &gt; 0 = cuộn sang phải.
+    /// Touchpad báo delta lẻ (&lt;1) nên làm tròn lên tối thiểu 1 nấc; giới hạn 10 nấc/sự kiện.
+    /// </summary>
+    public void HandleMouseWheel(double deltaX, double deltaY,
+                                 double controlX, double controlY,
+                                 double controlW,  double controlH)
+    {
+        if (!IsStreaming) return;
+
+        int sw = _screenWidth, sh = _screenHeight;
+        if (sw <= 0 || sh <= 0 || controlW <= 0 || controlH <= 0) return;
+
+        MapToZcuCoords(controlX, controlY, controlW, controlH, sw, sh, out int zx, out int zy);
+
+        SendWheel(deltaY, MouseButton.WheelUp,    MouseButton.WheelDown,  zx, zy);
+        SendWheel(deltaX, MouseButton.WheelRight, MouseButton.WheelLeft,  zx, zy);
+    }
+
+    private void SendWheel(double delta, MouseButton positive, MouseButton negative, int zx, int zy)
+    {
+        if (Math.Abs(delta) < 0.01) return;
+        var button = delta > 0 ? positive : negative;
+        int notches = Math.Clamp((int)Math.Ceiling(Math.Abs(delta)), 1, 10);
+        for (int i = 0; i < notches; i++)
+        {
+            _ = _client.SendMouseButtonAsync(button, true,  zx, zy);
+            _ = _client.SendMouseButtonAsync(button, false, zx, zy);
+        }
+    }
+
     // ── Keyboard event helpers (called from RemoteScreenControl code-behind) ──
 
     /// <summary>
@@ -165,9 +243,18 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     /// Windows-reported ASCII control code as a literal keysym.
     /// </param>
     public void HandleKeyDown(Avalonia.Input.Key key, string? keySymbol,
-        Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None)
+        Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None,
+        Avalonia.Input.PhysicalKey physicalKey = Avalonia.Input.PhysicalKey.None)
     {
         if (!IsStreaming) return;
+
+        // Chế độ phím vật lý: gửi keycode, layout/IME máy đích tự dịch ra ký tự.
+        if (UseScanMode && PhysicalKeyMapper.ToX11Keycode(physicalKey) is { } rawCode)
+        {
+            if (_downRawKeys.Add(rawCode))
+                _ = _client.SendRawKeyEventAsync(rawCode, isDown: true);
+            return;
+        }
 
         uint? keysym = KeyboardMapper.Resolve(key, keySymbol, modifiers);
         if (keysym is null) return;
@@ -183,9 +270,17 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     /// and sends KEY_EVENT release via CcuClient.
     /// </summary>
     public void HandleKeyUp(Avalonia.Input.Key key, string? keySymbol,
-        Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None)
+        Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None,
+        Avalonia.Input.PhysicalKey physicalKey = Avalonia.Input.PhysicalKey.None)
     {
         if (!IsStreaming) return;
+
+        // Nhả phím nào đang giữ ở chế độ vật lý thì nhả đúng phím đó (kể cả khi vừa tắt scan mode).
+        if (PhysicalKeyMapper.ToX11Keycode(physicalKey) is { } rawCode && _downRawKeys.Remove(rawCode))
+        {
+            _ = _client.SendRawKeyEventAsync(rawCode, isDown: false);
+            return;
+        }
 
         uint? keysym = KeyboardMapper.Resolve(key, keySymbol, modifiers);
         if (keysym is null) return;
@@ -201,6 +296,10 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     /// </summary>
     public void ReleaseAllDownKeys()
     {
+        foreach (var code in _downRawKeys.ToArray())
+            _ = _client.SendRawKeyEventAsync(code, isDown: false);
+        _downRawKeys.Clear();
+
         if (_downKeysyms.Count == 0) return;
 
         // Snapshot to avoid mutation-while-iterating issues.
@@ -328,43 +427,59 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         {
             int w = toRender.Width, h = toRender.Height;
 
-            // Allocate a fresh WriteableBitmap for each frame.
-            // At 15 fps + 1080p this is acceptable for v1; double-buffer optimisation
-            // can be added as v1.1 when profiling confirms GC pressure.
-            var wb = new WriteableBitmap(
-                new Avalonia.PixelSize(w, h),
-                new Avalonia.Vector(96.0, 96.0),
-                PixelFormat.Bgra8888,
-                AlphaFormat.Opaque);   // JPEG has no alpha channel
+            WriteableBitmap displayBitmap;
+            WriteableBitmap? oldFront = null;
+            WriteableBitmap? oldBack = null;
+            lock (_bufferLock)
+            {
+                if (_disposed) return;
 
-            // Copy pixels: SKBitmap unmanaged → byte[] → WriteableBitmap (2-copy,
-            // avoids unsafe blocks; acceptable latency at target FPS).
-            IntPtr pixPtr  = toRender.GetPixels();
-            byte[] pixData = new byte[toRender.ByteCount];
-            Marshal.Copy(pixPtr, pixData, 0, pixData.Length);
+                // Re-allocate buffers only when size changes or first frame
+                if (_frontBuffer == null || _backBuffer == null || _bufferW != w || _bufferH != h)
+                {
+                    oldFront = _frontBuffer;
+                    oldBack  = _backBuffer;
+                    var pSize = new Avalonia.PixelSize(w, h);
+                    var dpi   = new Avalonia.Vector(96.0, 96.0);
+                    _frontBuffer = new WriteableBitmap(pSize, dpi, PixelFormat.Bgra8888, AlphaFormat.Opaque);
+                    _backBuffer  = new WriteableBitmap(pSize, dpi, PixelFormat.Bgra8888, AlphaFormat.Opaque);
+                    _bufferW = w;
+                    _bufferH = h;
+                }
 
-            using (var locked = wb.Lock())
-                Marshal.Copy(pixData, 0, locked.Address, pixData.Length);
+                // Direct zero-copy copy from SKBitmap unmanaged memory to WriteableBitmap back buffer (audit M1)
+                IntPtr pixPtr = toRender.GetPixels();
+                using (var locked = _backBuffer.Lock())
+                {
+                    unsafe
+                    {
+                        Buffer.MemoryCopy(
+                            (void*)pixPtr,
+                            (void*)locked.Address,
+                            toRender.ByteCount,
+                            toRender.ByteCount);
+                    }
+                }
 
-            // Assign CurrentFrame on the UI thread to trigger binding update,
-            // then dispose the previous bitmap to release its native pixel buffer.
-            // Without this, WriteableBitmap accumulates ~8 MB per frame (1080p BGRA)
-            // and only gets reclaimed when the GC decides to run — memory pressure
-            // becomes visible within seconds at 10–15 fps.
+                // Swap ping-pong buffers
+                var temp = _frontBuffer;
+                _frontBuffer = _backBuffer;
+                _backBuffer = temp;
+                displayBitmap = _frontBuffer;
+            }
+
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                // L5: nếu Dispose() đã chạy trước khi lambda này ra khỏi queue thì
-                // KHÔNG gán CurrentFrame — VM đã chết, không ai dispose bitmap này nữa
-                // (leak ~8MB/lần đóng ở 1080p; MultiRemote 3×3 "Close All" = 9 bitmap).
-                // Dispose thẳng wb tại đây thay vì gán.
                 if (_disposed)
                 {
-                    wb.Dispose();
+                    oldFront?.Dispose();
+                    oldBack?.Dispose();
                     return;
                 }
-                var old = CurrentFrame;
-                CurrentFrame = wb;
-                old?.Dispose();
+                CurrentFrame = displayBitmap;
+                // Dispose old buffers only AFTER UI thread has set CurrentFrame to the new bitmap (F-NEW-5)
+                oldFront?.Dispose();
+                oldBack?.Dispose();
             });
         }
         finally
@@ -388,8 +503,13 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         // Best-effort disconnect; ignore exceptions during teardown.
         try { _ = _client.DisconnectAsync(); } catch { /* ignored */ }
         _client.Dispose();
-        // Release the last WriteableBitmap's native buffer.
-        CurrentFrame?.Dispose();
-        CurrentFrame = null;
+        lock (_bufferLock)
+        {
+            _frontBuffer?.Dispose();
+            _frontBuffer = null;
+            _backBuffer?.Dispose();
+            _backBuffer = null;
+            CurrentFrame = null;
+        }
     }
 }

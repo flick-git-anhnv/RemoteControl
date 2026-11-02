@@ -70,11 +70,11 @@ public partial class MultiRemoteWindow : Window
     {
         foreach (var profile in profiles)
         {
-            AddSession(profile.Host, profile.Port, profile.Token, profile.Name);
+            AddSession(profile.Host, profile.Port, profile.Token, profile.Name, profile.TlsCertFingerprint);
         }
     }
 
-    public void AddSession(string host, int port, string token, string? name)
+    public void AddSession(string host, int port, string token, string? name, string? expectedFingerprint = null)
     {
         string displayTitle = !string.IsNullOrWhiteSpace(name) ? $"{name} ({host})" : host;
 
@@ -182,7 +182,7 @@ public partial class MultiRemoteWindow : Window
         _sessions.Add(session);
 
         // Start Remote Connection
-        _ = vm.ConnectAsync(host, port, token);
+        _ = vm.ConnectAsync(host, port, token, expectedFingerprint);
 
         RefreshLayout();
     }

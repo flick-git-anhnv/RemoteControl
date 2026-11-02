@@ -7,16 +7,27 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-// ── X11 session guard (TDD §9 gotcha / §14 Wayland risk) ─────────────────
-// Refuse to start if the session is not X11 — XTest/XShm do not work on Wayland.
+// ── X11 session guard (TDD §9 gotcha / §14 Wayland risk / Headless & RDP optimization) ─
+// Chặn nghiêm ngặt nếu đang chạy Wayland vì XTest/XShm không được hỗ trợ qua ranh giới bảo mật Wayland.
+// Trong môi trường Headless, Kiosk không màn hình, systemd daemon hoặc xrdp RDP session,
+// biến XDG_SESSION_TYPE thường bị rỗng hoặc chưa được set. ZcuAgent sẽ dùng X11DisplayResolver
+// để tự động quét Unix domain socket (/tmp/.X11-unix/X*) hoặc biến DISPLAY.
 var sessionType = Environment.GetEnvironmentVariable("XDG_SESSION_TYPE");
-if (!string.Equals(sessionType, "x11", StringComparison.OrdinalIgnoreCase))
+if (string.Equals(sessionType, "wayland", StringComparison.OrdinalIgnoreCase))
 {
     Console.Error.WriteLine(
         $"[ZcuAgent] ERROR: XDG_SESSION_TYPE='{sessionType}'. " +
-        "This agent requires an X11 session (not Wayland or headless). " +
-        "Set XDG_SESSION_TYPE=x11 or run under a compatible X11 display server.");
+        "This agent requires an X11 session (not Wayland). " +
+        "Ubuntu/GDM: đặt WaylandEnable=false trong /etc/gdm3/custom.conf rồi khởi động lại (script setup-zcu-agent.sh tự làm việc này). " +
+        "Hoặc khởi chạy dưới một X11 / xrdp / Xvfb display server.");
     return 1;
+}
+
+if (!string.Equals(sessionType, "x11", StringComparison.OrdinalIgnoreCase))
+{
+    Console.WriteLine(
+        $"[ZcuAgent] Notice: XDG_SESSION_TYPE is '{sessionType ?? "<empty>"}'. " +
+        "Proceeding with X11DisplayResolver auto-detection for Headless/RDP/Virtual sessions...");
 }
 
 var host = Host.CreateDefaultBuilder(args)

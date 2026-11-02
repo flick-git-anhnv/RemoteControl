@@ -78,6 +78,9 @@ internal interface IKeyboardInjector : IDisposable
     /// </summary>
     void SendKey(uint keysym, bool isDown);
 
+    /// <summary>Inject a physical key by X11 <paramref name="keycode"/> (scan mode) — layout-independent.</summary>
+    void SendRawKey(byte keycode, bool isDown);
+
     /// <summary>
     /// Release every key that is currently tracked as pressed.
     /// MUST be called when a session ends (disconnect / BYE / timeout / exception)

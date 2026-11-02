@@ -1,6 +1,7 @@
 ---
 name: ship
 description: Chạy TRƯỚC khi deploy production cho thay đổi phạm vi hẹp (WF-HOTFIX/WF-FASTTRACK/WF-BUGFIX) — fan-out song song Tech Lead (code review) + Security Audit + QA Engineer (smoke check), tổng hợp thành quyết định GO/NO-GO kèm rollback plan bắt buộc. KHÔNG thay thế đầy đủ WF-FEATURE cho thay đổi lớn.
+disable-model-invocation: true
 ---
 
 # /ship — Pre-deploy Go/No-Go Gate
@@ -18,7 +19,7 @@ description: Chạy TRƯỚC khi deploy production cho thay đổi phạm vi h�
 
 ## Quy trình bắt buộc
 
-### Phase A — Fan-out song song (1 lời gọi invoke_subagent, 3 nhánh độc lập)
+### Phase A — Fan-out song song (1 lời gọi invoke_subagent tool, 3 nhánh độc lập)
 ```
 ∥ Tech Lead        : Code review theo Code Review Checklist + severity label (tech-lead.md)
 ∥ Security Audit    : Chạy security-audit-stride NẾU đụng auth/payment/schema/dữ liệu nhạy cảm — nếu không đụng, ghi "N/A — không áp dụng"

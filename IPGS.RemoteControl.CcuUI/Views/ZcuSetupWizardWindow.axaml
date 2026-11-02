@@ -47,7 +47,7 @@
 
               <StackPanel Grid.Column="1" Spacing="4" Margin="0,0,10,0">
                 <TextBlock Text="Token Bảo mật (Shared Secret):" FontSize="12" Foreground="#64748B"/>
-                <kz:KzTextBox x:Name="PART_AgentToken" Watermark="Nhập hoặc tạo Token ngẫu nhiên..." />
+                <kz:KzTextBox x:Name="PART_AgentToken" PlaceholderText="Nhập hoặc tạo Token ngẫu nhiên..." />
               </StackPanel>
 
               <kz:KzButton Grid.Column="2" x:Name="PART_BtnGenToken" Content="🎲 Sinh Token" KzSize="Sm" VerticalAlignment="Bottom" Margin="0,0,0,2"/>
@@ -57,7 +57,7 @@
               <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
                 <TextBlock Text="Mạng/IP Cho Phép Kết Nối (AllowedClientIPs):" FontSize="12" Foreground="#64748B"/>
                 <!-- F06: mặc định giới hạn dải LAN riêng (RFC 1918) thay vì mở toàn mạng 0.0.0.0/0 -->
-                <kz:KzTextBox x:Name="PART_AllowedIPs" Text="192.168.0.0/16,10.0.0.0/8,172.16.0.0/12" Watermark="Ví dụ: 192.168.1.0/24 hoặc nhiều dải cách nhau dấu phẩy" />
+                <kz:KzTextBox x:Name="PART_AllowedIPs" Text="192.168.0.0/16,10.0.0.0/8,172.16.0.0/12" PlaceholderText="Ví dụ: 192.168.1.0/24 hoặc nhiều dải cách nhau dấu phẩy" />
               </StackPanel>
 
               <Grid Grid.Column="1" ColumnDefinitions="*,*" RowDefinitions="Auto">

@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Threading.Channels;
 using IPGS.RemoteControl.Protocol;
 using IPGS.RemoteControl.ZcuAgent.Auth;
+using IPGS.RemoteControl.ZcuAgent.Capture;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -24,7 +25,8 @@ internal sealed class ClientSession
     private readonly AgentOptions      _options;
     private readonly ILogger           _logger;
 
-    private NetworkStream? _stream;
+    // Stream: NetworkStream (plain) hoặc SslStream (TLS) — tự nhận diện ở RunAsync.
+    private Stream? _stream;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     /// <summary>
@@ -41,6 +43,28 @@ internal sealed class ClientSession
 
     /// <summary>Max accepted clipboard text length (chars) — audit S2.</summary>
     private const int MaxClipboardChars = 262_144;
+
+    /// <summary>Chu kỳ (ms) poll clipboard ZCU để đồng bộ ngược về CCU. 1s: mỗi lần poll spawn 1 tiến trình xclip, máy Atom/Celeron yếu không nên poll dày hơn.</summary>
+    private const int ClipboardPollMs = 2_000;
+
+    /// <summary>Màn hình đang được chọn (null = toàn desktop). Ghi từ receive loop, đọc từ capture loop và khi enqueue chuột.</summary>
+    private volatile MonitorInfo? _monitor;
+    private FileTransferHandler? _files;
+    private List<MonitorInfo> _monitors = [];
+    private byte[] _cropBuffer = [];
+    private readonly byte[] _frameHeaderBuffer = new byte[MessageCodec.HeaderSize + MessageCodec.FrameMetadataHeaderSize];
+
+    /// <summary>Adaptive FPS: sàn FPS/chất lượng, và ngưỡng ghi 1 frame bị coi là chậm (ms).</summary>
+    private const int MinAdaptiveFps     = 5;
+    private const int MinAdaptiveQuality = 40;
+    private const int SlowWriteMs        = 120;
+
+    /// <summary>
+    /// Hash nội dung clipboard ZCU lần gần nhất đã biết (CCU vừa set, hoặc poll vừa gửi đi).
+    /// Chống echo: text CCU đẩy sang ZCU không bị gửi ngược lại CCU. Truy cập từ receive loop
+    /// và clipboard loop → dùng Volatile.
+    /// </summary>
+    private int _lastClipboardHash;
 
     /// <summary>
     /// Timestamp (Environment.TickCount64) of the last received PONG. Written by
@@ -60,7 +84,10 @@ internal sealed class ClientSession
     /// SingleReader/SingleWriter=true vì chỉ 1 producer (receive loop) và 1 consumer
     /// (<see cref="RunInputInjectorLoopAsync"/>) mỗi bên — giữ đúng thứ tự sự kiện input.
     /// </summary>
-    private readonly Channel<Action> _inputQueue = Channel.CreateUnbounded<Action>(
+    internal enum InputCommandKind : byte { MouseMove, MouseButton, KeyEvent, KeyEventRaw }
+    internal readonly record struct InputCommand(InputCommandKind Kind, int X, int Y, MouseButton Button = MouseButton.Left, bool IsDown = false, uint Key = 0);
+
+    private readonly Channel<InputCommand> _inputQueue = Channel.CreateUnbounded<InputCommand>(
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
 
     /// <summary>Ngưỡng cảnh báo (không phải hủy) khi 1 lệnh inject chạy lâu hơn mức này — xem log để biết X server đang chậm.</summary>
@@ -91,13 +118,14 @@ internal sealed class ClientSession
     /// </summary>
     public async Task RunAsync(CancellationToken ct)
     {
-        _stream = _tcp.GetStream();
         try
         {
+            _stream = await OpenStreamAsync(ct);
             await DoHandshakeAsync(ct);
             await DoAuthAsync(ct);
             _logger.LogInformation("Session {IP}: streaming started", _remoteIp);
             Interlocked.Exchange(ref _lastPongTicks, Environment.TickCount64);
+            _files = new FileTransferHandler(_options, _logger, WriteAsync);
 
             using var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var captureTask  = RunCaptureSendLoopAsync(sessionCts.Token);
@@ -109,12 +137,14 @@ internal sealed class ClientSession
             // F25: inject chuột/bàn phím chạy trên task RIÊNG, không còn nằm trong receiveTask
             // — xem giải thích tại _inputQueue.
             var inputTask    = RunInputInjectorLoopAsync(sessionCts.Token);
+            // Đồng bộ clipboard ZCU→CCU (clipboard hai chiều).
+            var clipboardTask = RunClipboardWatchLoopAsync(sessionCts.Token);
 
             // Stop everything when any loop ends
-            await Task.WhenAny(captureTask, receiveTask, watchdogTask, inputTask);
+            await Task.WhenAny(captureTask, receiveTask, watchdogTask, inputTask, clipboardTask);
             await sessionCts.CancelAsync();
             _inputQueue.Writer.TryComplete();
-            await Task.WhenAll(captureTask, receiveTask, watchdogTask, inputTask);
+            await Task.WhenAll(captureTask, receiveTask, watchdogTask, inputTask, clipboardTask);
         }
         catch (OperationCanceledException) { /* normal shutdown */ }
         catch (EndOfStreamException ex)
@@ -134,10 +164,48 @@ internal sealed class ClientSession
             // Release any stuck keys before closing so the ZCU desktop does not
             // see permanently-pressed modifiers (Shift, Ctrl, Alt, …). TDD §17.4.
             _keyboard.ReleaseAllKeys();
+            _files?.Dispose();
             _writeLock.Dispose();
             try { _tcp.Close(); } catch { }
             _logger.LogInformation("Session {IP}: closed", _remoteIp);
         }
+    }
+
+    // ── TLS detection ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Nhìn trước (peek) byte đầu tiên: 0x16 = TLS ClientHello → bọc SslStream; 0x01 (HELLO của
+    /// giao thức) = TCP thường của client cũ. Không đọc/tiêu thụ byte nào của luồng dữ liệu.
+    /// </summary>
+    private async Task<Stream> OpenStreamAsync(CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(RemoteControlConstants.HandshakeTimeoutMs);
+
+        var first = new byte[1];
+        var n = await _tcp.Client.ReceiveAsync(first, System.Net.Sockets.SocketFlags.Peek, cts.Token);
+        if (n == 0) throw new EndOfStreamException("Client đóng kết nối trước khi gửi dữ liệu");
+
+        if (first[0] == 0x16)
+        {
+            var cert = TlsCertificateProvider.GetOrCreate(_options, _logger);
+            var ssl = new System.Net.Security.SslStream(_tcp.GetStream(), leaveInnerStreamOpen: false);
+            await ssl.AuthenticateAsServerAsync(new System.Net.Security.SslServerAuthenticationOptions
+            {
+                ServerCertificate = cert,
+                ClientCertificateRequired = false,
+                EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12
+                                    | System.Security.Authentication.SslProtocols.Tls13,
+            }, cts.Token);
+            _logger.LogInformation("Session {IP}: TLS established ({Proto})", _remoteIp, ssl.SslProtocol);
+            return ssl;
+        }
+
+        if (_options.RequireTls)
+            throw new ProtocolException("RequireTls=true nhưng client kết nối không mã hóa — từ chối");
+
+        _logger.LogWarning("Session {IP}: kết nối KHÔNG mã hóa (client cũ) — nên cập nhật CCU rồi bật RequireTls", _remoteIp);
+        return _tcp.GetStream();
     }
 
     // ── Handshake ─────────────────────────────────────────────────────────
@@ -160,7 +228,7 @@ internal sealed class ClientSession
         // Chat/Clipboard). Client so sánh chuỗi này để cảnh báo agent phiên bản cũ
         // (agent 1.0 bỏ qua các message đó âm thầm — protocol v1 không có ACK).
         var ackPayload = MessageCodec.EncodeHelloAck(
-            (uint)screenSize.Width, (uint)screenSize.Height, "ZcuAgent/1.1");
+            (uint)screenSize.Width, (uint)screenSize.Height, "ZcuAgent/1.2");
         await WriteAsync(MessageType.HelloAck, ackPayload, hsCt);
     }
 
@@ -194,6 +262,16 @@ internal sealed class ClientSession
     private async Task RunCaptureSendLoopAsync(CancellationToken ct)
     {
         var frameId       = 0L;
+        // Adaptive FPS/quality: TargetFps/JpegQuality là TRẦN. Khi ghi frame chậm (TCP backpressure =
+        // mạng nghẽn hoặc CCU xử lý không kịp) hạ FPS + chất lượng; ổn định một lúc thì tăng lại.
+        var maxFps      = Math.Max(1, _options.TargetFps);
+        var minFps      = Math.Min(maxFps, MinAdaptiveFps);
+        var curFps      = (double)maxFps;
+        var curQuality  = _options.JpegQuality;
+        var minQuality  = Math.Min(curQuality, MinAdaptiveQuality);
+        var badStreak   = 0;
+        var goodStreak  = 0;
+        var consecutiveSlowWrites = 0;
         var frameInterval = 1000 / Math.Max(1, _options.TargetFps);
         var sw            = Stopwatch.StartNew();
         var nextPing      = Environment.TickCount64 + RemoteControlConstants.PingIntervalMs;
@@ -218,19 +296,51 @@ internal sealed class ClientSession
 
                 // Capture frame
                 var frame = _capturer.Capture();
+                if (frame is not null) frame = CropToMonitor(frame);
                 if (frame is not null)
                 {
                     // NOTE: jpeg is backed by the encoder's reused buffer (audit Q3) —
                     // consumed synchronously below, before the next EncodeJpeg call.
-                    var jpeg = _encoder.EncodeJpeg(frame, _options.JpegQuality);
+                    var jpeg = _encoder.EncodeJpeg(frame, curQuality);
                     if (jpeg.Length > 0 && jpeg.Length <= _options.MaxFrameBytes)
                     {
                         var tsMs = (uint)(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() & 0xFFFF_FFFF);
-                        var payload = MessageCodec.EncodeFrameJpeg(
-                            frameId++, tsMs,
-                            frame.Width, frame.Height,
-                            jpeg.Span);
-                        await WriteAsync(MessageType.FrameJpeg, payload, ct);
+                        var writeStart = Stopwatch.GetTimestamp();
+                        // Zero-Allocation Streaming (F-ROUND7-1): Stream trực tiếp qua WriteFrameJpegDirectAsync
+                        await WriteFrameJpegDirectAsync(frameId++, tsMs, frame.Width, frame.Height, jpeg, ct);
+                        var writeMs = Stopwatch.GetElapsedTime(writeStart).TotalMilliseconds;
+
+                        // Chống trễ tích lũy (F-ROUND7-3): Ghi nhận backpressure nếu ghi frame chậm hơn 1.5 chu kỳ
+                        if (writeMs > frameInterval * 1.5)
+                        {
+                            consecutiveSlowWrites++;
+                        }
+                        else
+                        {
+                            consecutiveSlowWrites = 0;
+                        }
+
+                        if (_options.AdaptiveQuality)
+                        {
+                            if (writeMs > SlowWriteMs) { badStreak++; goodStreak = 0; }
+                            else if (writeMs < SlowWriteMs / 4) { goodStreak++; badStreak = 0; }
+
+                            if (badStreak >= 3)
+                            {
+                                curFps     = Math.Max(minFps, curFps * 0.75);
+                                curQuality = Math.Max(minQuality, curQuality - 10);
+                                badStreak  = 0;
+                                _logger.LogDebug("Session {IP}: nghẽn (write {Ms:F0}ms) → {Fps:F1}fps, q={Q}",
+                                    _remoteIp, writeMs, curFps, curQuality);
+                            }
+                            else if (goodStreak >= 30)
+                            {
+                                curFps     = Math.Min(maxFps, curFps + 1);
+                                curQuality = Math.Min(_options.JpegQuality, curQuality + 5);
+                                goodStreak = 0;
+                            }
+                            frameInterval = (int)(1000 / curFps);
+                        }
                     }
                     else if (jpeg.Length > _options.MaxFrameBytes)
                     {
@@ -239,14 +349,59 @@ internal sealed class ClientSession
                     }
                 }
 
-                // Throttle to target FPS
+                // Throttle to target FPS & Congestion Relief (F-ROUND7-3)
                 var elapsed = (int)sw.ElapsedMilliseconds;
                 var sleep   = frameInterval - elapsed;
                 if (sleep > 0)
+                {
                     await Task.Delay(sleep, ct);
+                }
+                else if (consecutiveSlowWrites > 0)
+                {
+                    // Mạng nghẽn kéo dài: yield để nhường CPU giải phóng buffer socket TCP
+                    await Task.Yield();
+                }
             }
         }
         catch (OperationCanceledException) { /* expected */ }
+    }
+
+    // ── Multi-monitor helpers ─────────────────────────────────────────────
+
+    private static string MonitorsToJson(List<MonitorInfo> list)
+        => System.Text.Json.JsonSerializer.Serialize(list.Select(m => new
+        {
+            index = m.Index, name = m.Name, x = m.X, y = m.Y, w = m.W, h = m.H,
+        }));
+
+    /// <summary>
+    /// Cắt vùng màn hình đã chọn ra khỏi khung toàn desktop (BGRA, 4 byte/pixel) vào buffer tái sử dụng.
+    /// Vùng nằm ngoài khung (đổi độ phân giải/cắm rút màn hình) → trả nguyên khung toàn desktop.
+    /// </summary>
+    private CapturedFrame CropToMonitor(CapturedFrame frame)
+    {
+        var m = _monitor;
+        if (m is null) return frame;
+
+        if (m.X < 0 || m.Y < 0 || m.W <= 0 || m.H <= 0 ||
+            m.X + m.W > frame.Width || m.Y + m.H > frame.Height)
+            return frame;
+
+        var rowBytes = m.W * 4;
+        var need = rowBytes * m.H;
+        if (_cropBuffer.Length < need) _cropBuffer = new byte[need];
+
+        for (var row = 0; row < m.H; row++)
+            Buffer.BlockCopy(frame.PixelData, (m.Y + row) * frame.BytesPerRow + m.X * 4,
+                             _cropBuffer, row * rowBytes, rowBytes);
+
+        return new CapturedFrame
+        {
+            PixelData   = _cropBuffer,
+            Width       = m.W,
+            Height      = m.H,
+            BytesPerRow = rowBytes,
+        };
     }
 
     // ── Heartbeat watchdog (audit L3) ─────────────────────────────────────
@@ -293,7 +448,9 @@ internal sealed class ClientSession
                     // trễ việc nhận Pong khi XSync của injector bị X server làm chậm.
                     case MessageType.MouseMove:
                         var (mx, my) = MessageCodec.DecodeMouseMove(payload);
-                        _inputQueue.Writer.TryWrite(() => _injector.Move(mx, my));
+                        // Toạ độ client gửi là trong khung hình đang xem → cộng offset màn hình đã chọn.
+                        if (_monitor is { } mm) { mx += mm.X; my += mm.Y; }
+                        _inputQueue.Writer.TryWrite(new InputCommand(InputCommandKind.MouseMove, mx, my));
                         break;
 
                     case MessageType.MouseButton:
@@ -303,13 +460,11 @@ internal sealed class ClientSession
                         // republished atomically by the capture thread on resolution change;
                         // two separate reads could observe new-W paired with old-H.
                         var screen = _capturer.ScreenSize;
-                        var sx = Math.Clamp(bx, 0, screen.Width  - 1);
-                        var sy = Math.Clamp(by, 0, screen.Height - 1);
-                        _inputQueue.Writer.TryWrite(() =>
-                        {
-                            _injector.Move(sx, sy);
-                            _injector.Button(btn, down);
-                        });
+                        int offX = 0, offY = 0, areaW = screen.Width, areaH = screen.Height;
+                        if (_monitor is { } sel) { offX = sel.X; offY = sel.Y; areaW = sel.W; areaH = sel.H; }
+                        var sx = offX + Math.Clamp(bx, 0, areaW - 1);
+                        var sy = offY + Math.Clamp(by, 0, areaH - 1);
+                        _inputQueue.Writer.TryWrite(new InputCommand(InputCommandKind.MouseButton, sx, sy, btn, down));
                         break;
 
                     case MessageType.Ping:
@@ -324,9 +479,61 @@ internal sealed class ClientSession
 
                     case MessageType.KeyEvent:
                         var (keysym, isDown) = MessageCodec.DecodeKeyEvent(payload);
-                        _inputQueue.Writer.TryWrite(() => _keyboard.SendKey(keysym, isDown));
+                        _inputQueue.Writer.TryWrite(new InputCommand(InputCommandKind.KeyEvent, 0, 0, MouseButton.Left, isDown, keysym));
                         break;
                         
+                    // ── File transfer (chỉ trong TransferDir) ─────────────────
+                    case MessageType.FileBegin:
+                    case MessageType.FileChunk:
+                    case MessageType.FileEnd:
+                    case MessageType.FileListReq:
+                    case MessageType.FileGet:
+                    case MessageType.FileGetPath:
+                    case MessageType.ClipboardFiles:
+                        if (_files is not { Enabled: true })
+                        {
+                            if (type == MessageType.FileBegin)
+                                await WriteAsync(MessageType.FileAck,
+                                    [payload.Length > 0 ? payload[0] : (byte)0, 2, ..System.Text.Encoding.UTF8.GetBytes("Máy đích tắt tính năng truyền file")], ct);
+                            break;
+                        }
+                        switch (type)
+                        {
+                            case MessageType.FileBegin:   await _files.OnBeginAsync(payload, ct); break;
+                            case MessageType.FileChunk:   await _files.OnChunkAsync(payload, ct); break;
+                            case MessageType.FileEnd:     await _files.OnEndAsync(payload, ct);   break;
+                            case MessageType.FileListReq: await _files.OnListAsync(ct);           break;
+                            case MessageType.FileGet:     await _files.OnGetAsync(payload, ct);   break;
+                            case MessageType.FileGetPath: await _files.OnGetPathAsync(payload, ct); break;
+                            case MessageType.ClipboardFiles:
+                                // Chặn poll gửi ngược chính các file vừa đặt lên clipboard ZCU về CCU.
+                                if (_files.OnClipboardFiles(payload) is { } placed)
+                                    Volatile.Write(ref _lastClipboardHash, placed.GetHashCode());
+                                break;
+                        }
+                        break;
+
+                    case MessageType.MonitorListReq:
+                        _monitors = await MonitorLister.ListAsync(ct);
+                        await WriteAsync(MessageType.MonitorList,
+                            MessageCodec.EncodeStringMessage(MonitorsToJson(_monitors)), ct);
+                        break;
+
+                    case MessageType.MonitorSelect:
+                        if (payload.Length >= 1)
+                        {
+                            var idx = payload[0];
+                            _monitor = _monitors.FirstOrDefault(m => m.Index == idx); // 0xFF/không có → null = toàn desktop
+                            _logger.LogInformation("Session {IP}: chọn màn hình {Idx} → {Mon}", _remoteIp, idx,
+                                _monitor is null ? "toàn desktop" : $"{_monitor.Name} {_monitor.W}x{_monitor.H}+{_monitor.X}+{_monitor.Y}");
+                        }
+                        break;
+
+                    case MessageType.KeyEventRaw:
+                        var (rawCode, rawDown) = MessageCodec.DecodeKeyEventRaw(payload);
+                        _inputQueue.Writer.TryWrite(new InputCommand(InputCommandKind.KeyEventRaw, 0, 0, MouseButton.Left, rawDown, rawCode));
+                        break;
+
                     // ── Phase 6 Enterprise Features ───────────────────────────
                     case MessageType.ChatText:
                         var chatMsg = MessageCodec.DecodeStringMessage(payload);
@@ -353,7 +560,15 @@ internal sealed class ClientSession
                             break;
                         }
                         if (_options.EnableDesktopIntegration)
+                        {
+                            Volatile.Write(ref _lastClipboardHash, clipData.GetHashCode());
                             await SetClipboardAsync(clipData, ct);
+                        }
+                        break;
+
+                    case MessageType.ClipboardGet:
+                        if (_options.EnableDesktopIntegration)
+                            await PushClipboardAsync(force: true, markOnly: false, ct);
                         break;
 
                     case MessageType.PrivacyMode:
@@ -411,23 +626,43 @@ internal sealed class ClientSession
     {
         try
         {
-            await foreach (var action in _inputQueue.Reader.ReadAllAsync(ct))
+            await foreach (var cmd in _inputQueue.Reader.ReadAllAsync(ct))
             {
                 var sw = Stopwatch.StartNew();
-                var task = Task.Run(action, ct);
-                if (await Task.WhenAny(task, Task.Delay(InjectWarnMs, ct)) != task)
+                switch (cmd.Kind)
+                {
+                    case InputCommandKind.MouseMove:
+                        // Mouse coalescing (audit C3): nếu các lệnh tiếp theo cũng là MouseMove thì nhảy thẳng đến toạ độ mới nhất
+                        var finalX = cmd.X;
+                        var finalY = cmd.Y;
+                        while (_inputQueue.Reader.TryPeek(out var next) && next.Kind == InputCommandKind.MouseMove)
+                        {
+                            _inputQueue.Reader.TryRead(out next);
+                            finalX = next.X;
+                            finalY = next.Y;
+                        }
+                        _injector.Move(finalX, finalY);
+                        break;
+
+                    case InputCommandKind.MouseButton:
+                        _injector.Move(cmd.X, cmd.Y);
+                        _injector.Button(cmd.Button, cmd.IsDown);
+                        break;
+
+                    case InputCommandKind.KeyEvent:
+                        _keyboard.SendKey(cmd.Key, cmd.IsDown);
+                        break;
+
+                    case InputCommandKind.KeyEventRaw:
+                        _keyboard.SendRawKey((byte)cmd.Key, cmd.IsDown);
+                        break;
+                }
+
+                if (sw.ElapsedMilliseconds > InjectWarnMs)
                 {
                     _logger.LogWarning(
-                        "Session {IP}: lệnh inject chuột/bàn phím chạy quá {Ms}ms (X server có thể đang chậm) — " +
-                        "vẫn đợi lệnh này xong (F26: không bắn thêm task chồng lên, tránh domino)",
-                        _remoteIp, InjectWarnMs);
-                    // F26: PHẢI đợi task cũ xong thật trước khi lấy lệnh kế tiếp — xem giải
-                    // thích ở doc comment phía trên. Không đợi = domino block trên Xlib lock.
-                    await task;
-                }
-                else if (sw.ElapsedMilliseconds > InjectWarnMs / 2)
-                {
-                    _logger.LogDebug("Session {IP}: lệnh inject mất {Ms}ms", _remoteIp, sw.ElapsedMilliseconds);
+                        "Session {IP}: lệnh inject {Kind} chạy quá {Ms}ms (X server có thể đang chậm)",
+                        _remoteIp, cmd.Kind, sw.ElapsedMilliseconds);
                 }
             }
         }
@@ -442,7 +677,54 @@ internal sealed class ClientSession
     /// client that stops reading (TCP backpressure) fails the session after
     /// <see cref="WriteTimeoutMs"/> instead of holding the single v1 session slot forever.
     /// </summary>
-    private async Task WriteAsync(MessageType type, byte[] payload, CancellationToken ct)
+    /// <summary>
+    /// Stream khung hình JPEG trực tiếp không cấp phát bộ nhớ heap (F-ROUND7-1 Zero-Allocation).
+    /// Ghép 5 bytes wire header + 24 bytes metadata vào <see cref="_frameHeaderBuffer"/> (29 bytes cố định),
+    /// sau đó stream trực tiếp mảng pixel JPEG đã nén từ encoder buffer mà không tạo bản sao trung gian.
+    /// </summary>
+    private async Task WriteFrameJpegDirectAsync(
+        long frameId, uint timestampMs, int width, int height,
+        ReadOnlyMemory<byte> jpegData, CancellationToken ct)
+    {
+        await _writeLock.WaitAsync(ct);
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(WriteTimeoutMs);
+            var writeCt = cts.Token;
+
+            // 1. Wire header (5 bytes)
+            var totalPayloadLen = MessageCodec.FrameMetadataHeaderSize + jpegData.Length;
+            _frameHeaderBuffer[0] = (byte)MessageType.FrameJpeg;
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(
+                _frameHeaderBuffer.AsSpan(1, 4), (uint)totalPayloadLen);
+
+            // 2. Frame metadata (24 bytes)
+            MessageCodec.WriteFrameMetadataHeader(
+                _frameHeaderBuffer.AsSpan(MessageCodec.HeaderSize, MessageCodec.FrameMetadataHeaderSize),
+                frameId, timestampMs, width, height, jpegData.Length);
+
+            // 3. Ghi 29 bytes header vào stream
+            await _stream!.WriteAsync(_frameHeaderBuffer.AsMemory(0, MessageCodec.HeaderSize + MessageCodec.FrameMetadataHeaderSize), writeCt);
+
+            // 4. Ghi trực tiếp jpegData từ buffer tái sử dụng của JpegEncoder vào stream
+            await _stream!.WriteAsync(jpegData, writeCt);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new IOException(
+                $"Write of FrameJpeg timed out after {WriteTimeoutMs} ms — slow or stalled reader");
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    private Task WriteAsync(MessageType type, byte[] payload, CancellationToken ct)
+        => WriteAsync(type, (ReadOnlyMemory<byte>)payload.AsMemory(), ct);
+
+    private async Task WriteAsync(MessageType type, ReadOnlyMemory<byte> payload, CancellationToken ct)
     {
         await _writeLock.WaitAsync(ct);
         try
@@ -500,6 +782,208 @@ internal sealed class ClientSession
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Session {IP}: notify-send failed for chat message", _remoteIp);
+        }
+    }
+
+    /// <summary>
+    /// Poll clipboard ZCU định kỳ và đẩy sang CCU khi nội dung đổi (chữ → ClipboardData, file vừa Copy trong
+    /// trình quản lý file → ClipboardFileList). Nếu xclip không có/không đọc được thì bỏ qua êm.
+    /// </summary>
+    private async Task RunClipboardWatchLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            if (!_options.EnableDesktopIntegration)
+            {
+                await Task.Delay(Timeout.Infinite, ct);
+                return;
+            }
+
+            // Mốc ban đầu: nội dung có sẵn trên ZCU không tự đẩy sang CCU.
+            await PushClipboardAsync(force: false, markOnly: true, ct);
+
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(ClipboardPollMs, ct);
+                await PushClipboardAsync(force: false, markOnly: false, ct);
+            }
+        }
+        catch (OperationCanceledException) { /* expected */ }
+    }
+
+    /// <summary>
+    /// Đọc clipboard ZCU và gửi sang CCU. <paramref name="force"/>: gửi dù không đổi (CCU chủ động kéo sau Ctrl+C).
+    /// <paramref name="markOnly"/>: chỉ ghi nhớ mốc, không gửi.
+    /// </summary>
+    private async Task PushClipboardCoreAsync(bool force, bool markOnly, CancellationToken ct)
+    {
+        // 1) File vừa Copy trong trình quản lý file?
+        var files = await GetClipboardFilesAsync(ct);
+        if (files is not null)
+        {
+            var key = string.Join("\n", files).GetHashCode();
+            if (markOnly) { Volatile.Write(ref _lastClipboardHash, key); return; }
+            if (!force && key == Volatile.Read(ref _lastClipboardHash)) return;
+            Volatile.Write(ref _lastClipboardHash, key);
+
+            var infos = ExpandClipboardEntries(files);
+            if (infos.Count == 0 || _files is not { Enabled: true }) return;
+
+            _files.SetAdvertised(infos.Where(i => !i.dir).Select(i => i.path));
+            _logger.LogInformation("CLIPBOARD files to CCU ({Count} mục)", infos.Count);
+            await WriteAsync(MessageType.ClipboardFileList,
+                MessageCodec.EncodeStringMessage(System.Text.Json.JsonSerializer.Serialize(infos)), ct);
+            return;
+        }
+
+        // 2) Chữ
+        var text = await GetClipboardAsync(ct);
+        if (string.IsNullOrEmpty(text) || text.Length > MaxClipboardChars) return;
+
+        var hash = text.GetHashCode();
+        if (markOnly) { Volatile.Write(ref _lastClipboardHash, hash); return; }
+        if (!force && hash == Volatile.Read(ref _lastClipboardHash)) return;
+
+        Volatile.Write(ref _lastClipboardHash, hash);
+        _logger.LogInformation("CLIPBOARD to CCU (len: {Len})", text.Length);
+        await WriteAsync(MessageType.ClipboardData, MessageCodec.EncodeStringMessage(text), ct);
+    }
+
+    private const int MaxClipboardEntries = 5_000;
+
+    private sealed record ClipEntry(string path, string name, long size, bool dir);
+
+    /// <summary>
+    /// Mở rộng các mục vừa Copy trên ZCU thành danh sách phẳng: file → 1 mục; thư mục → chính nó (dir=true, để giữ
+    /// cả thư mục rỗng) rồi mọi mục con. <c>name</c> là đường dẫn tương đối từ mục gốc, phân tách bằng '/' (vd
+    /// "Báo cáo/2026/a.xlsx"). Không đi theo liên kết tượng trưng; bỏ file vượt giới hạn; tối đa
+    /// <see cref="MaxClipboardEntries"/> mục.
+    /// </summary>
+    private List<ClipEntry> ExpandClipboardEntries(List<string> tops)
+    {
+        var result = new List<ClipEntry>();
+        var opts = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            AttributesToSkip      = FileAttributes.ReparsePoint, // không theo symlink
+            IgnoreInaccessible    = true,
+        };
+
+        foreach (var top in tops)
+        {
+            if (result.Count >= MaxClipboardEntries) break;
+            try
+            {
+                if (File.Exists(top))
+                {
+                    var fi = new FileInfo(top);
+                    if (fi.Length <= _options.MaxTransferBytes)
+                        result.Add(new ClipEntry(fi.FullName, fi.Name, fi.Length, false));
+                }
+                else if (Directory.Exists(top))
+                {
+                    var root = new DirectoryInfo(top.TrimEnd('/'));
+                    result.Add(new ClipEntry(root.FullName, root.Name, 0, true));
+                    foreach (var fsi in root.EnumerateFileSystemInfos("*", opts))
+                    {
+                        if (result.Count >= MaxClipboardEntries) break;
+                        var rel = root.Name + "/" + Path.GetRelativePath(root.FullName, fsi.FullName).Replace('\\', '/');
+                        if (fsi is FileInfo f)
+                        {
+                            if (f.Length <= _options.MaxTransferBytes)
+                                result.Add(new ClipEntry(f.FullName, rel, f.Length, false));
+                        }
+                        else result.Add(new ClipEntry(fsi.FullName, rel, 0, true));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Session {IP}: không đọc được {Path}", _remoteIp, top);
+            }
+        }
+        return result;
+    }
+
+    // Poll và ClipboardGet không được chạy chồng nhau (nếu không có thể gửi trùng một nội dung).
+    private readonly SemaphoreSlim _clipLock = new(1, 1);
+
+    private async Task PushClipboardAsync(bool force, bool markOnly, CancellationToken ct)
+    {
+        await _clipLock.WaitAsync(ct);
+        try { await PushClipboardCoreAsync(force, markOnly, ct); }
+        finally { _clipLock.Release(); }
+    }
+
+    /// <summary>Đọc text clipboard ZCU qua <c>xclip -o</c>. Trả null nếu rỗng/không phải text/xclip lỗi.</summary>
+    private Task<string?> GetClipboardAsync(CancellationToken ct) => RunXclipOutAsync(null, ct);
+
+    /// <summary>
+    /// Nếu clipboard ZCU đang chứa file (Copy trong Nautilus/PCManFM/Thunar…) → danh sách đường dẫn tuyệt đối
+    /// (chỉ mục file:// cục bộ); ngược lại null. Đọc TARGETS trước để không tốn thêm tiến trình khi là chữ.
+    /// </summary>
+    private async Task<List<string>?> GetClipboardFilesAsync(CancellationToken ct)
+    {
+        var targets = await RunXclipOutAsync("TARGETS", ct);
+        if (targets is null) return null;
+
+        string? target = null;
+        foreach (var t in targets.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (t == "x-special/gnome-copied-files") { target = t; break; }
+            if (t == "text/uri-list") target = t;
+        }
+        if (target is null) return null;
+
+        var raw = await RunXclipOutAsync(target, ct);
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+
+        var paths = new List<string>();
+        foreach (var line in raw.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            if (line.StartsWith("file://", StringComparison.OrdinalIgnoreCase) &&
+                Uri.TryCreate(line, UriKind.Absolute, out var uri) && uri.IsFile)
+                paths.Add(uri.LocalPath);
+        return paths.Count > 0 ? paths : null;
+    }
+
+    /// <summary><c>xclip -selection clipboard -o [-t target]</c>; null nếu lỗi/rỗng/quá 2 giây.</summary>
+    private async Task<string?> RunXclipOutAsync(string? target, CancellationToken ct)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("xclip")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+            };
+            psi.ArgumentList.Add("-selection");
+            psi.ArgumentList.Add("clipboard");
+            psi.ArgumentList.Add("-o");
+            if (target is not null) { psi.ArgumentList.Add("-t"); psi.ArgumentList.Add(target); }
+
+            using var proc = Process.Start(psi);
+            if (proc is null) return null;
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(2));
+            try
+            {
+                var text = await proc.StandardOutput.ReadToEndAsync(cts.Token);
+                await proc.WaitForExitAsync(cts.Token);
+                return proc.ExitCode == 0 ? text : null;
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { /* already exited */ }
+                return null;
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Session {IP}: xclip -o failed", _remoteIp);
+            return null;
         }
     }
 

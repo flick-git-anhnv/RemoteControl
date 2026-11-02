@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Text;
 
@@ -20,6 +21,7 @@ namespace IPGS.RemoteControl.Protocol;
 public static class MessageCodec
 {
     public const int HeaderSize = 5; // 1 (type) + 4 (length)
+    public const int FrameMetadataHeaderSize = 24; // 8 (frameId) + 4 (ts) + 4 (w) + 4 (h) + 4 (jpegLen)
 
     // ── Framing I/O ───────────────────────────────────────────────────────
 
@@ -34,13 +36,20 @@ public static class MessageCodec
             throw new ArgumentException(
                 $"Payload {payload.Length} B exceeds MaxFrameBytes {RemoteControlConstants.MaxFrameBytes} B");
 
-        var header = new byte[HeaderSize];
-        header[0] = (byte)type;
-        BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(1), (uint)payload.Length);
+        var header = ArrayPool<byte>.Shared.Rent(HeaderSize);
+        try
+        {
+            header[0] = (byte)type;
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(1), (uint)payload.Length);
 
-        await stream.WriteAsync(header, ct).ConfigureAwait(false);
-        if (payload.Length > 0)
-            await stream.WriteAsync(payload, ct).ConfigureAwait(false);
+            await stream.WriteAsync(header.AsMemory(0, HeaderSize), ct).ConfigureAwait(false);
+            if (payload.Length > 0)
+                await stream.WriteAsync(payload, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(header);
+        }
     }
 
     /// <inheritdoc cref="WriteMessageAsync(Stream,MessageType,ReadOnlyMemory{byte},CancellationToken)"/>
@@ -60,21 +69,28 @@ public static class MessageCodec
     public static async Task<(MessageType Type, byte[] Payload)> ReadMessageAsync(
         Stream stream, CancellationToken ct = default)
     {
-        var header = new byte[HeaderSize];
-        await ReadExactAsync(stream, header, ct).ConfigureAwait(false);
+        var header = ArrayPool<byte>.Shared.Rent(HeaderSize);
+        try
+        {
+            await ReadExactAsync(stream, header.AsMemory(0, HeaderSize), ct).ConfigureAwait(false);
 
-        var type    = (MessageType)header[0];
-        var length  = (int)BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(1));
+            var type    = (MessageType)header[0];
+            var length  = (int)BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(1, 4));
 
-        if (length > RemoteControlConstants.MaxFrameBytes)
-            throw new ProtocolException(
-                $"Payload length {length} B exceeds MaxFrameBytes {RemoteControlConstants.MaxFrameBytes} B — closing");
+            if (length > RemoteControlConstants.MaxFrameBytes)
+                throw new ProtocolException(
+                    $"Payload length {length} B exceeds MaxFrameBytes {RemoteControlConstants.MaxFrameBytes} B — closing");
 
-        var payload = new byte[length];
-        if (length > 0)
-            await ReadExactAsync(stream, payload, ct).ConfigureAwait(false);
+            var payload = new byte[length];
+            if (length > 0)
+                await ReadExactAsync(stream, payload, ct).ConfigureAwait(false);
 
-        return (type, payload);
+            return (type, payload);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(header);
+        }
     }
 
     // ── Payload encoders ──────────────────────────────────────────────────
@@ -152,16 +168,29 @@ public static class MessageCodec
     }
 
     /// <summary>Encode FRAME_JPEG payload (TDD §5.2).</summary>
+    /// <summary>
+    /// Ghi 24 bytes metadata của FRAME_JPEG vào span đích (zero-allocation).
+    /// </summary>
+    public static void WriteFrameMetadataHeader(
+        Span<byte> destination,
+        long frameId, uint timestampMs, int width, int height, int jpegLength)
+    {
+        if (destination.Length < FrameMetadataHeaderSize)
+            throw new ArgumentException($"Destination span must be at least {FrameMetadataHeaderSize} bytes.");
+
+        BinaryPrimitives.WriteUInt64BigEndian(destination[..8], (ulong)frameId);
+        BinaryPrimitives.WriteUInt32BigEndian(destination.Slice(8, 4), timestampMs);
+        BinaryPrimitives.WriteUInt32BigEndian(destination.Slice(12, 4), (uint)width);
+        BinaryPrimitives.WriteUInt32BigEndian(destination.Slice(16, 4), (uint)height);
+        BinaryPrimitives.WriteUInt32BigEndian(destination.Slice(20, 4), (uint)jpegLength);
+    }
+
+    /// <summary>Encode FRAME_JPEG payload (TDD §5.2).</summary>
     public static byte[] EncodeFrameJpeg(long frameId, uint timestampMs, int width, int height, ReadOnlySpan<byte> jpeg)
     {
-        // header: u64 frameId + u32 ts + u32 w + u32 h + u32 jpegLen = 24 bytes
-        var buf = new byte[24 + jpeg.Length];
-        BinaryPrimitives.WriteUInt64BigEndian(buf.AsSpan(0),  (ulong)frameId);
-        BinaryPrimitives.WriteUInt32BigEndian(buf.AsSpan(8),  timestampMs);
-        BinaryPrimitives.WriteUInt32BigEndian(buf.AsSpan(12), (uint)width);
-        BinaryPrimitives.WriteUInt32BigEndian(buf.AsSpan(16), (uint)height);
-        BinaryPrimitives.WriteUInt32BigEndian(buf.AsSpan(20), (uint)jpeg.Length);
-        jpeg.CopyTo(buf.AsSpan(24));
+        var buf = new byte[FrameMetadataHeaderSize + jpeg.Length];
+        WriteFrameMetadataHeader(buf.AsSpan(0, FrameMetadataHeaderSize), frameId, timestampMs, width, height, jpeg.Length);
+        jpeg.CopyTo(buf.AsSpan(FrameMetadataHeaderSize));
         return buf;
     }
 
@@ -208,6 +237,18 @@ public static class MessageCodec
     }
 
     // ── Payload decoders ──────────────────────────────────────────────────
+    public static (byte Version, string ClientName) DecodeHello(byte[] payload)
+    {
+        RequireMinLength(payload, 3, "HELLO");
+        var version = payload[0];
+        var nameLen = BinaryPrimitives.ReadUInt16BigEndian(payload.AsSpan(1));
+        if (nameLen > payload.Length - 3)
+            throw new ProtocolException(
+                $"HELLO clientName length {nameLen} B exceeds remaining payload {payload.Length - 3} B");
+        var name    = Encoding.UTF8.GetString(payload, 3, nameLen);
+        return (version, name);
+    }
+
 
     public static (byte Version, uint ScreenW, uint ScreenH, string ServerName) DecodeHelloAck(byte[] payload)
     {
@@ -251,6 +292,9 @@ public static class MessageCodec
         if (jpegLen != payload.Length - 24)
             throw new ProtocolException(
                 $"FRAME_JPEG declared jpegLen {jpegLen} B does not match actual payload {payload.Length - 24} B");
+        if (width < 0 || width > 8192 || height < 0 || height > 8192)
+            throw new ProtocolException(
+                $"FRAME_JPEG dimensions {width}x{height} exceed allowable bounds (0..8192)");
         var jpeg      = payload.AsMemory(24, jpegLen);
         return new FrameJpegMessage(frameId, tsMs, width, height, jpeg);
     }
@@ -303,6 +347,15 @@ public static class MessageCodec
         return (keysym, isDown);
     }
 
+    public static byte[] EncodeKeyEventRaw(byte keycode, bool isDown)
+        => new[] { keycode, isDown ? (byte)1 : (byte)0 };
+
+    public static (byte Keycode, bool IsDown) DecodeKeyEventRaw(byte[] payload)
+    {
+        RequireMinLength(payload, 2, "KEY_EVENT_RAW");
+        return (payload[0], payload[1] != 0);
+    }
+
     // ── Phase 6 Enterprise Features ───────────────────────────────────────
 
     /// <summary>Decode UTF-8 string payload (ChatText, ClipboardData, SysInfoResp).</summary>
@@ -320,12 +373,12 @@ public static class MessageCodec
 
     // ── Internal ──────────────────────────────────────────────────────────
 
-    private static async Task ReadExactAsync(Stream stream, byte[] buffer, CancellationToken ct)
+    private static async Task ReadExactAsync(Stream stream, Memory<byte> buffer, CancellationToken ct)
     {
         var offset = 0;
         while (offset < buffer.Length)
         {
-            var read = await stream.ReadAsync(buffer.AsMemory(offset), ct).ConfigureAwait(false);
+            var read = await stream.ReadAsync(buffer.Slice(offset), ct).ConfigureAwait(false);
             if (read == 0)
                 throw new EndOfStreamException("Connection closed by remote peer during read");
             offset += read;

@@ -84,7 +84,7 @@ public class LicenseManagerService
             using (RSACryptoServiceProvider rsa = new RSACryptoServiceProvider())
             {
                 rsa.FromXmlString(PublicKeyXml);
-                bool isSignatureValid = rsa.VerifyData(payloadBytes, CryptoConfig.MapNameToOID("SHA256"), signatureBytes);
+                bool isSignatureValid = rsa.VerifyData(payloadBytes, CryptoConfig.MapNameToOID("SHA256")!, signatureBytes);
 
                 if (!isSignatureValid)
                 {

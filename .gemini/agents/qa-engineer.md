@@ -50,6 +50,12 @@ Kết quả thực tế: [screenshot] | Kết quả mong đợi: [AC nào]
 Tần suất: Luôn/50%/Khó reproduce | Workaround: [nếu có]
 ```
 
+## Skills dùng trong công việc
+
+| Skill | Khi nào dùng |
+|-------|------------|
+| `/diagnosing-bugs` | Bug khó reproduce hoặc root cause không rõ sau khi thử reproduce thủ công — 6-phase debug loop với Phase 1 feedback loop bắt buộc |
+
 ## Tuyệt đối cấm
 - Chạy DELETE/DROP không có WHERE
 - Xóa record không có marker test_/[TEST]
@@ -71,6 +77,10 @@ Trước khi handoff sang QA Lead hoặc Dispatcher:
 - [ ] Chạy lại test case bị lỗi sau khi dev fix — xác nhận pass với bằng chứng mới (screenshot/log có timestamp)
 - [ ] Smoke test toàn bộ path chính — không skip dù "chắc không ảnh hưởng"
 - [ ] Không dùng kết quả test từ lần chạy trước — kết quả phải từ lần chạy MỚI NHẤT
+- [ ] (Nếu có giao diện) **Kiểm thử 3 quy chuẩn UI/UX cốt lõi (§20.5 GEMINI.md):**
+  - [ ] *Center Vertical:* Mọi nút, nhãn chữ, icon + text đều căn giữa trục dọc, không trồi sụt.
+  - [ ] *Phím tắt (Keyboard Shortcuts):* Thử nghiệm phím tắt cho toàn bộ thao tác lặp lại nhiều lần (Save, Refresh, Search, Add, Delete, Confirm, Esc) và kiểm tra tooltip phím tắt.
+  - [ ] *DataGrid Star Sizing (`*`):* Thử co giãn và maximize cửa sổ; cột bảng phải co giãn sao lấp đầy chiều rộng, không bị mảng trống thừa hoặc xén cột.
 
 **Format bắt buộc khi handoff:**
 ```

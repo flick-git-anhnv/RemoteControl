@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
+using Avalonia.Platform.Storage;
 using Avalonia.Interactivity;
 using IPGS.RemoteControl.CcuUI.ViewModels;
 
@@ -86,24 +88,219 @@ public partial class RemoteScreenControl : UserControl
         e.Handled = true;
     }
 
+    private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (DataContext is RemoteScreenViewModel vm)
+        {
+            var pos = e.GetPosition(this);
+            vm.HandleMouseWheel(e.Delta.X, e.Delta.Y, pos.X, pos.Y, Bounds.Width, Bounds.Height);
+        }
+
+        // Chặn cuộn cục bộ của cửa sổ cha — sự kiện thuộc về màn hình từ xa.
+        e.Handled = true;
+    }
+
     // ── Keyboard event handlers (Tunnel — registered in constructor) ─────────
+
+    // Ctrl+V: nội dung clipboard máy này phải sang ZCU TRƯỚC khi phím V tới nơi, nên giữ phím V lại, đồng bộ
+    // clipboard xong mới gửi cặp nhấn+nhả V. _swallowVUp nuốt sự kiện nhả V thật của người dùng (đã gửi bù).
+    private bool _swallowVUp;
+    private const int ClipboardApplyDelayMs = 200;  // chờ agent đặt xong clipboard (xclip)
+    private const int ClipboardPullDelayMs  = 350;  // chờ ứng dụng trên ZCU copy xong rồi mới kéo về
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not RemoteScreenViewModel vm) return;
 
-        vm.HandleKeyDown(e.Key, e.KeySymbol, e.KeyModifiers);
+        var ctrlOnly = e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+
+        if (ctrlOnly && e.Key == Key.V && vm.IsStreaming)
+        {
+            e.Handled = true;
+            if (!_swallowVUp) // bỏ qua auto-repeat khi giữ phím
+            {
+                _swallowVUp = true;
+                _ = PasteAsync(vm, e.Key, e.KeySymbol, e.KeyModifiers, e.PhysicalKey);
+            }
+            return;
+        }
+
+        // Ctrl+C / Ctrl+X: sau khi ZCU copy xong, kéo clipboard của ZCU về máy này ngay (không đợi chu kỳ poll).
+        if (ctrlOnly && (e.Key == Key.C || e.Key == Key.X) && vm.IsStreaming)
+            _ = PullClipboardLaterAsync(vm);
+
+        vm.HandleKeyDown(e.Key, e.KeySymbol, e.KeyModifiers, e.PhysicalKey);
 
         // Mark handled so Avalonia does not additionally process Tab for
         // focus-navigation or trigger menu mnemonics (TDD §17.5).
         e.Handled = true;
     }
 
+    private async Task PasteAsync(RemoteScreenViewModel vm, Key key, string? symbol, KeyModifiers mods, PhysicalKey physical)
+    {
+        var sendKey = true;
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is not null)
+            {
+                // File vừa Copy trong Explorer → gửi sang ZCU, đặt lên clipboard ZCU, rồi mới gửi phím V để dán.
+                var filesOk = await TryPasteFilesAsync(vm, clipboard); // null = không phải file
+                if (filesOk == false) sendKey = false;                 // lỗi → không gửi V (tránh dán nhầm nội dung cũ)
+                else if (filesOk is null)
+                {
+                    var text = await clipboard.TryGetTextAsync();
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        await vm.Client.SendClipboardTextAsync(text);
+                        await Task.Delay(ClipboardApplyDelayMs);
+                    }
+                }
+            }
+        }
+        catch { /* clipboard Windows đang bị tiến trình khác giữ — vẫn gửi phím V */ }
+        finally
+        {
+            if (sendKey)
+            {
+                // Việc đồng bộ/gửi file có thể mất vài giây — lúc đó người dùng thường đã nhả Ctrl (Shift) và lệnh
+                // nhả đã tới ZCU, khiến phím V bị hiểu là gõ chữ "v" (Nautilus mở ô tìm kiếm). Nếu Ctrl/Shift không
+                // còn giữ, bấm bù chúng quanh phím V rồi nhả ngay.
+                var needCtrl  = !vm.IsCtrlHeld;
+                var needShift = mods.HasFlag(KeyModifiers.Shift) && !vm.IsShiftHeld;
+                if (needCtrl)  await vm.Client.SendKeyEventAsync(0xFFE3, true);
+                if (needShift) await vm.Client.SendKeyEventAsync(0xFFE1, true);
+
+                vm.HandleKeyDown(key, symbol, mods, physical);
+                vm.HandleKeyUp(key, symbol, mods, physical);
+
+                if (needShift) await vm.Client.SendKeyEventAsync(0xFFE1, false);
+                if (needCtrl)  await vm.Client.SendKeyEventAsync(0xFFE3, false);
+            }
+        }
+    }
+
+    /// <summary>Trạng thái dán file (tiến độ/kết quả) — cửa sổ cha hiển thị trên thanh tiêu đề. null = xoá.</summary>
+    public event Action<string?>? PasteStatus;
+
+    private const int MaxPasteEntries = 5_000;
+
+    private sealed record PasteOp(string Local, string Remote, bool IsDir);
+
+    /// <summary>
+    /// Clipboard Windows có file/thư mục? → upload lên ZCU (giữ cấu trúc thư mục), rồi đặt lên clipboard ZCU như vừa
+    /// "Copy". Mỗi lần dán nằm trong một thư mục tạm riêng ".paste-xxxx" trong thư mục nhận, nên giữ NGUYÊN tên gốc
+    /// và trình quản lý file ZCU tự hỏi ghi đè khi nơi dán đã có tên trùng.
+    /// Trả null = clipboard không có file; true = đã chuẩn bị xong (gửi phím V); false = lỗi (không gửi V).
+    /// </summary>
+    private async Task<bool?> TryPasteFilesAsync(RemoteScreenViewModel vm, IClipboard clipboard)
+    {
+        var items = await clipboard.TryGetFilesAsync();
+        var locals = items?.Select(i => i.TryGetLocalPath()).Where(p => p is not null && (File.Exists(p) || Directory.Exists(p)))
+                           .Cast<string>().ToList();
+        if (locals is null || locals.Count == 0) return null;
+
+        if (vm.Client.ServerName is { } sn && !AgentSupportsFiles(sn))
+        {
+            PasteStatus?.Invoke("⚠ Agent cũ (<1.2) chưa hỗ trợ dán file — cập nhật qua “⚡ Cài remote”");
+            return false;
+        }
+
+        try
+        {
+            var batch = ".paste-" + Guid.NewGuid().ToString("N")[..8];
+            var ops   = new List<PasteOp>();
+            var tops  = new List<string>();
+            var enumOpts = new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                AttributesToSkip      = FileAttributes.ReparsePoint, // không theo liên kết
+                IgnoreInaccessible    = true,
+            };
+
+            foreach (var local in locals)
+            {
+                if (File.Exists(local))
+                {
+                    var remote = $"{batch}/{Path.GetFileName(local)}";
+                    ops.Add(new PasteOp(local, remote, false));
+                    tops.Add(remote);
+                    continue;
+                }
+
+                var root = new DirectoryInfo(local.TrimEnd('\\', '/'));
+                if (root.Parent is null) continue; // ổ đĩa gốc (C:\) — không hỗ trợ
+                var topRemote = $"{batch}/{root.Name}";
+                ops.Add(new PasteOp(root.FullName, topRemote, true));
+                tops.Add(topRemote);
+                foreach (var fsi in root.EnumerateFileSystemInfos("*", enumOpts))
+                {
+                    var rel = Path.GetRelativePath(root.FullName, fsi.FullName).Replace('\\', '/');
+                    ops.Add(new PasteOp(fsi.FullName, $"{topRemote}/{rel}", fsi is DirectoryInfo));
+                    if (ops.Count > MaxPasteEntries)
+                        throw new InvalidOperationException($"Quá nhiều mục (> {MaxPasteEntries}) — hãy nén thành .zip rồi gửi bằng nút 📁 File");
+                }
+            }
+            if (tops.Count == 0) return null;
+
+            for (var i = 0; i < ops.Count; i++)
+            {
+                var op = ops[i];
+                var idx = i;
+                var label = Path.GetFileName(op.Local.TrimEnd('\\', '/'));
+                if (op.IsDir)
+                {
+                    PasteStatus?.Invoke($"Đang tạo thư mục {label} ({idx + 1}/{ops.Count})");
+                    await vm.Client.CreateRemoteDirectoryAsync(op.Remote);
+                }
+                else
+                {
+                    var progress = new Progress<(long Done, long Total)>(p =>
+                        PasteStatus?.Invoke($"Đang gửi {label} ({idx + 1}/{ops.Count}) — {(p.Total <= 0 ? 0 : p.Done * 100 / p.Total)}%"));
+                    await vm.Client.UploadFileAsync(op.Local, progress, op.Remote);
+                }
+            }
+            await vm.Client.SetRemoteClipboardFilesAsync(tops);
+            await Task.Delay(300); // chờ agent chiếm xong clipboard
+            PasteStatus?.Invoke($"Đã gửi {tops.Count} mục — đang dán trên máy đích");
+        }
+        catch (Exception ex)
+        {
+            PasteStatus?.Invoke("⚠ Dán file lỗi: " + ex.Message);
+            return false; // lỗi — PasteAsync sẽ không gửi phím V
+        }
+        finally
+        {
+            _ = Task.Delay(6000).ContinueWith(_ => Avalonia.Threading.Dispatcher.UIThread.Post(() => PasteStatus?.Invoke(null)));
+        }
+
+        return true;  // thành công → PasteAsync gửi phím V để ZCU dán
+    }
+
+    private static bool AgentSupportsFiles(string serverName)
+    {
+        var idx = serverName.LastIndexOf('/');
+        return idx >= 0 && Version.TryParse(serverName[(idx + 1)..], out var v) && v >= new Version(1, 2);
+    }
+
+    private async Task PullClipboardLaterAsync(RemoteScreenViewModel vm)
+    {
+        await Task.Delay(ClipboardPullDelayMs);
+        await vm.Client.RequestClipboardAsync();
+    }
+
     private void OnKeyUp(object? sender, KeyEventArgs e)
     {
         if (DataContext is not RemoteScreenViewModel vm) return;
 
-        vm.HandleKeyUp(e.Key, e.KeySymbol, e.KeyModifiers);
+        if (e.Key == Key.V && _swallowVUp)
+        {
+            _swallowVUp = false;
+            e.Handled = true;
+            return;
+        }
+
+        vm.HandleKeyUp(e.Key, e.KeySymbol, e.KeyModifiers, e.PhysicalKey);
         e.Handled = true;
     }
 
@@ -111,6 +308,7 @@ public partial class RemoteScreenControl : UserControl
 
     private void OnLostFocus(object? sender, RoutedEventArgs e)
     {
+        _swallowVUp = false;
         // Release all held keys so ZCU does not get stuck keys when the user
         // alt-tabs away or clicks outside the remote screen area.
         if (DataContext is RemoteScreenViewModel vm)

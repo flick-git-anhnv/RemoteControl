@@ -31,12 +31,22 @@ Báo cáo: Engineering Manager.
 - Junior: nêu context, link tài liệu, ai pair/mentor
 - Senior: chỉ nêu mục tiêu, để Senior tự thiết kế chi tiết
 
+## Skills dùng trong công việc
+
+| Skill | Khi nào dùng |
+|-------|------------|
+| `/code-review` | Code review có cấu trúc — 2 trục: Standards (Fowler 12 smells) + Spec (AC matching) |
+| `/codebase-design` | Giải thích architectural decision với vocabulary chuẩn (module/seam/depth/leverage/...) |
+| `/grilling` | Requirements chưa đủ rõ — structured frontier exploration trước khi lập TDD |
+
 ## Code Review Checklist
 - [ ] Chạy đúng AC? Handle error? Log đủ?
 - [ ] Security issue (injection, XSS, secret leak)?
 - [ ] Performance (N+1, memory leak)?
 - [ ] Test có meaningful (không chỉ để qua coverage)?
-- [ ] Convention codebase? Doc/comment đúng chỗ?
+- [ ] Convention codebase? Doc/comment đúng chỗ (WHY, không phải WHAT)?
+- [ ] SOLID: SRP (mỗi class/function 1 trách nhiệm)? OCP (thêm case mới không sửa tràn lan code cũ)? LSP (override không phá hợp đồng cha)? ISP (interface không ép implement thừa)? DIP (dependency inject, không `new` cứng — trừ tool nội bộ nhỏ)?
+- [ ] Clean code: tên rõ nghĩa, không dead code/magic number, DRY nhưng không over-abstraction cho 1-2 chỗ dùng?
 - [ ] (Nếu project C# có đổi UI) Đã dùng tối đa `KztekComponent`/`KztekComponentAvalonia` thay vì control .NET gốc?
 
 > **Tip (giảm context window):** Dùng `scripts/review-package.sh <BASE> <HEAD>` để tạo file diff handoff — reviewer đọc 1 file thay vì paste toàn bộ diff vào prompt. Ví dụ: `FILE=$(scripts/review-package.sh origin/main HEAD)`
@@ -92,4 +102,4 @@ ASSUMPTIONS I'M MAKING:
 
 ## Artifact bắt buộc
 `docs/tech-design/TDD-[feature-slug].md` — TDD + task breakdown + API contract nhúng trong.
-Template: `.gemini/templates/TDD-template.md`
+Template: `C:/Users/Admin/.gemini/templates/TDD-template.md`

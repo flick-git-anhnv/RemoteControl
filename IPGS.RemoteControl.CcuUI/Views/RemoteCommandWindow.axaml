@@ -94,10 +94,11 @@
                    BorderBrush="#CBD5E1" BorderThickness="1" Background="White"
                    SelectionMode="Multiple"
                    DoubleTapped="OnFileItemDoubleTapped"
+                   KeyDown="OnFileListBoxKeyDown"
                    DragDrop.AllowDrop="True">
              <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="views:RemoteFileItem">
-                   <StackPanel Orientation="Horizontal" Spacing="8" Background="Transparent">
+                   <StackPanel Orientation="Horizontal" Spacing="8" Background="Transparent" DoubleTapped="OnFileItemDoubleTapped">
                       <TextBlock Text="{Binding Icon}" FontSize="16" VerticalAlignment="Center" Width="20" TextAlignment="Center" />
                       <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontWeight="{Binding FontWeight}" Width="350" TextTrimming="CharacterEllipsis" />
                       <TextBlock Text="{Binding SizeText}" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" Width="100" />

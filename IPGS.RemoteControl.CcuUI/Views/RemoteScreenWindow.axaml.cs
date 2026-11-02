@@ -46,11 +46,16 @@ public partial class RemoteScreenWindow : Window
     /// <param name="host">ZCU hostname or IP address.</param>
     /// <param name="port">TCP port (default <see cref="RemoteControlConstants.DefaultPort"/> = 17600).</param>
     /// <param name="token">Shared secret token (must match ZcuAgent appsettings.json).</param>
-    public RemoteScreenWindow(string host, int port, string token, bool showSshHelp = false)
+    private readonly string? _expectedFingerprint;
+
+    public RemoteScreenWindow() : this("127.0.0.1", 17600, "") { }
+
+    public RemoteScreenWindow(string host, int port, string token, bool showSshHelp = false, string? expectedFingerprint = null)
     {
         _host  = host;
         _port  = port;
         _token = token;
+        _expectedFingerprint = expectedFingerprint;
 
         _vm = new RemoteScreenViewModel
         {
@@ -63,8 +68,17 @@ public partial class RemoteScreenWindow : Window
         Title = $"Remote Control — {host}:{port}";
 
         _vm.Client.SysInfoReceived += OnSysInfoReceived;
+        _vm.Client.ClipboardDataReceived += OnClipboardDataReceived;
+        _vm.Client.MonitorListReceived += OnMonitorListReceived;
+        _vm.Client.ClipboardFileListReceived += OnClipboardFileListReceived;
+        RemoteScreen.PasteStatus += s => Dispatcher.UIThread.Post(() => SetStatusTitle(s));
         _vm.Client.FrameReceived += OnFrameReceived;
         _vm.Client.StateChanged += OnClientStateChanged;
+        _vm.Client.TlsCertificateValidated += (sender, hash) =>
+        {
+            // TOFU (audit F-NEW-2): tự động lưu vân tay chứng chỉ vào profile nếu chưa lưu
+            ComputerProfileStore.Instance.UpdateTlsFingerprint(_host, _port, hash);
+        };
     }
 
     // ── Window lifecycle ─────────────────────────────────────────────────────
@@ -74,7 +88,7 @@ public partial class RemoteScreenWindow : Window
         base.OnOpened(e);
         // Start connection loop immediately; CcuClient fires StateChanged events
         // back to the ViewModel which updates the UI via Dispatcher.UIThread.Post.
-        await _vm.ConnectAsync(_host, _port, _token);
+        await _vm.ConnectAsync(_host, _port, _token, _expectedFingerprint);
     }
 
     protected override async void OnClosed(EventArgs e)
@@ -86,8 +100,12 @@ public partial class RemoteScreenWindow : Window
         // trong khoảng đó và đập vào recorder đã dispose.
         _vm.Client.FrameReceived   -= OnFrameReceived;
         _vm.Client.SysInfoReceived -= OnSysInfoReceived;
-        _vm.Client.StateChanged    -= OnClientStateChanged;
+        _vm.Client.ClipboardDataReceived -= OnClipboardDataReceived;
+        _vm.Client.MonitorListReceived -= OnMonitorListReceived;
+        _vm.Client.ClipboardFileListReceived -= OnClipboardFileListReceived;
+        _vm.Client.StateChanged  -= OnClientStateChanged;
         _sysInfoTimeoutCts?.Cancel();
+        _fileWindow?.Close();
 
         // Gracefully disconnect before the window is destroyed.
         await _vm.DisconnectAsync();
@@ -142,8 +160,159 @@ public partial class RemoteScreenWindow : Window
 
     // ── F02: cảnh báo agent phiên bản cũ (fail âm thầm SysInfo/Privacy/Chat/Clipboard) ──
 
+    // ── File Copy trên ZCU → clipboard Windows ───────────────────────────────
+
+    private string _titleBase => $"Remote Control — {_host}:{_port}";
+    private void SetStatusTitle(string? status)
+        => Title = string.IsNullOrEmpty(status) ? _titleBase : $"{_titleBase}  |  {status}";
+
+    private string? _lastClipFileJson;
+    private int _clipFilesBusy;
+
+    /// <summary>
+    /// Người dùng vừa Copy file trong trình quản lý file của ZCU → tải các file về thư mục tạm rồi đặt vào
+    /// clipboard Windows, để Ctrl+V trong Explorer dán ra được. Mỗi danh sách chỉ tải một lần.
+    /// </summary>
+    /// <summary>Giới hạn tổng dung lượng tự tải khi Copy trên ZCU — vượt thì bỏ qua (dùng nút 📁 File / nén .zip).</summary>
+    private const long AutoCopyLimitBytes = 200L * 1024 * 1024;
+
+    private async void OnClipboardFileListReceived(object? sender, string json)
+    {
+        if (json == _lastClipFileJson) return;
+        if (Interlocked.CompareExchange(ref _clipFilesBusy, 1, 0) != 0) return;
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var items = doc.RootElement.EnumerateArray()
+                .Select(e => (Path: e.GetProperty("path").GetString()!,
+                              Name: e.GetProperty("name").GetString()!,           // đường dẫn tương đối, phân tách '/'
+                              Size: e.GetProperty("size").GetInt64(),
+                              IsDir: e.TryGetProperty("dir", out var d) && d.GetBoolean()))
+                .ToList();
+            if (items.Count == 0) return;
+            _lastClipFileJson = json;
+
+            var total = items.Where(i => !i.IsDir).Sum(i => i.Size);
+            if (total > AutoCopyLimitBytes)
+            {
+                SetStatusTitle($"Mục vừa Copy trên máy đích quá lớn ({total / 1024 / 1024} MB > {AutoCopyLimitBytes / 1024 / 1024} MB) — không tự chép vào clipboard. Hãy dùng nút “📁 File” hoặc nén .zip");
+                return;
+            }
+
+            var root = Path.Combine(Path.GetTempPath(), "IPGS-Remote", "clip");
+            CleanOldTempDirs(root);
+            var dir = Path.Combine(root, Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+
+            var topNames = new List<string>();   // mục gốc (file hoặc thư mục) sẽ đặt lên clipboard Windows
+            var files = items.Where(i => !i.IsDir).ToList();
+            var done = 0;
+            foreach (var item in items)
+            {
+                var segs = item.Name.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                // Chặn đường dẫn lạ từ máy đích: không ".." / không ký tự cấm / không tuyệt đối.
+                if (segs.Length == 0 || segs.Any(s => s is "." or ".." || s.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0))
+                    throw new InvalidOperationException("Tên mục không hợp lệ: " + item.Name);
+
+                var dest = Path.Combine(dir, Path.Combine(segs));
+                if (segs.Length == 1 && !topNames.Contains(segs[0])) topNames.Add(segs[0]);
+
+                if (item.IsDir) { Directory.CreateDirectory(dest); continue; }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                var n = ++done;
+                var progress = new Progress<(long Done, long Total)>(p => SetStatusTitle(
+                    $"Đang tải {segs[^1]} từ máy đích ({n}/{files.Count}) — {(p.Total <= 0 ? 0 : p.Done * 100 / p.Total)}%"));
+                await _vm.Client.DownloadRemotePathAsync(item.Path, dest, progress);
+            }
+
+            var top = TopLevel.GetTopLevel(this);
+            if (top?.Clipboard is { } clipboard)
+            {
+                var storage = new List<IStorageItem>();
+                foreach (var name in topNames)
+                {
+                    var p = Path.Combine(dir, name);
+                    IStorageItem? si = Directory.Exists(p)
+                        ? await top.StorageProvider.TryGetFolderFromPathAsync(p)
+                        : await top.StorageProvider.TryGetFileFromPathAsync(p);
+                    if (si is not null) storage.Add(si);
+                }
+                await clipboard.SetFilesAsync(storage);
+                SetStatusTitle($"Đã chép {storage.Count} mục từ máy đích vào clipboard — dán (Ctrl+V) trong Explorer");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatusTitle("⚠ Không lấy được file từ máy đích: " + ex.Message);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _clipFilesBusy, 0);
+            _ = Task.Delay(8000).ContinueWith(_ => Dispatcher.UIThread.Post(() => SetStatusTitle(null)));
+        }
+    }
+
+    private static void CleanOldTempDirs(string root)
+    {
+        try
+        {
+            if (!Directory.Exists(root)) return;
+            foreach (var d in Directory.GetDirectories(root))
+                if (Directory.GetCreationTimeUtc(d) < DateTime.UtcNow.AddDays(-1)) Directory.Delete(d, true);
+        }
+        catch { /* file đang được dùng — bỏ qua */ }
+    }
+
+    // ── Multi-monitor ────────────────────────────────────────────────────────
+
+    private bool _suppressMonitorChange;
+
+    private void OnMonitorListReceived(object? sender, string json)
+    {
+        List<(int Index, string Name, int W, int H)> monitors = [];
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            foreach (var el in doc.RootElement.EnumerateArray())
+                monitors.Add((el.GetProperty("index").GetInt32(), el.GetProperty("name").GetString() ?? "?",
+                              el.GetProperty("w").GetInt32(), el.GetProperty("h").GetInt32()));
+        }
+        catch { return; }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            var cmb = this.FindControl<ComboBox>("CmbMonitor");
+            if (cmb is null) return;
+
+            _suppressMonitorChange = true;
+            cmb.Items.Clear();
+            if (monitors.Count >= 2)
+            {
+                cmb.Items.Add(new ComboBoxItem { Content = "🖥 Tất cả màn hình", Tag = (byte)0xFF });
+                foreach (var m in monitors)
+                    cmb.Items.Add(new ComboBoxItem { Content = $"🖥 {m.Index + 1}: {m.Name} ({m.W}×{m.H})", Tag = (byte)m.Index });
+                cmb.SelectedIndex = 0;
+            }
+            cmb.IsVisible = monitors.Count >= 2;
+            _suppressMonitorChange = false;
+        });
+    }
+
+    private async void OnMonitorChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressMonitorChange) return;
+        if (sender is ComboBox { SelectedItem: ComboBoxItem { Tag: byte idx } })
+            await _vm.Client.SelectMonitorAsync(idx);
+    }
+
     private void OnClientStateChanged(object? sender, ConnectionStateChangedEventArgs e)
     {
+        // Mỗi lần (tái) kết nối: hỏi danh sách màn hình — chỉ agent ≥ 1.2 mới trả lời.
+        if (e.Current == ConnectionState.Streaming && !IsAgentOlderThan(_vm.Client.ServerName, new Version(1, 2)))
+            _ = _vm.Client.RequestMonitorsAsync();
+
         if (e.Current != ConnectionState.Streaming || _agentVersionWarned) return;
 
         var serverName = _vm.Client.ServerName;
@@ -200,6 +369,78 @@ public partial class RemoteScreenWindow : Window
         btnOk.Click += (_, _) => dlg.Close();
         ((StackPanel)dlg.Content!).Children.Add(btnOk);
         dlg.ShowDialog(this);
+    }
+
+    /// <summary>Clipboard ZCU→CCU: agent đẩy text khi nội dung clipboard trên ZCU đổi → đặt vào clipboard máy này.</summary>
+    private void OnClipboardDataReceived(object? sender, string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        Dispatcher.UIThread.Post(async () =>
+        {
+            try
+            {
+                if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+                    await clipboard.SetTextAsync(text);
+            }
+            catch { /* clipboard máy này đang bị tiến trình khác giữ — bỏ qua lần này */ }
+        });
+    }
+
+    // X11 keysym: XK_Control_L, XK_Alt_L, XK_Delete
+    private const uint KeysymControlL = 0xFFE3;
+    private const uint KeysymAltL     = 0xFFE9;
+    private const uint KeysymDelete   = 0xFFFF;
+
+    /// <summary>Gửi tổ hợp Ctrl+Alt+Del qua giao thức (hệ điều hành máy này không bắt được vì không đi qua bàn phím vật lý).</summary>
+    private async void OnCtrlAltDelClick(object? sender, RoutedEventArgs e)
+    {
+        var c = _vm.Client;
+        await c.SendKeyEventAsync(KeysymControlL, true);
+        await c.SendKeyEventAsync(KeysymAltL, true);
+        await c.SendKeyEventAsync(KeysymDelete, true);
+        await c.SendKeyEventAsync(KeysymDelete, false);
+        await c.SendKeyEventAsync(KeysymAltL, false);
+        await c.SendKeyEventAsync(KeysymControlL, false);
+    }
+
+    private FileTransferWindow? _fileWindow;
+
+    private void OnFilesClick(object? sender, RoutedEventArgs e)
+    {
+        if (IsAgentOlderThan(_vm.Client.ServerName, new Version(1, 2)))
+        {
+            ShowInfoDialog("Agent chưa hỗ trợ",
+                "Truyền file cần ZcuAgent 1.2 trở lên. Cập nhật agent qua nút \"⚡ Cài remote\" của máy này.");
+            return;
+        }
+        if (_fileWindow is { IsVisible: true }) { _fileWindow.Activate(); return; }
+
+        _fileWindow = new FileTransferWindow(_vm.Client);
+        _fileWindow.Closed += (_, _) => _fileWindow = null;
+        _fileWindow.Show(this);
+    }
+
+    private void OnScanModeClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton btn) return;
+        var on = btn.IsChecked ?? false;
+
+        if (on && IsAgentOlderThan(_vm.Client.ServerName, new Version(1, 2)))
+        {
+            btn.IsChecked = false;
+            ShowInfoDialog("Agent chưa hỗ trợ",
+                "Chế độ phím vật lý cần ZcuAgent 1.2 trở lên. Cập nhật agent qua nút \"⚡ Cài remote\" của máy này.");
+            return;
+        }
+
+        _vm.ReleaseAllDownKeys();
+        _vm.UseScanMode = on;
+    }
+
+    private static bool IsAgentOlderThan(string serverName, Version min)
+    {
+        var idx = serverName.LastIndexOf('/');
+        return idx < 0 || !Version.TryParse(serverName[(idx + 1)..], out var v) || v < min;
     }
 
     private async void OnPrivacyClick(object? sender, RoutedEventArgs e)

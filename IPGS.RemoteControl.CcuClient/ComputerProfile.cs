@@ -48,6 +48,18 @@ public sealed class ComputerProfile : INotifyPropertyChanged
     /// <summary>Tên package gỡ cài đặt gần nhất (tùy chọn).</summary>
     public string? LastUninstallPackage { get; set; }
 
+    /// <summary>Mã băm SHA-256 của chứng chỉ SSL/TLS tự ký đã lưu (Certificate Pinning chống MitM — audit S3).</summary>
+    public string? TlsCertFingerprint { get; set; }
+
+    /// <summary>Cấu hình cài ZcuAgent gần nhất: AllowedClientIPs (null = chưa lưu, dùng mặc định).</summary>
+    public string? SetupAllowedClientIPs { get; set; }
+
+    /// <summary>Cấu hình cài ZcuAgent gần nhất: FPS mục tiêu (null = chưa lưu).</summary>
+    public int? SetupTargetFps { get; set; }
+
+    /// <summary>Cấu hình cài ZcuAgent gần nhất: chất lượng JPEG % (null = chưa lưu).</summary>
+    public int? SetupJpegQuality { get; set; }
+
     /// <summary>Thời điểm tạo hồ sơ.</summary>
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 

@@ -42,6 +42,21 @@ internal static class X11
     [DllImport(Lib)] public static extern int XFlush(IntPtr display);
 
     /// <summary>
+    /// Sets screen saver parameters. Use (0, 0, 0, 0) to disable screen blanking / screen saver
+    /// in headless / virtual displays or kiosk environments.
+    /// Signature: int XSetScreenSaver(Display *display, int timeout, int interval, int prefer_blanking, int allow_exposures);
+    /// </summary>
+    [DllImport(Lib)]
+    public static extern int XSetScreenSaver(IntPtr display, int timeout, int interval, int prefer_blanking, int allow_exposures);
+
+    /// <summary>
+    /// Resets the screen saver timer, waking up the screen from sleep or blanking state.
+    /// Signature: int XResetScreenSaver(Display *display);
+    /// </summary>
+    [DllImport(Lib)]
+    public static extern int XResetScreenSaver(IntPtr display);
+
+    /// <summary>
     /// Queries whether the named extension is present and returns its major opcode —
     /// the <c>request_code</c> that appears in async XErrorEvents produced by that
     /// extension's requests. Used to scope SHM error detection to MIT-SHM requests

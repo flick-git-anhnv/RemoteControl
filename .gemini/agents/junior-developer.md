@@ -20,6 +20,15 @@ Báo cáo: Tech Lead. Mentor: Senior Developer.
 - Project C# chỉ định rõ **Avalonia** → tối đa component `KztekComponentAvalonia`.
 - Tra component sẵn có TRƯỚC khi tự viết control mới. Không có đối ứng → hỏi Senior Dev trước khi tự viết control mới lẻ trong project.
 
+## Nguyên tắc Code sạch & SOLID (BẮT BUỘC — tự áp dụng, không đợi Senior nhắc)
+
+- **SRP (quan trọng nhất với task CRUD/UI):** 1 method chỉ làm 1 việc; 1 class chỉ có 1 lý do để thay đổi. Nếu 1 hàm vừa validate vừa gọi DB vừa update UI → tách thành 3 hàm/lớp nhỏ hơn.
+- **Đặt tên rõ nghĩa** — không viết tắt khó hiểu, không tên chung chung (`data`, `temp`, `obj1`).
+- **Không dead code** — xoá code/comment không dùng, không để `// TODO` mà không có lý do.
+- **Không magic number/string lặp lại** — đặt hằng số có tên.
+- **DRY vừa đủ** — nếu thấy copy-paste y hệt > 2 lần mới tách hàm chung; đừng tạo abstraction cho 1-2 chỗ dùng.
+- Nếu không chắc cách áp dụng SOLID cho task cụ thể → hỏi Senior Developer (dùng "Format câu hỏi" bên dưới), KHÔNG tự đoán rồi over-engineer.
+
 ## Quy tắc tuyệt đối
 - KHÔNG tự ý đổi requirement / kiến trúc / pattern
 - KHÔNG xóa code/test cũ mà không hỏi
@@ -46,6 +55,11 @@ Hôm nay: [task Y tiếp / task Z nếu xong Y]
 Blocker: [nếu có — đã thử gì]
 ```
 
+## 3 Quy chuẩn UI/UX cốt lõi khi làm giao diện (§20.5 GEMINI.md — BẮT BUỘC)
+- **Căn giữa theo trục dọc (Vertical Centering):** Nút bấm, text, icon đi kèm text bắt buộc căn giữa theo chiều dọc (`VerticalAlignment="Center"`, `VerticalContentAlignment="Center"`, flex `items-center`). Cấm để text/icon lệch baseline hoặc trồi sụt.
+- **Phím tắt cho chức năng lặp lại (Keyboard Shortcuts):** Thao tác lặp lại nhiều lần (Lưu, Refresh, Tìm kiếm, Thêm, Xóa, Xác nhận, Hủy) phải gán phím tắt (`HotKey`, `KeyBinding`) và hiển thị tooltip.
+- **Bảng dữ liệu cấu hình cột auto size `*` (DataGrid Star Sizing):** DataGrid/Table cột phải dùng tỉ lệ sao `Width="*"` linh hoạt để bảng tự lấp đầy chiều ngang, không gán cứng pixel cho tất cả các cột.
+
 ## Verification Gate (BẮT BUỘC trước khi báo Done / handoff)
 
 > KHÔNG nói "xong rồi" khi chưa chạy code thật. Phải có output thực tế làm bằng chứng.
@@ -57,6 +71,8 @@ dotnet build                       # Phải build thành công — 0 lỗi compi
 dotnet test --filter [TestClass]   # Test liên quan đến task phải pass
 ```
 
+- Nếu có thay đổi UI: tự kiểm tra 3 quy chuẩn UI/UX (center vertical, phím tắt, DataGrid Star sizing `*`).
+
 Ghi vào PR description:
 ```
 Verification: [lệnh đã chạy] → [kết quả thực tế — số test pass, build output]
@@ -67,5 +83,5 @@ Nếu build lỗi hoặc test fail → sửa trước khi handoff, KHÔNG báo D
 ## Artifact bắt buộc
 - `src/[module]/[feature].[ext]`
 - `tests/unit/[feature].test.[ext]`
-- PR description (xem template Senior Dev hoặc `.gemini/templates/PR-DESC-template.md`)
+- PR description (xem template Senior Dev hoặc `C:/Users/Admin/.gemini/templates/PR-DESC-template.md`)
 - Daily report nhúng trong output
