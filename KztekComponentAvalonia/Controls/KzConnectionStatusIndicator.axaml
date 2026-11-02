@@ -1,0 +1,55 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="KztekComponentAvalonia.Controls.KzConnectionStatusIndicator"
+             VerticalAlignment="Center">
+
+    <UserControl.Styles>
+        <!-- Xanh lá khi kết nối -->
+        <Style Selector="Ellipse.connected">
+            <Setter Property="Fill" Value="{DynamicResource kz.brush.success}" />
+        </Style>
+        <!-- Xám khi mất kết nối -->
+        <Style Selector="Ellipse.disconnected">
+            <Setter Property="Fill" Value="{DynamicResource kz.brush.text.muted}" />
+        </Style>
+    </UserControl.Styles>
+
+    <!--
+      Chấm tròn + 2 dòng nhãn (dòng 1 EN, dòng 2 VI).
+      Phân tầng thị giác: dòng EN là tên kỹ thuật nên đậm hơn, dòng VI là diễn giải nên nhạt và
+      nhỏ hơn — nếu để 2 dòng cùng cỡ cùng màu thì nhìn thành 2 mục riêng biệt chứ không phải
+      1 nhãn 2 thứ tiếng.
+    -->
+    <StackPanel Orientation="Horizontal"
+                VerticalAlignment="Center"
+                Spacing="7">
+        <!-- Căn theo dòng CHỮ ĐẦU, không căn giữa cả khối 2 dòng: chấm phải nằm ngang tên kỹ thuật -->
+        <Ellipse x:Name="StatusDot"
+                 Width="14" Height="14"
+                 Classes="disconnected"
+                 VerticalAlignment="Center"
+                 Margin="0,3,0,0" />
+        <StackPanel Orientation="Vertical"
+                    VerticalAlignment="Center"
+                    Spacing="1">
+            <!--
+              ⚠️ KHÔNG đặt LineHeight cứng ở đây.
+              Trước đây là LineHeight="15" cho FontSize="13" và LineHeight="14" cho FontSize="12"
+              (chỉ 1,15×). Chữ Việt có dấu cần khoảng 1,4× vì dấu vươn LÊN TRÊN (ấ, ề) và đuôi chữ
+              xuống DƯỚI (ợ, ạ) — hệ quả: "Bãi xe", "Hàng đợi", "Nhận tiền" bị cắt mất phần dưới.
+              Để trống thì Avalonia lấy line height từ chính metric của font nên luôn đủ chỗ.
+              Khoảng cách giữa 2 dòng đã do Spacing="1" của StackPanel kiểm soát.
+            -->
+            <TextBlock x:Name="StatusLabelEn"
+                       Text=""
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource kz.brush.text}" />
+            <TextBlock x:Name="StatusLabelVi"
+                       Text=""
+                       FontSize="12"
+                       Foreground="{DynamicResource kz.brush.text.muted}" />
+        </StackPanel>
+    </StackPanel>
+
+</UserControl>

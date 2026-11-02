@@ -1,0 +1,120 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls"
+             x:Class="KztekComponentAvalonia.Controls.KzIPTextbox"
+             mc:Ignorable="d"
+             d:DesignWidth="300" d:DesignHeight="40">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Border Name="PART_Border"
+            Background="{StaticResource kz.brush.white}"
+            BorderBrush="{StaticResource kz.brush.border}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource kz.radius.md}"
+            MinHeight="{StaticResource kz.height.md}">
+        <Border.Transitions>
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.12" />
+                <ThicknessTransition Property="BorderThickness" Duration="0:0:0.08" />
+            </Transitions>
+        </Border.Transitions>
+
+        <!-- Octets + dots, centered vertically inside the border -->
+<StackPanel Orientation="Horizontal"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Margin="6,0">
+
+        <!-- Octet 0 -->
+        <TextBox Name="PART_Oct0"
+                 MaxLength="3"
+                 TextAlignment="Center"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 Padding="2,0"
+                 Width="40"
+                 VerticalContentAlignment="Center"
+                 FontSize="{StaticResource kz.font.md}"
+                 CaretBrush="{StaticResource kz.brush.navy.900}"
+                 SelectionBrush="{StaticResource kz.brush.orange.300}"
+                 PlaceholderText="___" />
+
+        <TextBlock Name="PART_Dot0"
+                   Text="."
+                   Width="10"
+                   TextAlignment="Center"
+                   VerticalAlignment="Center"
+                   FontSize="{StaticResource kz.font.md}"
+                   Foreground="{StaticResource kz.brush.navy.900}" />
+
+        <!-- Octet 1 -->
+        <TextBox Name="PART_Oct1"
+                 MaxLength="3"
+                 TextAlignment="Center"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 Padding="2,0"
+                 Width="40"
+                 VerticalContentAlignment="Center"
+                 FontSize="{StaticResource kz.font.md}"
+                 CaretBrush="{StaticResource kz.brush.navy.900}"
+                 SelectionBrush="{StaticResource kz.brush.orange.300}"
+                 PlaceholderText="___" />
+
+        <TextBlock Name="PART_Dot1"
+                   Text="."
+                   Width="10"
+                   TextAlignment="Center"
+                   VerticalAlignment="Center"
+                   FontSize="{StaticResource kz.font.md}"
+                   Foreground="{StaticResource kz.brush.navy.900}" />
+
+        <!-- Octet 2 -->
+        <TextBox Name="PART_Oct2"
+                 MaxLength="3"
+                 TextAlignment="Center"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 Padding="2,0"
+                 Width="40"
+                 VerticalContentAlignment="Center"
+                 FontSize="{StaticResource kz.font.md}"
+                 CaretBrush="{StaticResource kz.brush.navy.900}"
+                 SelectionBrush="{StaticResource kz.brush.orange.300}"
+                 PlaceholderText="___" />
+
+        <!-- Bổ sung dấu chấm thứ 3 ở đây -->
+        <TextBlock Name="PART_Dot2"
+                   Text="."
+                   Width="10"
+                   TextAlignment="Center"
+                   VerticalAlignment="Center"
+                   FontSize="{StaticResource kz.font.md}"
+                   Foreground="{StaticResource kz.brush.navy.900}" />
+
+        <!-- Octet 3 -->
+        <TextBox Name="PART_Oct3"
+                 MaxLength="3"
+                 TextAlignment="Center"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 Padding="2,0"
+                 Width="40"
+                 VerticalContentAlignment="Center"
+                 FontSize="{StaticResource kz.font.md}"
+                 CaretBrush="{StaticResource kz.brush.navy.900}"
+                 SelectionBrush="{StaticResource kz.brush.orange.300}"
+                 PlaceholderText="___" />
+
+    </StackPanel>
+    </Border>
+</UserControl>

@@ -1,0 +1,126 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#E8EAF0" MinWidth="520" MinHeight="320">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <Border.Styles>
+                <Style Selector="kz|KzTextBox">
+                    <Setter Property="Theme" Value="{DynamicResource {x:Type kz:KzTextBox}}" />
+                </Style>
+            </Border.Styles>
+            <StackPanel Spacing="12" VerticalAlignment="Center">
+                <kz:KzTextBox Classes="kz-size-sm" Watermark="Nhỏ (sm) — nhập văn bản..." />
+                <kz:KzTextBox Classes="kz-size-md" Watermark="Vừa (md) — nhập văn bản..." />
+                <kz:KzTextBox Classes="kz-size-lg" Watermark="Lớn (lg) — nhập văn bản..." />
+                <kz:KzTextBox Classes="kz-size-md" Text="Nội dung đã điền sẵn" />
+                <kz:KzTextBox Classes="kz-size-md kz-input-error" Text="Giá trị không hợp lệ" />
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+    <ControlTheme x:Key="{x:Type kz:KzTextBox}" TargetType="kz:KzTextBox">
+        <Setter Property="Background" Value="{StaticResource kz.brush.white}" />
+        <Setter Property="Foreground" Value="{StaticResource kz.brush.text}" />
+        <Setter Property="BorderBrush" Value="{StaticResource kz.brush.border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource kz.radius.md}" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FontSize" Value="{StaticResource kz.font.md}" />
+        <Setter Property="MinHeight" Value="{StaticResource kz.height.md}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="SelectionBrush" Value="{StaticResource kz.brush.orange.300}" />
+        <Setter Property="CaretBrush" Value="{StaticResource kz.brush.navy.900}" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PART_Border"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}">
+                    <Grid ColumnDefinitions="*">
+                        <ScrollViewer Name="PART_ScrollViewer"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden"
+                                      Margin="{TemplateBinding Padding}">
+                            <TextPresenter Name="PART_TextPresenter"
+                                           Text="{TemplateBinding Text, Mode=TwoWay}"
+                                           CaretIndex="{TemplateBinding CaretIndex}"
+                                           SelectionStart="{TemplateBinding SelectionStart}"
+                                           SelectionEnd="{TemplateBinding SelectionEnd}"
+                                           TextAlignment="{TemplateBinding TextAlignment}"
+                                           TextWrapping="{TemplateBinding TextWrapping}"
+                                           PasswordChar="{TemplateBinding PasswordChar}"
+                                           RevealPassword="{TemplateBinding RevealPassword}"
+                                           SelectionBrush="{TemplateBinding SelectionBrush}"
+                                           SelectionForegroundBrush="{TemplateBinding SelectionForegroundBrush}"
+                                           CaretBrush="{TemplateBinding CaretBrush}"
+                                           HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </ScrollViewer>
+                        <TextBlock Name="PART_Watermark"
+                                   Text="{TemplateBinding Watermark}"
+                                   Foreground="{StaticResource kz.brush.text.muted}"
+                                   Margin="{TemplateBinding Padding}"
+                                   IsHitTestVisible="False"
+                                   VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- Size variants -->
+        <Style Selector="^.kz-size-sm">
+            <Setter Property="MinHeight" Value="{StaticResource kz.height.sm}" />
+            <Setter Property="FontSize" Value="{StaticResource kz.font.sm}" />
+            <Setter Property="Padding" Value="8,0" />
+        </Style>
+        <Style Selector="^.kz-size-md">
+            <Setter Property="MinHeight" Value="{StaticResource kz.height.md}" />
+            <Setter Property="FontSize" Value="{StaticResource kz.font.md}" />
+            <Setter Property="Padding" Value="12,0" />
+        </Style>
+        <Style Selector="^.kz-size-lg">
+            <Setter Property="MinHeight" Value="{StaticResource kz.height.lg}" />
+            <Setter Property="FontSize" Value="{StaticResource kz.font.lg}" />
+            <Setter Property="Padding" Value="16,0" />
+        </Style>
+
+        <!-- Focus state -->
+        <Style Selector="^:focus /template/ Border#PART_Border">
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.orange.500}" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+
+        <!-- Error state -->
+        <Style Selector="^.kz-input-error /template/ Border#PART_Border">
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.error}" />
+        </Style>
+        <Style Selector="^.kz-input-error:focus /template/ Border#PART_Border">
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.error}" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+
+        <!-- Disabled state -->
+        <Style Selector="^:disabled /template/ Border#PART_Border">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.100}" />
+            <Setter Property="Opacity" Value="0.7" />
+        </Style>
+
+        <!-- Pointer over -->
+        <Style Selector="^:pointerover /template/ Border#PART_Border">
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.700}" />
+        </Style>
+
+        <!-- Watermark hidden when text is present -->
+        <Style Selector="^:not(:empty) /template/ TextBlock#PART_Watermark">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+    </ControlTheme>
+
+</ResourceDictionary>

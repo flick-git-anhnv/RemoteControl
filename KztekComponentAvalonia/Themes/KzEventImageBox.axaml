@@ -1,0 +1,150 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#E8EAF0" MinWidth="600" MinHeight="300">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <Border.Styles>
+                <Style Selector="kz|KzEventImageBox">
+                    <Setter Property="Theme" Value="{DynamicResource {x:Type kz:KzEventImageBox}}" />
+                </Style>
+            </Border.Styles>
+            <StackPanel Orientation="Horizontal" Spacing="20"
+                        VerticalAlignment="Center" HorizontalAlignment="Center">
+                <!-- Trạng thái NoSource: chưa có ảnh -->
+                <kz:KzEventImageBox Width="240" Height="180"
+                                     Classes="kz-eib-nosource"
+                                     NoSourceTitle="Chưa có ảnh"
+                                     NoSourceHint="Ảnh sự kiện sẽ hiển thị tại đây" />
+                <!-- Trạng thái Error: tải ảnh thất bại -->
+                <kz:KzEventImageBox Width="240" Height="180"
+                                     Classes="kz-eib-error"
+                                     ErrorDetail="Không thể kết nối máy chủ" />
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+    <!-- Icon person-placeholder (viewbox 24x24) — trạng thái NoSource -->
+    <StreamGeometry x:Key="kz.icon.eib.person">M12 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 12c4.42 0 8 2.24 8 5v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1c0-2.76 3.58-5 8-5Z</StreamGeometry>
+    <!-- Icon ảnh-gãy (viewbox 24x24) — trạng thái LoadError -->
+    <StreamGeometry x:Key="kz.icon.eib.broken">M5 3h14a2 2 0 0 1 2 2v9l-4-4-3 3-2-2-7 7V5a0 0 0 0 1 0 0Zm0 18a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2m0 18h14a2 2 0 0 0 2-2M2 2l20 20</StreamGeometry>
+
+    <ControlTheme x:Key="{x:Type kz:KzEventImageBox}" TargetType="kz:KzEventImageBox">
+        <Setter Property="MinWidth" Value="240" />
+        <Setter Property="MinHeight" Value="180" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PART_Frame"
+                        Background="{StaticResource kz.brush.navy.100}"
+                        BorderBrush="{StaticResource kz.brush.border}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource kz.radius.lg}"
+                        ClipToBounds="True">
+                    <DockPanel>
+                        <!-- Caption dưới cùng (chỉ HasImage) -->
+                        <Border Name="PART_CaptionBar"
+                                DockPanel.Dock="Bottom"
+                                Background="{StaticResource kz.brush.white}"
+                                BorderBrush="{StaticResource kz.brush.divider}"
+                                BorderThickness="0,1,0,0"
+                                Padding="10,6"
+                                IsVisible="False">
+                            <TextBlock Text="{TemplateBinding Caption}"
+                                       FontSize="{StaticResource kz.font.sm}"
+                                       Foreground="{StaticResource kz.brush.text}"
+                                       TextTrimming="CharacterEllipsis" />
+                        </Border>
+
+                        <Panel>
+                            <!-- HasImage -->
+                            <Image Name="PART_Image"
+                                   Source="{TemplateBinding Source}"
+                                   Stretch="Uniform"
+                                   Margin="4"
+                                   IsVisible="False" />
+
+                            <!-- NoSource: empty-state PHẢI nêu rõ lý do (gate 8.3 / #20) -->
+                            <StackPanel Name="PART_NoSourcePanel"
+                                        Spacing="8"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Margin="16"
+                                        IsVisible="False">
+                                <PathIcon Data="{StaticResource kz.icon.eib.person}"
+                                          Width="44" Height="44"
+                                          Foreground="{StaticResource kz.brush.navy.300}"
+                                          HorizontalAlignment="Center" />
+                                <TextBlock Text="{TemplateBinding NoSourceTitle}"
+                                           FontSize="{StaticResource kz.font.md}"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource kz.brush.text}"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="{TemplateBinding NoSourceHint}"
+                                           FontSize="{StaticResource kz.font.sm}"
+                                           Foreground="{StaticResource kz.brush.text.muted}"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           MaxWidth="260"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+
+                            <!-- LoadError -->
+                            <StackPanel Name="PART_ErrorPanel"
+                                        Spacing="8"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Margin="16"
+                                        IsVisible="False">
+                                <PathIcon Data="{StaticResource kz.icon.eib.broken}"
+                                          Width="40" Height="40"
+                                          Foreground="{StaticResource kz.brush.error}"
+                                          HorizontalAlignment="Center" />
+                                <TextBlock Text="Không tải được ảnh"
+                                           FontSize="{StaticResource kz.font.md}"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource kz.brush.text}"
+                                           TextAlignment="Center"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="{TemplateBinding ErrorDetail}"
+                                           IsVisible="{TemplateBinding ErrorDetail, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                           FontSize="{StaticResource kz.font.sm}"
+                                           Foreground="{StaticResource kz.brush.text.muted}"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           MaxWidth="260"
+                                           HorizontalAlignment="Center" />
+                                <kz:KzButton Content="Thử lại"
+                                             Variant="Secondary"
+                                             KzSize="Sm"
+                                             Command="{TemplateBinding RetryCommand}"
+                                             HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Panel>
+                    </DockPanel>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- Bật/tắt panel theo class trạng thái -->
+        <Style Selector="^.kz-eib-hasimage /template/ Image#PART_Image">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+        <Style Selector="^.kz-eib-hasimage /template/ Border#PART_CaptionBar">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+        <Style Selector="^.kz-eib-nosource /template/ StackPanel#PART_NoSourcePanel">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+        <Style Selector="^.kz-eib-error /template/ StackPanel#PART_ErrorPanel">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+    </ControlTheme>
+
+</ResourceDictionary>

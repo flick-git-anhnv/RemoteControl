@@ -1,0 +1,59 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#E8EAF0" MinWidth="600" MinHeight="320">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <kz:KzTabControl>
+                <TabItem Header="Tổng quan">
+                    <TextBlock Text="Nội dung tab Tổng quan" Padding="16,12" />
+                </TabItem>
+                <TabItem Header="Cài đặt">
+                    <TextBlock Text="Nội dung tab Cài đặt" Padding="16,12" />
+                </TabItem>
+                <TabItem Header="Lịch sử">
+                    <TextBlock Text="Nội dung tab Lịch sử" Padding="16,12" />
+                </TabItem>
+            </kz:KzTabControl>
+        </Border>
+    </Design.PreviewWith>
+    <!-- ── TabControl container ── -->
+    <Style Selector="kz|KzTabControl">
+        <Setter Property="TabStripPlacement" Value="Top" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- ── Tab item base ── -->
+    <Style Selector="kz|KzTabControl TabItem">
+        <Setter Property="Height"    Value="44" />
+        <Setter Property="Padding"   Value="16,0" />
+        <Setter Property="FontSize"  Value="{StaticResource kz.font.md}" />
+        <Setter Property="Cursor"    Value="Hand" />
+        <Setter Property="Foreground" Value="{StaticResource kz.brush.text.muted}" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- ── Hover ── -->
+    <Style Selector="kz|KzTabControl TabItem:pointerover">
+        <Setter Property="Foreground" Value="{StaticResource kz.brush.text}" />
+    </Style>
+
+    <!-- ── Selected / active ── -->
+    <Style Selector="kz|KzTabControl TabItem:selected">
+        <Setter Property="Foreground"  Value="{StaticResource kz.brush.navy.900}" />
+        <Setter Property="FontWeight"  Value="SemiBold" />
+    </Style>
+
+    <!-- ── Active underline via template part ── -->
+    <Style Selector="kz|KzTabControl TabItem:selected /template/ Border#PART_SelectedPipe">
+        <Setter Property="Background" Value="{StaticResource kz.brush.orange.500}" />
+        <Setter Property="Height"     Value="3" />
+    </Style>
+
+</Styles>

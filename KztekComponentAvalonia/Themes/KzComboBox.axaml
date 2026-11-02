@@ -1,0 +1,140 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#E8EAF0" MinWidth="400" MinHeight="300">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <Border.Styles>
+                <Style Selector="kz|KzComboBox">
+                    <Setter Property="Theme" Value="{DynamicResource {x:Type kz:KzComboBox}}" />
+                </Style>
+            </Border.Styles>
+            <StackPanel Spacing="12" VerticalAlignment="Center">
+                <kz:KzComboBox Classes="kz-size-sm" Width="240" SelectedIndex="0">
+                    <ComboBoxItem Content="Nhỏ – tùy chọn A" />
+                    <ComboBoxItem Content="Nhỏ – tùy chọn B" />
+                </kz:KzComboBox>
+                <kz:KzComboBox Classes="kz-size-md" Width="240" SelectedIndex="0">
+                    <ComboBoxItem Content="Vừa – tùy chọn A" />
+                    <ComboBoxItem Content="Vừa – tùy chọn B" />
+                </kz:KzComboBox>
+                <kz:KzComboBox Classes="kz-size-lg" Width="240" SelectedIndex="0">
+                    <ComboBoxItem Content="Lớn – tùy chọn A" />
+                    <ComboBoxItem Content="Lớn – tùy chọn B" />
+                </kz:KzComboBox>
+                <kz:KzComboBox Classes="kz-combo-error" Width="240" SelectedIndex="0">
+                    <ComboBoxItem Content="Lỗi – cần kiểm tra lại" />
+                </kz:KzComboBox>
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+    <ControlTheme x:Key="{x:Type kz:KzComboBox}" TargetType="kz:KzComboBox">
+        <Setter Property="Background" Value="{StaticResource kz.brush.white}" />
+        <Setter Property="Foreground" Value="{StaticResource kz.brush.text}" />
+        <Setter Property="BorderBrush" Value="{StaticResource kz.brush.border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource kz.radius.md}" />
+        <Setter Property="MinHeight" Value="{StaticResource kz.height.md}" />
+        <Setter Property="Padding" Value="12,0,36,0" />
+        <Setter Property="FontSize" Value="{StaticResource kz.font.md}" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid ColumnDefinitions="*,36">
+                    <Border Name="PART_Border"
+                            Grid.ColumnSpan="2"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}" />
+                    <ContentControl Name="PART_ContentPresenter"
+                                    Grid.Column="0"
+                                    Content="{TemplateBinding SelectionBoxItem}"
+                                    ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                    Margin="{TemplateBinding Padding}"
+                                    HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                    VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                    Foreground="{TemplateBinding Foreground}"
+                                    FontSize="{TemplateBinding FontSize}" />
+                    <!-- Dropdown arrow (chevron down) -->
+                    <PathIcon Grid.Column="1"
+                              Data="M 0 0 L 6 6 L 12 0"
+                              Foreground="{StaticResource kz.brush.text.muted}"
+                              Width="12" Height="8"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                    <Popup Name="PART_Popup"
+                           IsOpen="{TemplateBinding IsDropDownOpen, Mode=TwoWay}"
+                           MinWidth="{Binding Bounds.Width, RelativeSource={RelativeSource TemplatedParent}}"
+                           MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                           PlacementTarget="{TemplateBinding}"
+                           IsLightDismissEnabled="True"
+                           WindowManagerAddShadowHint="False">
+                        <Border Background="{StaticResource kz.brush.white}"
+                                BorderBrush="{StaticResource kz.brush.border}"
+                                BorderThickness="1"
+                                CornerRadius="{StaticResource kz.radius.md}"
+                                BoxShadow="{StaticResource kz.shadow.md}"
+                                Padding="0,4">
+                            <ScrollViewer>
+                                <ItemsPresenter Name="PART_ItemsPresenter"
+                                                ItemsPanel="{TemplateBinding ItemsPanel}" />
+                            </ScrollViewer>
+                        </Border>
+                    </Popup>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- Size variants -->
+        <Style Selector="^.kz-size-sm">
+            <Setter Property="MinHeight" Value="{StaticResource kz.height.sm}" />
+            <Setter Property="FontSize" Value="{StaticResource kz.font.sm}" />
+            <Setter Property="Padding" Value="8,0,32,0" />
+        </Style>
+        <Style Selector="^.kz-size-md">
+            <Setter Property="MinHeight" Value="{StaticResource kz.height.md}" />
+            <Setter Property="FontSize" Value="{StaticResource kz.font.md}" />
+            <Setter Property="Padding" Value="12,0,36,0" />
+        </Style>
+        <Style Selector="^.kz-size-lg">
+            <Setter Property="MinHeight" Value="{StaticResource kz.height.lg}" />
+            <Setter Property="FontSize" Value="{StaticResource kz.font.lg}" />
+            <Setter Property="Padding" Value="16,0,40,0" />
+        </Style>
+
+        <!-- Hover -->
+        <Style Selector="^:pointerover /template/ Border#PART_Border">
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.700}" />
+        </Style>
+
+        <!-- Focus / Open -->
+        <Style Selector="^:focus /template/ Border#PART_Border,
+        ^[IsDropDownOpen=True] /template/ Border#PART_Border">
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.orange.500}" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="BoxShadow" Value="{StaticResource kz.shadow.focus}" />
+        </Style>
+
+        <!-- Error -->
+        <Style Selector="^.kz-combo-error /template/ Border#PART_Border">
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.error}" />
+        </Style>
+
+        <!-- Disabled -->
+        <Style Selector="^:disabled /template/ Border#PART_Border">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.100}" />
+            <Setter Property="Opacity" Value="0.7" />
+        </Style>
+
+    </ControlTheme>
+
+</ResourceDictionary>

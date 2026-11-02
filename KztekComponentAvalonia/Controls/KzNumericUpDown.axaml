@@ -1,0 +1,129 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls"
+             x:Class="KztekComponentAvalonia.Controls.KzNumericUpDown"
+             mc:Ignorable="d" 
+             d:DesignWidth="200" d:DesignHeight="50">
+
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+
+    <!-- Horizontal layout is default; Vertical layout toggled via code-behind -->
+    <Grid Name="RootGrid">
+        <!-- Horizontal layout -->
+        <StackPanel Name="HorizontalLayout"
+                    Orientation="Horizontal"
+                    Spacing="0">
+
+            <!-- Decrease button -->
+            <kz:KzButton Name="DecreaseBtn"
+                         Content="−"
+                         Width="40"
+                         Height="40"
+                         Padding="0"
+                         BorderThickness="1"
+                         FontSize="18"
+                         CornerRadius="8,0,0,8"
+                         Classes="kz-btn-secondary kz-size-md" />
+
+            <!-- Value input -->
+            <Border Name="ValueInputBorder"
+                    BorderBrush="{StaticResource kz.brush.navy.900}"
+                    Width="80">
+                <TextBox Name="ValueInput"
+                         Text="0"
+                         CornerRadius="0"
+                         BorderThickness="0,1"
+                         BorderBrush="{StaticResource kz.brush.navy.900}"
+                         Background="{StaticResource kz.brush.white}"
+                         Foreground="{StaticResource kz.brush.navy.900}"
+                         FontSize="{StaticResource kz.font.md}"
+                         FontWeight="SemiBold"
+                         TextAlignment="Center"
+                         VerticalContentAlignment="Center"
+                         Height="40" />
+            </Border>
+
+            <!-- Increase button -->
+            <kz:KzButton Name="IncreaseBtn"
+                         BorderThickness="1"
+                         Content="+"
+                         Width="40"
+                         Height="40"
+                         Padding="0"
+                         FontSize="18"
+                         CornerRadius="0,8,8,0"
+                         Classes="kz-btn-secondary kz-size-md" />
+
+            <!-- Suffix label -->
+            <TextBlock Name="SuffixLabel"
+                       Text=""
+                       IsVisible="False"
+                       VerticalAlignment="Center"
+                       Margin="8,0,0,0"
+                       FontSize="{StaticResource kz.font.md}"
+                       Foreground="{StaticResource kz.brush.text.muted}" />
+        </StackPanel>
+
+        <!-- Vertical layout -->
+        <StackPanel Name="VerticalLayout"
+                    Orientation="Vertical"
+                    Spacing="0"
+                    IsVisible="False"
+                    HorizontalAlignment="Center">
+
+            <!-- Increase button (top) -->
+            <kz:KzButton Name="IncreaseBtnV"
+                         Content="+"
+                         Width="60"
+                         Height="36"
+                         Padding="0"
+                         FontSize="16"
+                         CornerRadius="8,8,0,0"
+                         Classes="kz-btn-secondary kz-size-sm" />
+
+            <!-- Value display -->
+            <Border BorderBrush="{StaticResource kz.brush.border}"
+                    BorderThickness="1,0,1,0"
+                    Width="60">
+                <TextBox Name="ValueInputV"
+                         Text="0"
+                         BorderThickness="0"
+                         Background="{StaticResource kz.brush.white}"
+                         Foreground="{StaticResource kz.brush.navy.900}"
+                         FontSize="{StaticResource kz.font.lg}"
+                         FontWeight="Bold"
+                         TextAlignment="Center"
+                         VerticalContentAlignment="Center"
+                         Height="44" />
+            </Border>
+
+            <!-- Decrease button (bottom) -->
+            <kz:KzButton Name="DecreaseBtnV"
+                         Content="−"
+                         Width="60"
+                         Height="36"
+                         Padding="0"
+                         FontSize="16"
+                         CornerRadius="0,0,8,8"
+                         Classes="kz-btn-secondary kz-size-sm" />
+
+            <!-- Suffix below -->
+            <TextBlock Name="SuffixLabelV"
+                       Text=""
+                       IsVisible="False"
+                       HorizontalAlignment="Center"
+                       Margin="0,4,0,0"
+                       FontSize="{StaticResource kz.font.sm}"
+                       Foreground="{StaticResource kz.brush.text.muted}" />
+        </StackPanel>
+
+    </Grid>
+</UserControl>

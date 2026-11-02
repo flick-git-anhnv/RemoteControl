@@ -1,0 +1,164 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#E8EAF0" MinWidth="400" MinHeight="280">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <Border.Styles>
+                <Style Selector="kz|KzCheckedListBox">
+                    <Setter Property="Theme" Value="{DynamicResource {x:Type kz:KzCheckedListBox}}" />
+                </Style>
+            </Border.Styles>
+            <kz:KzCheckedListBox Width="280" Height="160">
+                <ListBoxItem Content="Tùy chọn thứ nhất" />
+                <ListBoxItem Content="Tùy chọn thứ hai" IsSelected="True" />
+                <ListBoxItem Content="Tùy chọn thứ ba" />
+                <ListBoxItem Content="Tùy chọn vô hiệu" IsEnabled="False" />
+            </kz:KzCheckedListBox>
+        </Border>
+    </Design.PreviewWith>
+    <!-- ── Item container theme ──────────────────────────────────────────── -->
+    <ControlTheme x:Key="KzCheckedListBoxItem" TargetType="ListBoxItem">
+        <Setter Property="Height"  Value="{StaticResource kz.height.sm}" />
+        <Setter Property="Padding" Value="10,0,10,0" />
+        <Setter Property="Cursor"  Value="Hand" />
+
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="Root"
+                        Background="{StaticResource kz.brush.white}"
+                        Padding="{TemplateBinding Padding}">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Background" Duration="0:0:0.12" />
+                        </Transitions>
+                    </Border.Transitions>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+
+                        <!-- Checkbox indicator -->
+                        <Border Name="Indicator"
+                                Width="16" Height="16"
+                                VerticalAlignment="Center"
+                                CornerRadius="{StaticResource kz.radius.sm}"
+                                Background="{StaticResource kz.brush.white}"
+                                BorderBrush="{StaticResource kz.brush.divider}"
+                                BorderThickness="2">
+                            <Border.Transitions>
+                                <Transitions>
+                                    <BrushTransition Property="Background"  Duration="0:0:0.12" />
+                                    <BrushTransition Property="BorderBrush" Duration="0:0:0.12" />
+                                </Transitions>
+                            </Border.Transitions>
+
+                            <!-- Check mark path -->
+                            <Viewbox Name="Checkmark" IsVisible="False" Stretch="Uniform" Width="9" Height="9">
+                                <Canvas Width="12" Height="12">
+                                    <Path Data="M 1 6 L 4.5 9.5 L 11 2"
+                                          Stroke="White"
+                                          StrokeThickness="1.8"
+                                          StrokeLineCap="Round" />
+                                </Canvas>
+                            </Viewbox>
+                        </Border>
+
+                        <!-- Item content -->
+                        <ContentPresenter Name="PART_ContentPresenter"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          VerticalAlignment="Center"
+                                          FontSize="{StaticResource kz.font.md}"
+                                          Foreground="{StaticResource kz.brush.text}" />
+
+                    </StackPanel>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- ── Selected (checked) ── -->
+        <Style Selector="^:selected /template/ Border#Indicator">
+            <Setter Property="Background"  Value="{StaticResource kz.brush.navy.900}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.900}" />
+        </Style>
+        <Style Selector="^:selected /template/ Viewbox#Checkmark">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+
+        <!-- ── Hover (unchecked) ── -->
+        <Style Selector="^:pointerover /template/ Border#Root">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.100}" />
+        </Style>
+
+        <!-- ── Hover (checked) ── -->
+        <Style Selector="^:selected:pointerover /template/ Border#Indicator">
+            <Setter Property="Background"  Value="{StaticResource kz.brush.navy.hover}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.hover}" />
+        </Style>
+
+        <!-- ── Focus ring ── -->
+        <Style Selector="^:focus /template/ Border#Indicator">
+            <Setter Property="BoxShadow" Value="{StaticResource kz.shadow.focus}" />
+        </Style>
+
+        <!-- ── Disabled ── -->
+        <Style Selector="^:disabled">
+            <Setter Property="Opacity" Value="0.45" />
+        </Style>
+
+    </ControlTheme>
+
+    <!-- ── KzCheckedListBox container theme ──────────────────────────────── -->
+    <ControlTheme x:Key="{x:Type kz:KzCheckedListBox}" TargetType="kz:KzCheckedListBox">
+        <Setter Property="Background"    Value="{StaticResource kz.brush.white}" />
+        <Setter Property="BorderBrush"   Value="{StaticResource kz.brush.divider}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding"       Value="0" />
+        <Setter Property="ItemContainerTheme" Value="{StaticResource KzCheckedListBoxItem}" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility"   Value="Auto" />
+
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="Root"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{StaticResource kz.radius.md}"
+                        ClipToBounds="True">
+                    <Border.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="BorderBrush" Duration="0:0:0.12" />
+                        </Transitions>
+                    </Border.Transitions>
+
+                    <ScrollViewer Name="PART_ScrollViewer"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ItemsPresenter Name="PART_ItemsPresenter"
+                                        ItemsPanel="{TemplateBinding ItemsPanel}" />
+                    </ScrollViewer>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- ── Focus-within → orange border ── -->
+        <Style Selector="^:focus-within /template/ Border#Root">
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.orange.500}" />
+            <Setter Property="BoxShadow"   Value="{StaticResource kz.shadow.focus}" />
+        </Style>
+
+        <!-- ── Disabled ── -->
+        <Style Selector="^:disabled /template/ Border#Root">
+            <Setter Property="Background"  Value="{StaticResource kz.brush.navy.100}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.border}" />
+        </Style>
+
+    </ControlTheme>
+
+</ResourceDictionary>

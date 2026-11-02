@@ -1,0 +1,76 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#E8EAF0" MinWidth="500" MinHeight="240">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <Border.Styles>
+                <Style Selector="kz|KzProgressBar">
+                    <Setter Property="Theme" Value="{DynamicResource {x:Type kz:KzProgressBar}}" />
+                </Style>
+            </Border.Styles>
+            <StackPanel Spacing="16" VerticalAlignment="Center">
+                <!-- Default: navy track -->
+                <kz:KzProgressBar Value="65" />
+                <!-- Accent: orange track -->
+                <kz:KzProgressBar Value="40" Classes="kz-progress-accent" />
+                <!-- Success: green track -->
+                <kz:KzProgressBar Value="80" Classes="kz-progress-success" />
+                <!-- Indeterminate -->
+                <kz:KzProgressBar IsIndeterminate="True" />
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+    <ControlTheme x:Key="{x:Type kz:KzProgressBar}" TargetType="kz:KzProgressBar">
+        <Setter Property="Background" Value="{StaticResource kz.brush.navy.100}" />
+        <Setter Property="Foreground" Value="{StaticResource kz.brush.navy.900}" />
+        <Setter Property="MinHeight" Value="8" />
+        <Setter Property="Maximum"   Value="100" />
+        <Setter Property="Minimum"   Value="0" />
+
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PART_Track"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="9999"
+                        ClipToBounds="True"
+                        MinHeight="{TemplateBinding MinHeight}">
+                    <Border Name="PART_Indicator"
+                            Background="{TemplateBinding Foreground}"
+                            CornerRadius="9999"
+                            HorizontalAlignment="Left">
+                        <Border.Transitions>
+                            <Transitions>
+                                <DoubleTransition Property="Width" Duration="0:0:0.25" Easing="CubicEaseOut" />
+                            </Transitions>
+                        </Border.Transitions>
+                    </Border>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- ── Accent (Orange) ── -->
+        <Style Selector="^.kz-progress-accent">
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.orange.500}" />
+            <Setter Property="Background" Value="{StaticResource kz.brush.accent.bg}" />
+        </Style>
+
+        <!-- ── Success (Green) ── -->
+        <Style Selector="^.kz-progress-success">
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.success}" />
+            <Setter Property="Background" Value="{StaticResource kz.brush.success.bg}" />
+        </Style>
+
+        <!-- ── Indeterminate ── -->
+        <Style Selector="^:indeterminate /template/ Border#PART_Indicator">
+            <Setter Property="Width" Value="60" />
+        </Style>
+    </ControlTheme>
+
+</ResourceDictionary>

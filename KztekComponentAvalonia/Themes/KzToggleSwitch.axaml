@@ -1,0 +1,146 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#F8FAFC" MinWidth="440" MinHeight="240">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <StackPanel Spacing="16" VerticalAlignment="Center">
+                <kz:KzToggleSwitch Content="Tắt (mặc định)" />
+                <kz:KzToggleSwitch Content="Bật" IsChecked="True" />
+                <kz:KzToggleSwitch OnContent="Bật" OffContent="Tắt" IsChecked="False" />
+                <kz:KzToggleSwitch OnContent="Bật" OffContent="Tắt" IsChecked="True" />
+                <kz:KzToggleSwitch Content="Vô hiệu hoá — tắt" IsEnabled="False" />
+                <kz:KzToggleSwitch Content="Vô hiệu hoá — bật" IsChecked="True" IsEnabled="False" />
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+
+    <!--
+    Modern KZTEK Branded ToggleSwitch:
+    - Track: 56x30px capsule (CornerRadius 15), 1.5px border
+      - OFF: #E2E8F0 track, #CBD5E1 border
+      - ON: Brand Orange #F05922 / #EA580C, #EA580C border
+    - Knob (Thumb): 22x22px elevated white pill with soft shadow
+      - Slides smoothly from X=0 to X=26px
+    - Label: Supports OnContent / OffContent and Content with proper contrast
+    -->
+    <ControlTheme x:Key="{x:Type kz:KzToggleSwitch}" TargetType="kz:KzToggleSwitch">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid ColumnDefinitions="Auto,Auto" VerticalAlignment="Center">
+                    <!-- Track -->
+                    <Grid Grid.Column="0" Width="56" Height="30" VerticalAlignment="Center">
+
+                        <!-- Track background & border -->
+                        <Border Name="PART_TrackBackground"
+                                CornerRadius="15"
+                                Background="#E2E8F0"
+                                BorderBrush="#CBD5E1"
+                                BorderThickness="1.5">
+                            <Border.Transitions>
+                                <Transitions>
+                                    <BrushTransition Property="Background" Duration="0:0:0.18" />
+                                    <BrushTransition Property="BorderBrush" Duration="0:0:0.18" />
+                                </Transitions>
+                            </Border.Transitions>
+                        </Border>
+
+                        <!-- PART_MovingKnobs — Panel with elevated thumb -->
+                        <Panel Name="PART_MovingKnobs"
+                               Width="22" Height="22"
+                               HorizontalAlignment="Left"
+                               VerticalAlignment="Center"
+                               Margin="4,0,0,0"
+                               RenderTransform="translate(0px, 0px)">
+                            <Panel.Transitions>
+                                <Transitions>
+                                    <TransformOperationsTransition Property="RenderTransform"
+                                                                   Duration="0:0:0.18"
+                                                                   Easing="CubicEaseOut" />
+                                </Transitions>
+                            </Panel.Transitions>
+                            <Border Width="22" Height="22"
+                                    CornerRadius="11"
+                                    Background="White"
+                                    BoxShadow="0 2 5 0 #33000000" />
+                        </Panel>
+                    </Grid>
+
+                    <!-- Content / Labels -->
+                    <Panel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                        <!-- OffContent -->
+                        <ContentPresenter Name="PART_OffContentPresenter"
+                                          Content="{TemplateBinding OffContent}"
+                                          ContentTemplate="{TemplateBinding OffContentTemplate}"
+                                          IsVisible="{Binding !IsChecked, RelativeSource={RelativeSource TemplatedParent}}"
+                                          VerticalAlignment="Center" />
+                        <!-- OnContent -->
+                        <ContentPresenter Name="PART_OnContentPresenter"
+                                          Content="{TemplateBinding OnContent}"
+                                          ContentTemplate="{TemplateBinding OnContentTemplate}"
+                                          IsVisible="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}"
+                                          VerticalAlignment="Center" />
+                        <!-- Standard Content -->
+                        <ContentPresenter Name="PART_ContentPresenter"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          VerticalAlignment="Center" />
+                    </Panel>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- ── Typography & Label styling ── -->
+        <Style Selector="^ /template/ ContentPresenter#PART_OffContentPresenter">
+            <Setter Property="TextBlock.Foreground" Value="#64748B" />
+            <Setter Property="TextBlock.FontSize" Value="14.5" />
+            <Setter Property="TextBlock.FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="^ /template/ ContentPresenter#PART_OnContentPresenter">
+            <Setter Property="TextBlock.Foreground" Value="{DynamicResource kz.brush.orange.500}" />
+            <Setter Property="TextBlock.FontSize" Value="14.5" />
+            <Setter Property="TextBlock.FontWeight" Value="Bold" />
+        </Style>
+        <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="TextBlock.Foreground" Value="#334155" />
+            <Setter Property="TextBlock.FontSize" Value="14.5" />
+            <Setter Property="TextBlock.FontWeight" Value="SemiBold" />
+        </Style>
+
+        <!-- ── ON state: Brand Orange bg, knob slides right 26px ── -->
+        <Style Selector="^:checked /template/ Border#PART_TrackBackground">
+            <Setter Property="Background" Value="{DynamicResource kz.brush.orange.500}" />
+            <Setter Property="BorderBrush" Value="#EA580C" />
+        </Style>
+        <Style Selector="^:checked /template/ Panel#PART_MovingKnobs">
+            <Setter Property="RenderTransform" Value="translate(26px, 0px)" />
+        </Style>
+
+        <!-- ── Hover OFF ── -->
+        <Style Selector="^:not(:checked):pointerover /template/ Border#PART_TrackBackground">
+            <Setter Property="Background" Value="#CBD5E1" />
+            <Setter Property="BorderBrush" Value="#94A3B8" />
+        </Style>
+
+        <!-- ── Hover ON ── -->
+        <Style Selector="^:checked:pointerover /template/ Border#PART_TrackBackground">
+            <Setter Property="Background" Value="#EA580C" />
+            <Setter Property="BorderBrush" Value="#C2410C" />
+        </Style>
+
+        <!-- ── Disabled ── -->
+        <Style Selector="^:disabled">
+            <Setter Property="Opacity" Value="0.45" />
+        </Style>
+    </ControlTheme>
+</ResourceDictionary>

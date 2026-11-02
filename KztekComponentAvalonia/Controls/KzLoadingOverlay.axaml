@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="KztekComponentAvalonia.Controls.KzLoadingOverlay"
+             IsVisible="False"
+             IsHitTestVisible="True">
+
+  <Panel>
+    <!-- Semi-transparent black mask — blocks all input to controls below -->
+    <Border Background="#8C000000" IsHitTestVisible="True"/>
+
+    <!-- Centered white card -->
+    <Border Background="White"
+            CornerRadius="12"
+            Padding="32 24"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            MinWidth="220"
+            BoxShadow="0 6 32 0 #50000000">
+      <StackPanel Spacing="14" HorizontalAlignment="Center">
+
+        <!-- Indeterminate spinner (Avalonia ProgressBar in IsIndeterminate mode) -->
+        <ProgressBar IsIndeterminate="True"
+                     Width="160"
+                     Height="6"
+                     CornerRadius="3"/>
+
+        <!-- Title -->
+        <TextBlock x:Name="TitleLabel"
+                   Text="Vui lòng chờ trong giây lát"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"/>
+
+        <!-- Subtitle -->
+        <TextBlock x:Name="SubTitleLabel"
+                   Text=""
+                   FontSize="13"
+                   Foreground="{DynamicResource kz.brush.text.muted}"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   IsVisible="False"/>
+      </StackPanel>
+    </Border>
+  </Panel>
+</UserControl>

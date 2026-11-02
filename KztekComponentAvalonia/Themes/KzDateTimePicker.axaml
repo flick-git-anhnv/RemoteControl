@@ -1,0 +1,56 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#E8EAF0" MinWidth="400" MinHeight="200">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <StackPanel Spacing="12" VerticalAlignment="Center">
+                <kz:KzDateTimePicker Width="280" />
+                <kz:KzDateTimePicker Width="280" IsEnabled="False" />
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+    <!-- ── Base ── -->
+    <Style Selector="kz|KzDateTimePicker">
+        <Setter Property="FontSize"        Value="{StaticResource kz.font.md}" />
+        <Setter Property="Foreground"      Value="{StaticResource kz.brush.text}" />
+        <Setter Property="Background"      Value="{StaticResource kz.brush.white}" />
+        <Setter Property="BorderBrush"     Value="{StaticResource kz.brush.border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius"    Value="{StaticResource kz.radius.md}" />
+        <Setter Property="MinHeight"       Value="{StaticResource kz.height.md}" />
+        <Setter Property="Padding"         Value="12,0" />
+        <Setter Property="Cursor"          Value="Hand" />
+    </Style>
+
+    <!-- ── Template inner TextBox — remove its own border ── -->
+    <Style Selector="kz|KzDateTimePicker /template/ TextBox#PART_TextBox">
+        <Setter Property="Background"      Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding"         Value="0" />
+    </Style>
+
+    <!-- ── Pointer over ── -->
+    <Style Selector="kz|KzDateTimePicker:pointerover">
+        <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.700}" />
+    </Style>
+
+    <!-- ── Focus within (date input is focused) ── -->
+    <Style Selector="kz|KzDateTimePicker:focus-within">
+        <Setter Property="BorderBrush"     Value="{StaticResource kz.brush.orange.500}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+
+    <!-- ── Disabled ── -->
+    <Style Selector="kz|KzDateTimePicker:disabled">
+        <Setter Property="Background" Value="{StaticResource kz.brush.navy.100}" />
+        <Setter Property="Opacity"    Value="0.7" />
+    </Style>
+
+</Styles>

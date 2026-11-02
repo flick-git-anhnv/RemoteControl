@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls"
+             x:Class="KztekComponentAvalonia.Controls.KzCrudControl"
+             mc:Ignorable="d" 
+             d:DesignWidth="620" d:DesignHeight="320">
+
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- ── Toolbar ────────────────────────────────────────────────── -->
+    <kz:KzToolBar Grid.Row="0" Name="PART_ToolBar" />
+
+    <!-- ── DataGrid ───────────────────────────────────────────────── -->
+    <DataGrid Grid.Row="1"
+              Name="PART_Grid"
+              Classes="kz-grid"
+              AutoGenerateColumns="False"
+              CanUserReorderColumns="True"
+              CanUserResizeColumns="True"
+              CanUserSortColumns="True"
+              ColumnWidth="Auto"
+              IsReadOnly="True"
+              SelectionMode="Extended"
+              HorizontalScrollBarVisibility="Auto"
+              VerticalScrollBarVisibility="Auto" />
+
+    <!-- ── Navigation ─────────────────────────────────────────────── -->
+    <Border Grid.Row="2"
+            Background="{StaticResource kz.brush.navy.100}"
+            BorderBrush="{StaticResource kz.brush.border}"
+            BorderThickness="0,1,0,0"
+            Padding="12,6">
+      <Grid ColumnDefinitions="*,Auto">
+
+        <!-- Row count info -->
+        <TextBlock Grid.Column="0"
+                   Name="PART_TxtCount"
+                   Text="0 bản ghi"
+                   Foreground="{StaticResource kz.brush.text.muted}"
+                   FontSize="12"
+                   VerticalAlignment="Center" />
+
+        <kz:KzNavigation Grid.Column="1"
+                          Name="PART_Nav"
+                          KzSize="Sm" />
+
+      </Grid>
+    </Border>
+
+  </Grid>
+</UserControl>

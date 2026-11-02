@@ -1,0 +1,132 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls"
+             x:Class="KztekComponentAvalonia.Controls.KzNavigation"
+             mc:Ignorable="d" 
+             d:DesignWidth="240" d:DesignHeight="50">
+
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+      <!--
+      Local ControlTheme for the 4 nav icon-buttons.
+      Navy bg → hover Orange → pressed Navy-hover; disabled fades via Opacity.
+      -->
+      <ControlTheme x:Key="KzNavBtnTheme" TargetType="Button">
+      <Setter Property="Width"  Value="34" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Background"            Value="{StaticResource kz.brush.navy.900}" />
+      <Setter Property="Foreground"            Value="White" />
+      <Setter Property="BorderThickness"       Value="0" />
+      <Setter Property="CornerRadius"          Value="{StaticResource kz.radius.sm}" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment"   Value="Center" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontSize"   Value="{StaticResource kz.font.sm}" />
+      <Setter Property="Cursor"     Value="Hand" />
+      <Setter Property="Padding"    Value="0" />
+
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Name="PART_Bg"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Width="{TemplateBinding Width}"
+                  Height="{TemplateBinding Height}">
+            <Border.Transitions>
+              <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.10" />
+              </Transitions>
+            </Border.Transitions>
+            <ContentPresenter HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Content="{TemplateBinding Content}"
+                              Foreground="{TemplateBinding Foreground}"
+                              FontSize="{TemplateBinding FontSize}"
+                              FontWeight="{TemplateBinding FontWeight}" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+
+      <!-- Hover → Orange -->
+      <Style Selector="^:pointerover /template/ Border#PART_Bg">
+        <Setter Property="Background" Value="{StaticResource kz.brush.orange.500}" />
+      </Style>
+
+      <!-- Pressed → darker Navy -->
+      <Style Selector="^:pressed /template/ Border#PART_Bg">
+        <Setter Property="Background" Value="{StaticResource kz.brush.navy.hover}" />
+      </Style>
+
+      <!-- Disabled → fade -->
+      <Style Selector="^:disabled">
+        <Setter Property="Opacity" Value="0.35" />
+        <Setter Property="Cursor"  Value="Arrow" />
+      </Style>
+    </ControlTheme>
+    </ResourceDictionary>
+  </UserControl.Resources>
+
+  <!-- ── Layout ── -->
+  <StackPanel Orientation="Horizontal"
+              Spacing="4"
+              VerticalAlignment="Center">
+
+    <Button Name="PART_BtnFirst" Content="◀◀"
+            Theme="{StaticResource KzNavBtnTheme}" />
+    <Button Name="PART_BtnPrev"  Content="◀"
+            Theme="{StaticResource KzNavBtnTheme}" />
+
+    <!-- Page input with focus ring -->
+    <Border Name="PART_InputBorder"
+            Background="{StaticResource kz.brush.white}"
+            BorderBrush="{StaticResource kz.brush.border}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource kz.radius.sm}"
+            MinHeight="{StaticResource kz.height.md}"
+            Width="52"
+            VerticalAlignment="Center">
+      <Border.Transitions>
+        <Transitions>
+          <BrushTransition   Property="BorderBrush"    Duration="0:0:0.12" />
+          <ThicknessTransition Property="BorderThickness" Duration="0:0:0.08" />
+        </Transitions>
+      </Border.Transitions>
+      <TextBox Name="PART_PageInput"
+               MaxLength="6"
+               TextAlignment="Center"
+               Background="Transparent"
+               BorderThickness="0"
+               Padding="2,0"
+               VerticalContentAlignment="Center"
+               FontSize="{StaticResource kz.font.md}"
+               CaretBrush="{StaticResource kz.brush.navy.900}"
+               SelectionBrush="{StaticResource kz.brush.orange.300}" />
+    </Border>
+
+    <!-- Slash separator -->
+    <TextBlock Text="/"
+               VerticalAlignment="Center"
+               Margin="2,0"
+               FontSize="{StaticResource kz.font.md}"
+               Foreground="{StaticResource kz.brush.text.muted}" />
+
+    <!-- Total pages label -->
+    <TextBlock Name="PART_Total"
+               VerticalAlignment="Center"
+               Margin="0,0,4,0"
+               MinWidth="20"
+               FontSize="{StaticResource kz.font.md}"
+               Foreground="{StaticResource kz.brush.text.muted}" />
+
+    <Button Name="PART_BtnNext" Content="▶"
+            Theme="{StaticResource KzNavBtnTheme}" />
+    <Button Name="PART_BtnLast" Content="▶▶"
+            Theme="{StaticResource KzNavBtnTheme}" />
+
+  </StackPanel>
+</UserControl>

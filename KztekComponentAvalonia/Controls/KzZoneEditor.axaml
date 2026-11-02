@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:kz="using:KztekComponentAvalonia.Controls"
+             x:Class="KztekComponentAvalonia.Controls.KzZoneEditor"
+             mc:Ignorable="d" 
+             d:DesignWidth="500" d:DesignHeight="300"
+             ClipToBounds="True">
+
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+
+  <Grid RowDefinitions="Auto,*">
+
+    <!-- ── Toolbar overlay ────────────────────────────────────────────── -->
+    <Border Grid.Row="0"
+            Background="{StaticResource kz.brush.navy.900}"
+            Padding="8,4">
+      <StackPanel Orientation="Horizontal" Spacing="6">
+
+        <kz:KzButton Name="PART_BtnUndo"
+                     Content="↩ Undo"
+                     Variant="Secondary" KzSize="Sm"
+                     ToolTip.Tip="Ctrl+Z" />
+
+        <kz:KzButton Name="PART_BtnRedo"
+                     Content="↪ Redo"
+                     Variant="Secondary" KzSize="Sm"
+                     ToolTip.Tip="Ctrl+Y" />
+
+        <Border Width="1" Margin="4,4" Background="{StaticResource kz.brush.navy.300}" />
+
+        <kz:KzButton Name="PART_BtnDelete"
+                     Content="🗑 Xóa"
+                     Variant="Danger" KzSize="Sm"
+                     ToolTip.Tip="Delete — xóa zone đang chọn" />
+
+        <Border Width="1" Margin="4,4" Background="{StaticResource kz.brush.navy.300}" />
+
+        <!-- Snap toggle -->
+        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+          <CheckBox Name="PART_ChkSnap" IsChecked="True" />
+          <TextBlock Text="Snap" Foreground="White" FontSize="12"
+                     VerticalAlignment="Center" />
+        </StackPanel>
+
+        <TextBlock Name="PART_TxtSnapSize"
+                   Text="(8px)" Foreground="{StaticResource kz.brush.navy.300}"
+                   FontSize="11" VerticalAlignment="Center" />
+
+        <Border Width="1" Margin="4,4" Background="{StaticResource kz.brush.navy.300}" />
+
+        <!-- Zone count -->
+        <TextBlock Name="PART_TxtInfo"
+                   Text="0 zones"
+                   Foreground="{StaticResource kz.brush.orange.300}"
+                   FontSize="12" VerticalAlignment="Center" />
+
+      </StackPanel>
+    </Border>
+
+    <!-- ── Canvas area ────────────────────────────────────────────────── -->
+    <Border Grid.Row="1"
+            Name="PART_CanvasBorder"
+            Background="#1A251C53"
+            BorderBrush="{StaticResource kz.brush.border}"
+            BorderThickness="1"
+            ClipToBounds="True">
+      <Canvas Name="PART_Canvas"
+              ClipToBounds="True"
+              Background="Transparent"
+              Cursor="Cross"
+              Focusable="True" />
+    </Border>
+
+  </Grid>
+</UserControl>

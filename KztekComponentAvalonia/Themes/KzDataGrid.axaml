@@ -1,0 +1,115 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#E8EAF0" MinWidth="520" MinHeight="240">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <DataGrid Classes="kz-grid" AutoGenerateColumns="False" Height="160" Width="440"
+                      CanUserSortColumns="False" CanUserResizeColumns="False"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Disabled">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Họ và tên" Width="*" />
+                    <DataGridTextColumn Header="Mã số" Width="100" />
+                    <DataGridTextColumn Header="Trạng thái" Width="120" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Design.PreviewWith>
+    <!-- ── KzComboBox — Item styles (must be in Styles, not ControlTheme) ── -->
+    <Style Selector="kz|KzComboBox ComboBoxItem">
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="FontSize" Value="{StaticResource kz.font.md}" />
+        <Setter Property="Foreground" Value="{StaticResource kz.brush.text}" />
+    </Style>
+    <Style Selector="kz|KzComboBox ComboBoxItem:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{StaticResource kz.brush.navy.100}" />
+    </Style>
+    <Style Selector="kz|KzComboBox ComboBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="{StaticResource kz.brush.navy.100}" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource kz.brush.navy.900}" />
+        <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- ── Column Header (Base) ── -->
+    <Style Selector="DataGrid.kz-grid DataGridColumnHeader">
+        <Setter Property="Background" Value="{StaticResource kz.brush.navy.900}" />
+        <Setter Property="Foreground" Value="{StaticResource kz.brush.white}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="{StaticResource kz.font.sm}" />
+        <Setter Property="MinHeight" Value="26" />
+        <!-- Bật căn giữa chuẩn và XÓA padding mặc định của theme để không bị cấn -->
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <!-- ── 1. FIX LỆCH TRÁI: Ép phần chữ tràn qua cả cột chứa SortIcon ── -->
+    <Style Selector="DataGrid.kz-grid DataGridColumnHeader /template/ ContentPresenter#PART_ContentPresenter">
+        <!-- CHIÊU QUAN TRỌNG NHẤT: Bỏ qua vách ngăn, lấy toàn bộ không gian để căn giữa -->
+        <Setter Property="Grid.ColumnSpan" Value="2" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <!-- Dùng Margin đối xứng để tạo khoảng không trên dưới/trái phải -->
+        <Setter Property="Margin" Value="12,8" />
+    </Style>
+
+    <!-- ── 2. ẨN SORT ICON ── -->
+    <Style Selector="DataGrid.kz-grid DataGridColumnHeader /template/ Path#SortIcon">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <!-- Header Hover -->
+    <Style Selector="DataGrid.kz-grid DataGridColumnHeader:pointerover">
+        <Setter Property="Background" Value="{StaticResource kz.brush.navy.700}" />
+    </Style>
+
+    <!-- ── Body Row ── -->
+    <Style Selector="DataGrid.kz-grid DataGridRow">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource kz.brush.text}" />
+        <Setter Property="MinHeight" Value="26" />
+    </Style>
+
+    <!-- Alternating rows -->
+    <Style Selector="DataGrid.kz-grid DataGridRow:nth-child(2n) /template/ Rectangle#BackgroundRectangle">
+        <Setter Property="Fill" Value="{StaticResource kz.brush.navy.100}" />
+        <Setter Property="Opacity" Value="0.5" />
+    </Style>
+
+    <!-- Row hover -->
+    <Style Selector="DataGrid.kz-grid DataGridRow:pointerover /template/ Rectangle#BackgroundRectangle">
+        <Setter Property="Fill" Value="{StaticResource kz.brush.navy.100}" />
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <!-- Selected row -->
+    <Style Selector="DataGrid.kz-grid DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
+        <Setter Property="Fill" Value="{StaticResource kz.brush.orange.300}" />
+        <Setter Property="Opacity" Value="0.4" />
+    </Style>
+
+    <!-- ── Cell ── -->
+    <Style Selector="DataGrid.kz-grid DataGridCell">
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="BorderBrush" Value="{StaticResource kz.brush.border}" />
+        <Setter Property="FontSize" Value="{StaticResource kz.font.sm}" />
+    </Style>
+
+    <!-- ── DataGrid base ── -->
+    <Style Selector="DataGrid.kz-grid">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="RowBackground" Value="Transparent" />
+        <Setter Property="GridLinesVisibility" Value="Horizontal" />
+        <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource kz.brush.border}" />
+        <Setter Property="VerticalGridLinesBrush" Value="Transparent" />
+    </Style>
+
+</Styles>

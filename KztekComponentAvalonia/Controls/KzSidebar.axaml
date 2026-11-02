@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls"
+             x:Class="KztekComponentAvalonia.Controls.KzSidebar"
+             mc:Ignorable="d" 
+             d:DesignWidth="240" d:DesignHeight="400">
+
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+
+  <Border Background="{StaticResource kz.brush.navy.900}"
+          Width="240">
+    <DockPanel>
+
+      <!-- Header / Logo area -->
+      <Border DockPanel.Dock="Top"
+              Padding="16,20,16,16"
+              BorderBrush="{StaticResource kz.brush.navy.700}"
+              BorderThickness="0,0,0,1">
+        <ContentPresenter Name="HeaderPresenter"
+                          Content="{Binding $parent[kz:KzSidebar].Header}" />
+      </Border>
+
+      <!-- Navigation list -->
+      <ListBox Name="NavList"
+               Padding="8,8,8,8"
+               Background="Transparent"
+               BorderThickness="0"
+               SelectionMode="Single">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Spacing="2" />
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.Styles>
+          <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+          </Style>
+        </ListBox.Styles>
+      </ListBox>
+
+    </DockPanel>
+  </Border>
+</UserControl>

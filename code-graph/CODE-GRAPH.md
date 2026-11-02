@@ -1,8 +1,13 @@
 # CODE-GRAPH.md — Bản đồ codebase: Remote Control Tool (CCU ↔ ZCU)
-**Cập nhật lần cuối:** 2026-10-31 | **Bởi:** documentation-writer | **Version:** 3.6
+**Cập nhật lần cuối:** 2026-11-02 | **Bởi:** tech-lead | **Version:** 3.8
 
 > File này được duy trì tự động bởi coding agents.
 > **Đọc file này TRƯỚC khi đọc source code** để hiểu cấu trúc dự án mà không cần mở từng file.
+
+> **Ghi chú version 3.8:** Tích hợp trực tiếp thư viện `KztekComponentAvalonia` và chuẩn hóa Solution `IPGS.RemoteControl.sln`:
+> - **Tích hợp KztekComponentAvalonia nội bộ repo:** Sao chép toàn bộ mã nguồn `KztekComponentAvalonia` vào repository `6.RemoteControlTool`, chuyển đổi toàn bộ `ProjectReference` từ tham chiếu ngoài sang tham chiếu nội bộ (`..\KztekComponentAvalonia\KztekComponentAvalonia.csproj`).
+> - **Khởi tạo Solution quản lý tập trung (`IPGS.RemoteControl.sln`):** Quản lý đồng bộ 5 project (.NET 8/.NET 9), khép kín chu trình build và test độc lập không phụ thuộc thư mục ngoài.
+> - **Toàn diện 117 Unit Tests Pass 100%:** Bao gồm 9 bài test SFTP/Navigation (`RemoteFileItemTests.cs`) và 14 bài test Zero-Alloc Frame Streaming.
 
 > **Ghi chú version 3.6:** Hoàn thành chu trình cải tiến đỉnh cao Vòng 7 — Zero-Allocation Frame Streaming & Chống Trễ Tích Lũy (F-ROUND7-1 đến F-ROUND7-5):
 > - **Zero-Allocation Frame Streaming trên ZcuAgent (`ClientSession.cs` & `MessageCodec.cs`):** Bổ sung `WriteFrameMetadataHeader` ghi 24 bytes metadata vào span đích và buffer `_frameHeaderBuffer` 29 bytes cố định (`WriteFrameJpegDirectAsync`). Stream trực tiếp mảng pixel JPEG đã nén từ encoder buffer, **triệt tiêu 100% mảng LOH `new byte[24 + jpeg.Length]`**, tiết kiệm 1.5 – 3.0 MB/s rác heap trên ZCU Linux.
@@ -14,16 +19,17 @@
 
 ## Tổng quan dự án
 
-Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Linux, X11) từ máy quản lý CCU (Windows/Linux). Gồm 4 project .NET:
+Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Linux, X11) từ máy quản lý CCU (Windows/Linux). Gồm 5 project .NET trong solution `IPGS.RemoteControl.sln`:
 
 | Project | Vai trò | Nền tảng |
 |---|---|---|
 | `IPGS.RemoteControl.ZcuAgent` | Service chạy trên ZCU (Linux): **Zero-Allocation Frame Streaming** (`WriteFrameJpegDirectAsync`), chống trễ tích lũy Congestion Dropping, tự động dò tìm Display thông minh (`X11DisplayResolver`), chống màn hình đen Headless (`XSetScreenSaver`), capture màn hình X11 (XShm/XGetImage), inject chuột/phím (XTest không chặn XSync), TCP server 1-client, chat/clipboard, nén JPEG Zero-Copy (`SKImage.FromPixels`) + `malloc_trim(0)` định kỳ, Zero-Copy file download chunking, Socket tuning `NoDelay = true` + `SendBufferSize = 256KB` | linux-x64 (.NET 8) |
 | `IPGS.RemoteControl.CcuClient` | Class library: TCP client + protocol codec với **ArrayPool rented wire headers**, SSH installer/deployer (STDIN sudo an toàn), WoL, discovery (tự động trích xuất TLS fingerprint), profile store (DPAPI), TLS Certificate Pinning & TOFU tự động, zero-copy buffer upload, Telemetry đo RTT/FPS/Bitrate, Clipboard Safety Shield 1MB, Socket tuning `ReceiveBufferSize = 256KB` | win-x64 + linux-x64 (.NET 8) |
 | `IPGS.RemoteControl.CcuUI` | App Avalonia 12: viewer/manager — remote screen với Ping-Pong Double-Buffering zero-copy (`Buffer.MemoryCopy`), giải phóng buffer an toàn khi đổi resolution, huy hiệu TLS 🔒, Live Network HUD Badge (`⚡ FPS | 📶 RTT | 📊 Bitrate`), MultiRemote hỗ trợ TLS pinning, Zero-Allocation AVI video recording hỗ trợ Stream trừu tượng, 100% `PlaceholderText` sạch obsolete | win-x64 + linux-x64 (.NET 8) |
-| `IPGS.RemoteControl.Tests` | Bộ kiểm thử tự động xUnit: **108 test cases** bao phủ `FrameStreaming` (14 tests), `X11DisplayResolver` (19 tests), `MessageCodec` (18 tests), `ShellQuote` (15 tests), `SecretProtector` (7 tests), `ComputerProfileStore` (6 tests), `WakeOnLanService` (14 tests), `ComputerStatusChecker` (6 tests), `ZcuAgentDiscoveryService` (4 tests), `SessionRecorder` (5 tests) | cross-platform (.NET 9) |
+| `KztekComponentAvalonia` | Thư viện UI chuẩn KZTEK: Controls (KzButton, KzTextBox, KzSearchBox, KzNavigation, KzCrudControl, KzCard...), Theme tokens & extensions | win-x64 + linux-x64 (.NET 8) |
+| `IPGS.RemoteControl.Tests` | Bộ kiểm thử tự động xUnit: **117 test cases** bao phủ `FrameStreaming` (14 tests), `X11DisplayResolver` (19 tests), `MessageCodec` (18 tests), `ShellQuote` (15 tests), `SecretProtector` (7 tests), `ComputerProfileStore` (6 tests), `WakeOnLanService` (14 tests), `ComputerStatusChecker` (6 tests), `ZcuAgentDiscoveryService` (4 tests), `SessionRecorder` (5 tests) | cross-platform (.NET 9) |
 
-**Tech stack:** .NET 8 / .NET 9, Avalonia 12 (CcuUI — dùng `KztekComponentAvalonia` từ `E:\KZTEK\Code_Git\5.BaseUI`), SSH.NET 2026.0.0 (Renci), SkiaSharp (decode/encode JPEG zero-allocation), X11/XTest/XShm P/Invoke (ZcuAgent), DPAPI (`System.Security.Cryptography.ProtectedData`), xUnit 2.9.2.
+**Tech stack:** .NET 8 / .NET 9, Avalonia 12 (CcuUI — dùng `KztekComponentAvalonia` trực tiếp trong solution), SSH.NET 2026.0.0 (Renci), SkiaSharp (decode/encode JPEG zero-allocation), X11/XTest/XShm P/Invoke (ZcuAgent), DPAPI (`System.Security.Cryptography.ProtectedData`), xUnit 2.9.2.
 
 **Phụ thuộc giữa project:** `CcuUI` → `CcuClient`; `IPGS.RemoteControl.Tests` → `CcuClient` + `CcuUI` + `ZcuAgent` (linked interop); `ZcuAgent` độc lập nhưng dùng chung chuẩn protocol.
 
@@ -123,9 +129,9 @@ Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Li
 | `SSH.NET` (Renci.SshNet) | **2026.0.0** | CcuClient, CcuUI | Xóa sạch 100% 2 lỗ hổng bảo mật NU1903 (GHSA-mggc-4xg6-vcxf và GHSA-q939-rpr3-3284) |
 | `System.Security.Cryptography.ProtectedData` | 8.0.0 | CcuClient | DPAPI mã hóa dữ liệu nhạy cảm trên Windows (với cơ chế cảnh báo trên Linux) |
 | `Avalonia` | 11.2 / 12.x | CcuUI | Toàn bộ 10 file AXAML đã chuyển 100% sang `PlaceholderText`, sạch toàn bộ obsolete warnings |
-| `KztekComponentAvalonia` | ProjectReference | CcuUI | Thư viện UI chuẩn KZTEK từ `E:\KZTEK\Code_Git\5.BaseUI` |
+| `KztekComponentAvalonia` | ProjectReference | CcuUI | Thư viện UI chuẩn KZTEK tích hợp nội bộ trong solution `IPGS.RemoteControl.sln` |
 | `SkiaSharp` | (theo csproj) | CcuUI, ZcuAgent | Xử lý hình ảnh và giải mã JPEG |
-| `xunit` & `coverlet.collector` | 2.9.2 / 6.0.2 | IPGS.RemoteControl.Tests | Khung kiểm thử tự động, **108/108 tests passed (100%)** |
+| `xunit` & `coverlet.collector` | 2.9.2 / 6.0.2 | IPGS.RemoteControl.Tests | Khung kiểm thử tự động, **117/117 tests passed (100%)** |
 
 ---
 
@@ -133,6 +139,8 @@ Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Li
 
 | Ngày | File/Module | Loại | Mô tả ngắn | Agent |
 |------|------------|------|------------|-------|
+| 2026-11-02 | Solution & KztekComponentAvalonia | Refactor & Integration | Tích hợp trực tiếp project `KztekComponentAvalonia` vào repository `6.RemoteControlTool`, tạo solution `IPGS.RemoteControl.sln` quản lý 5 project, cập nhật toàn bộ tham chiếu nội bộ, 117 unit tests pass 100% | senior-developer, tech-lead |
+| 2026-11-02 | CcuUI/RemoteCommandWindow | Bug Fix | Sửa lỗi không nhấn đúp chuột mở thư mục SFTP (trích xuất đa tầng RemoteFileItem, phím Enter/Backspace, chuẩn hóa POSIX path), bổ sung 9 tests | senior-developer, tech-lead, qa-engineer |
 | 2026-10-31 | Toàn bộ giải pháp (4 projects) | Performance & Optimization | **Hoàn thành chu trình cải tiến đỉnh cao v3.6 (F-ROUND7-1 đến F-ROUND7-5):** Zero-Allocation Frame Streaming trên ZcuAgent (`WriteFrameJpegDirectAsync` qua buffer 29-byte cố định, triệt tiêu 100% rác LOH 1.5–3MB/s), khử phân bổ header bằng `ArrayPool`, chống trễ tích lũy Congestion Dropping, mở rộng bộ test suite lên 108 unit tests pass 100% | senior-developer, junior-developer, qa-engineer, tech-lead |
 | 2026-10-31 | Toàn bộ giải pháp (4 projects) | Feature & Optimization | Chu trình cải tiến Headless & RDP v3.5 (F-HEADLESS-1 đến F-HEADLESS-5): `X11DisplayResolver` tự động phát hiện display `:0`, `:1`, `:10.0` (xrdp), nới lỏng session guard, P/Invoke `XSetScreenSaver` chống màn hình đen, 94 unit tests | senior-developer, junior-developer, qa-engineer, tech-lead |
 | 2026-10-31 | Toàn bộ giải pháp (4 projects) | Hardening & Test Suite | Chu trình cải tiến đỉnh cao v3.4 (F-ROUND5-1 đến F-ROUND5-4): Trừu tượng hóa `Stream` cho `SessionRecorder`, 100% FourCC tĩnh zero-allocation, chốt chặn Clipboard 1MB, bounds checking 8192px cho JPEG, 75 unit tests | senior-developer, junior-developer, qa-engineer, tech-lead |
@@ -153,6 +161,6 @@ Hệ thống Remote Control CCU↔ZCU: điều khiển từ xa các máy ZCU (Li
 
 ## Ghi chú đặc biệt
 
-- **Chất lượng kiểm thử:** Toàn bộ giải pháp sở hữu test suite tự động `IPGS.RemoteControl.Tests` với **108 bài test đạt 100% tỷ lệ đỗ**.
-- **Trạng thái biên dịch:** Sạch sẽ 100% (0 Errors, 0 Warnings trên cả 4 dự án).
+- **Chất lượng kiểm thử:** Toàn bộ giải pháp sở hữu test suite tự động `IPGS.RemoteControl.Tests` với **117 bài test đạt 100% tỷ lệ đỗ**.
+- **Trạng thái biên dịch:** Sạch sẽ 100% (0 Errors trên toàn bộ 5 dự án trong solution).
 - **Tính vững chắc phòng thủ & Hiệu năng đỉnh cao:** Đường ống truyền nhận video đạt chuẩn **Zero-Allocation hoàn toàn** ở cả hai đầu (ZcuAgent stream trực tiếp 0-alloc, CcuUI render Ping-Pong Double-Buffering zero-copy `Buffer.MemoryCopy`), triệt tiêu 100% rác LOH và chống trễ tích lũy công nghiệp.

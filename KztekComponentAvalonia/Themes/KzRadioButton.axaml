@@ -1,0 +1,104 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#E8EAF0" MinWidth="400" MinHeight="220">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <Border.Styles>
+                <Style Selector="kz|KzRadioButton">
+                    <Setter Property="Theme" Value="{DynamicResource {x:Type kz:KzRadioButton}}" />
+                </Style>
+            </Border.Styles>
+            <StackPanel Spacing="16" VerticalAlignment="Center">
+                <!-- Chưa chọn -->
+                <kz:KzRadioButton Content="Tùy chọn 1" GroupName="demo" />
+                <!-- Đã chọn -->
+                <kz:KzRadioButton Content="Tùy chọn 2 (đã chọn)" GroupName="demo" IsChecked="True" />
+                <!-- Vô hiệu hóa -->
+                <kz:KzRadioButton Content="Tùy chọn bị vô hiệu hóa" IsEnabled="False" />
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+    <ControlTheme x:Key="{x:Type kz:KzRadioButton}" TargetType="kz:KzRadioButton">
+        <Setter Property="Cursor"   Value="Hand" />
+        <Setter Property="FontSize" Value="{StaticResource kz.font.md}" />
+        <Setter Property="Foreground" Value="{StaticResource kz.brush.text}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+
+        <Setter Property="Template">
+            <ControlTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Background="Transparent">
+
+                    <!-- Circular indicator -->
+                    <Border Name="Indicator"
+                            Width="18" Height="18"
+                            VerticalAlignment="Center"
+                            CornerRadius="9999"
+                            Background="{StaticResource kz.brush.white}"
+                            BorderBrush="{StaticResource kz.brush.border}"
+                            BorderThickness="2">
+                        <Border.Transitions>
+                            <Transitions>
+                                <BrushTransition Property="Background"   Duration="0:0:0.12" />
+                                <BrushTransition Property="BorderBrush"  Duration="0:0:0.12" />
+                            </Transitions>
+                        </Border.Transitions>
+
+                        <!-- Inner dot (shown when checked) -->
+                        <Ellipse Name="Dot"
+                                 Width="8" Height="8"
+                                 Fill="White"
+                                 IsVisible="False"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center" />
+                    </Border>
+
+                    <!-- Label -->
+                    <ContentPresenter Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      VerticalAlignment="Center"
+                                      Background="Transparent"
+                                      RecognizesAccessKey="True" />
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- ── Checked ── -->
+        <Style Selector="^:checked /template/ Border#Indicator">
+            <Setter Property="Background"  Value="{StaticResource kz.brush.navy.900}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.900}" />
+        </Style>
+        <Style Selector="^:checked /template/ Ellipse#Dot">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+
+        <!-- ── Hover (unchecked) ── -->
+        <Style Selector="^:pointerover /template/ Border#Indicator">
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.700}" />
+        </Style>
+
+        <!-- ── Hover (checked) ── -->
+        <Style Selector="^:checked:pointerover /template/ Border#Indicator">
+            <Setter Property="Background"  Value="{StaticResource kz.brush.navy.hover}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.hover}" />
+        </Style>
+
+        <!-- ── Focus ── -->
+        <Style Selector="^:focus /template/ Border#Indicator">
+            <Setter Property="BoxShadow" Value="{StaticResource kz.shadow.focus}" />
+        </Style>
+
+        <!-- ── Disabled ── -->
+        <Style Selector="^:disabled">
+            <Setter Property="Opacity" Value="0.45" />
+        </Style>
+    </ControlTheme>
+
+</ResourceDictionary>

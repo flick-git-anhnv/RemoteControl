@@ -1,0 +1,105 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls"
+             x:Class="KztekComponentAvalonia.Controls.KzToolBar"
+             mc:Ignorable="d" 
+             d:DesignWidth="500" d:DesignHeight="50">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <!--
+            Font riêng cho các ô icon, để không phụ thuộc font chữ chính của app
+            (VD Inter — không chứa dingbat/emoji).
+
+            Lưu ý về việc CHỌN ký tự icon: chỉ dùng hình nét đơn giản (mũi tên, dấu +,
+            dấu ×). Pictograph nhiều chi tiết như "✏" (bút chì) hay "🗑" (thùng rác)
+            VẪN render được nhưng ở cỡ toolbar 12–15px thì nát thành gạch ngang / ô đặc,
+            không đọc ra hình gì — đã thử cả đổi font lẫn tăng cỡ đều không cứu được,
+            nên hai nút Sửa/Xóa bỏ hẳn icon, chỉ để nhãn chữ (iPGSUseCam 2026-07-27).
+            -->
+            <FontFamily x:Key="kz.font.icon">Segoe UI Symbol, Segoe UI Emoji, Noto Color Emoji, $Default</FontFamily>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Border Background="{StaticResource kz.brush.navy.100}"
+            BorderBrush="{StaticResource kz.brush.border}"
+            BorderThickness="0,0,0,1"
+            Padding="8,6">
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+
+            <!-- Add -->
+            <kz:KzButton Name="PART_BtnAdd"
+                         Variant="Primary" KzSize="Sm" Focusable="False">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="+" FontWeight="Bold" />
+                    <TextBlock Name="PART_LblAdd" Text="Thêm" />
+                </StackPanel>
+            </kz:KzButton>
+
+            <!-- Edit -->
+            <kz:KzButton Name="PART_BtnEdit"
+                         Variant="Secondary" KzSize="Sm" Focusable="False">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Name="PART_LblEdit" Text="Sửa" />
+                </StackPanel>
+            </kz:KzButton>
+
+            <!-- Delete -->
+            <kz:KzButton Name="PART_BtnDelete"
+                         Variant="Danger" KzSize="Sm" Focusable="False">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Name="PART_LblDelete" Text="Xóa" />
+                </StackPanel>
+            </kz:KzButton>
+
+            <!-- Bulk Delete (ẩn mặc định — bật qua ShowBulkDelete=true tại caller) -->
+            <kz:KzButton Name="PART_BtnBulkDelete"
+                         Variant="Danger" KzSize="Sm" Focusable="False"
+                         IsVisible="False" IsEnabled="False">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Name="PART_LblBulkDelete" Text="Xóa nhiều" />
+                </StackPanel>
+            </kz:KzButton>
+
+            <!-- Divider -->
+            <Border Name="PART_Divider"
+                    Width="1" Margin="2,4"
+                    Background="{StaticResource kz.brush.divider}" />
+
+            <!-- Refresh -->
+            <kz:KzButton Name="PART_BtnRefresh"
+                         Variant="Ghost" KzSize="Sm" Focusable="False">
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="↺" Margin="0,0,0,2" FontFamily="{StaticResource kz.font.icon}" FontSize="15" VerticalAlignment="Center" />
+                    <TextBlock Name="PART_LblRefresh" VerticalAlignment="Center" Text="Làm mới" />
+                </StackPanel>
+            </kz:KzButton>
+
+            <!-- Import -->
+            <kz:KzButton Name="PART_BtnImport"
+                         Variant="Ghost" KzSize="Sm"
+                         IsVisible="False" Focusable="False">
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="📥" Margin="0,0,0,2" FontFamily="{StaticResource kz.font.icon}" FontSize="15" VerticalAlignment="Center" />
+                    <TextBlock Name="PART_LblImport" Text="Import" VerticalAlignment="Center" />
+                </StackPanel>
+            </kz:KzButton>
+
+            <!-- Export -->
+            <kz:KzButton Name="PART_BtnExport"
+                         Variant="Ghost" KzSize="Sm"
+                         IsVisible="False" Focusable="False">
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="📤" Margin="0,0,0,2" FontFamily="{StaticResource kz.font.icon}" FontSize="15" VerticalAlignment="Center" />
+                    <TextBlock Name="PART_LblExport" Text="Export" VerticalAlignment="Center" />
+                </StackPanel>
+            </kz:KzButton>
+
+        </StackPanel>
+    </Border>
+</UserControl>

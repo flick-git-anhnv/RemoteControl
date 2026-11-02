@@ -1,0 +1,178 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#E8EAF0" MinWidth="700" MinHeight="320">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <Border.Styles>
+                <Style Selector="kz|KzButton">
+                    <Setter Property="Theme" Value="{DynamicResource {x:Type kz:KzButton}}" />
+                </Style>
+            </Border.Styles>
+            <StackPanel Spacing="16" VerticalAlignment="Center">
+                <!-- Size MD — đủ 5 màu -->
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <kz:KzButton Classes="kz-size-md kz-btn-primary"   Content="Primary" />
+                    <kz:KzButton Classes="kz-size-md kz-btn-accent"    Content="Accent" />
+                    <kz:KzButton Classes="kz-size-md kz-btn-secondary" Content="Secondary" />
+                    <kz:KzButton Classes="kz-size-md kz-btn-ghost"     Content="Ghost" />
+                    <kz:KzButton Classes="kz-size-md kz-btn-danger"    Content="Danger" />
+                </StackPanel>
+                <!-- Size SM -->
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <kz:KzButton Classes="kz-size-sm kz-btn-primary"   Content="Primary SM" />
+                    <kz:KzButton Classes="kz-size-sm kz-btn-accent"    Content="Accent SM" />
+                    <kz:KzButton Classes="kz-size-sm kz-btn-secondary" Content="Secondary SM" />
+                    <kz:KzButton Classes="kz-size-sm kz-btn-ghost"     Content="Ghost SM" />
+                    <kz:KzButton Classes="kz-size-sm kz-btn-danger"    Content="Danger SM" />
+                </StackPanel>
+                <!-- Size LG + Disabled -->
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <kz:KzButton Classes="kz-size-lg kz-btn-primary"   Content="Primary LG" />
+                    <kz:KzButton Classes="kz-size-lg kz-btn-accent"    Content="Accent LG" />
+                    <kz:KzButton Classes="kz-size-md kz-btn-primary"   Content="Vô hiệu hoá" IsEnabled="False" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+    <ControlTheme x:Key="{x:Type kz:KzButton}" TargetType="kz:KzButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="{StaticResource kz.font.md}" />
+        <Setter Property="BorderThickness" Value="1.5" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PART_Border"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}"
+                        Padding="{TemplateBinding Padding}">
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- ── Size Styles ── -->
+        <Style Selector="^.kz-size-sm">
+            <Setter Property="Height" Value="{StaticResource kz.height.sm}" />
+            <Setter Property="Padding" Value="{StaticResource kz.padding.btn.sm}" />
+            <Setter Property="FontSize" Value="{StaticResource kz.font.sm}" />
+            <Setter Property="CornerRadius" Value="{StaticResource kz.radius.sm}" />
+        </Style>
+        <Style Selector="^.kz-size-md">
+            <Setter Property="Height" Value="{StaticResource kz.height.md}" />
+            <Setter Property="Padding" Value="{StaticResource kz.padding.btn.md}" />
+            <Setter Property="FontSize" Value="{StaticResource kz.font.md}" />
+            <Setter Property="CornerRadius" Value="{StaticResource kz.radius.md}" />
+        </Style>
+        <Style Selector="^.kz-size-lg">
+            <Setter Property="Height" Value="{StaticResource kz.height.lg}" />
+            <Setter Property="Padding" Value="{StaticResource kz.padding.btn.lg}" />
+            <Setter Property="FontSize" Value="{StaticResource kz.font.lg}" />
+            <Setter Property="CornerRadius" Value="{StaticResource kz.radius.md}" />
+        </Style>
+
+        <!-- ── Primary ── -->
+        <Style Selector="^.kz-btn-primary">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.900}" />
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.white}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.900}" />
+        </Style>
+        <Style Selector="^.kz-btn-primary:pointerover /template/ Border#PART_Border">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.hover}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.hover}" />
+            <Setter Property="BoxShadow" Value="0 4 8 0 #38251C53" />
+        </Style>
+        <Style Selector="^.kz-btn-primary:pressed /template/ Border#PART_Border">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.900}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.900}" />
+            <Setter Property="BoxShadow" Value="0 0 0 0 #00000000" />
+        </Style>
+
+        <!-- ── Accent (Orange) ── -->
+        <Style Selector="^.kz-btn-accent">
+            <Setter Property="Background" Value="{StaticResource kz.brush.orange.500}" />
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.white}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.orange.500}" />
+        </Style>
+        <Style Selector="^.kz-btn-accent:pointerover /template/ Border#PART_Border">
+            <Setter Property="Background" Value="{StaticResource kz.brush.orange.hover}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.orange.hover}" />
+            <Setter Property="BoxShadow" Value="0 4 10 0 #4DF05922" />
+        </Style>
+        <Style Selector="^.kz-btn-accent:pressed /template/ Border#PART_Border">
+            <Setter Property="Background" Value="{StaticResource kz.brush.orange.hover}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.orange.hover}" />
+            <Setter Property="BoxShadow" Value="0 0 0 0 #00000000" />
+        </Style>
+
+        <!-- ── Secondary ── -->
+        <Style Selector="^.kz-btn-secondary">
+            <Setter Property="Background" Value="{StaticResource kz.brush.white}" />
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.navy.900}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.900}" />
+        </Style>
+        <Style Selector="^.kz-btn-secondary:pointerover /template/ Border#PART_Border">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.100}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.100}" />
+        </Style>
+        <Style Selector="^.kz-btn-secondary:pressed /template/ Border#PART_Border">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.300}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.300}" />
+        </Style>
+
+        <!-- ── Ghost ── -->
+        <Style Selector="^.kz-btn-ghost">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.navy.900}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="^.kz-btn-ghost:pointerover /template/ Border#PART_Border">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.100}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.100}" />
+        </Style>
+        <Style Selector="^.kz-btn-ghost:pressed /template/ Border#PART_Border">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.300}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.300}" />
+        </Style>
+
+        <!-- ── Danger (dùng Navy nhạt — KZTEK cấm màu đỏ tươi, xem kztek-brand-info) ── -->
+        <Style Selector="^.kz-btn-danger">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.700}" />
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.white}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.700}" />
+        </Style>
+        <Style Selector="^.kz-btn-danger:pointerover /template/ Border#PART_Border">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.900}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.900}" />
+            <Setter Property="BoxShadow" Value="0 4 8 0 #38251C53" />
+        </Style>
+        <Style Selector="^.kz-btn-danger:pressed /template/ Border#PART_Border">
+            <Setter Property="Background" Value="{StaticResource kz.brush.navy.hover}" />
+            <Setter Property="BorderBrush" Value="{StaticResource kz.brush.navy.hover}" />
+            <Setter Property="BoxShadow" Value="0 0 0 0 #00000000" />
+        </Style>
+
+        <!-- ── Disabled ── -->
+        <Style Selector="^:disabled /template/ Border#PART_Border">
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+    </ControlTheme>
+
+</ResourceDictionary>

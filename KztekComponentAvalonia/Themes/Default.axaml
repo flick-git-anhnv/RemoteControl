@@ -1,0 +1,72 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:kz="using:KztekComponentAvalonia.Controls">
+    <!-- ── THÊM ĐOẠN NÀY ĐỂ FIX LỖI MÀN HÌNH PREVIEW ── -->
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#F3F4F6" MinWidth="300" MinHeight="200">
+            <TextBlock Text="KzTheme Dictionary Loaded" 
+                       Foreground="#6B7280"
+                       HorizontalAlignment="Center" 
+                       VerticalAlignment="Center"/>
+        </Border>
+    </Design.PreviewWith>
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+
+        <!-- ControlTheme (ResourceDictionary-based — work correctly in MergedDictionaries) -->
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzButton.axaml" />
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzTextBox.axaml" />
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzBadge.axaml" />
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzSidebarItem.axaml" />
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzComboBox.axaml" />
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzLink.axaml" />
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzCheckBox.axaml" />
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzRadioButton.axaml" />
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzProgressBar.axaml" />
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzToggleSwitch.axaml" />
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzCheckedListBox.axaml" />
+
+        <!-- Phase 8 iAccess redesign (STEP-8.4): control moi -->
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzEmptyState.axaml" />
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzEventImageBox.axaml" />
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/KzStatusDot.axaml" />
+
+        <!-- Selector-style themes: KzDataGrid, KzDateTimePicker → in App.axaml Styles -->
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+    KzTabControl — inherits FluentTheme's TabControl ControlTheme (including visual tree).
+    Without this, KzTabControl (empty subclass) gets no template and renders blank.
+    Style overrides remain in Themes/KzTabControl.axaml via App.axaml StyleInclude.
+    -->
+    <ControlTheme x:Key="{x:Type kz:KzTabControl}"
+                  TargetType="kz:KzTabControl"
+                  BasedOn="{StaticResource {x:Type TabControl}}" />
+
+    <!--
+    KzMenu — custom template so the Border renders TemplateBinding Background.
+    Fluent Menu template uses DynamicResource MenuBackground (white in Light theme),
+    ignoring any local Background value set on the control.
+    This custom template wraps ItemsPresenter in a Border backed by TemplateBinding Background,
+    so KzMenu.cs constructor value (Navy900Brush) is correctly painted.
+    -->
+    <ControlTheme x:Key="{x:Type kz:KzMenu}" TargetType="kz:KzMenu" BasedOn="{StaticResource {x:Type Menu}}">
+        <Setter Property="ItemsPanel">
+            <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+        </Setter>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{TemplateBinding Background}"
+                        Height="{TemplateBinding Height}"
+                        Padding="{TemplateBinding Padding}">
+                    <ItemsPresenter Name="PART_ItemsPresenter"
+                                    ItemsPanel="{TemplateBinding ItemsPanel}" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+
+</ResourceDictionary>

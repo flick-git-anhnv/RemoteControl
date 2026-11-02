@@ -1,0 +1,68 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#E8EAF0" MinWidth="400" MinHeight="200">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <Border.Styles>
+                <Style Selector="kz|KzLink">
+                    <Setter Property="Theme" Value="{DynamicResource {x:Type kz:KzLink}}" />
+                </Style>
+            </Border.Styles>
+            <StackPanel Spacing="16" VerticalAlignment="Center">
+                <!-- Kích thước mặc định -->
+                <kz:KzLink Content="Xem chi tiết báo cáo" />
+                <!-- Kích thước lớn hơn -->
+                <kz:KzLink Content="Quản lý người dùng" FontSize="16" FontWeight="SemiBold" />
+                <!-- Trạng thái vô hiệu hóa -->
+                <kz:KzLink Content="Liên kết không khả dụng" IsEnabled="False" />
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+    <ControlTheme x:Key="{x:Type kz:KzLink}" TargetType="kz:KzLink">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="{StaticResource kz.font.md}" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="{StaticResource kz.brush.navy.700}" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <TextBlock Name="PART_Text"
+                           Text="{TemplateBinding Content}"
+                           Foreground="{TemplateBinding Foreground}"
+                           FontSize="{TemplateBinding FontSize}"
+                           FontWeight="{TemplateBinding FontWeight}"
+                           TextDecorations="{Binding #PART_Text.Tag}" />
+            </ControlTemplate>
+        </Setter>
+
+        <!-- Hover: orange + underline -->
+        <Style Selector="^:pointerover">
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.orange.500}" />
+        </Style>
+        <Style Selector="^:pointerover /template/ TextBlock#PART_Text">
+            <Setter Property="TextDecorations" Value="Underline" />
+        </Style>
+
+        <!-- Pressed -->
+        <Style Selector="^:pressed">
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.orange.hover}" />
+        </Style>
+
+        <!-- Disabled -->
+        <Style Selector="^:disabled">
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.navy.300}" />
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+    </ControlTheme>
+
+</ResourceDictionary>

@@ -1,0 +1,56 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls"
+             x:Class="KztekComponentAvalonia.Controls.KzKpiCard"
+             mc:Ignorable="d" 
+             d:DesignWidth="220" d:DesignHeight="120">
+
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+
+  <Border Background="{StaticResource kz.brush.white}"
+          BorderBrush="{StaticResource kz.brush.border}"
+          BorderThickness="1"
+          CornerRadius="{StaticResource kz.radius.lg}"
+          Padding="20,16">
+    <StackPanel Spacing="6">
+
+      <!-- Label -->
+      <TextBlock Name="KpiLabel"
+                 Text="Label"
+                 FontSize="{StaticResource kz.font.sm}"
+                 FontWeight="Medium"
+                 Foreground="{StaticResource kz.brush.text.muted}"
+                 TextTrimming="CharacterEllipsis" />
+
+      <!-- Value (large) -->
+      <TextBlock Name="KpiValue"
+                 Text="0"
+                 FontSize="{StaticResource kz.font.3xl}"
+                 FontWeight="Bold"
+                 Foreground="{StaticResource kz.brush.navy.900}"
+                 TextTrimming="CharacterEllipsis" />
+
+      <!-- Delta row -->
+      <StackPanel Orientation="Horizontal" Spacing="8" Name="DeltaRow">
+        <kz:KzBadge Name="DeltaBadge"
+                    Content="0%"
+                    Variant="Neutral"
+                    BadgeType="StatusPill" />
+        <TextBlock Name="KpiSubtitle"
+                   Text="so với kỳ trước"
+                   FontSize="{StaticResource kz.font.sm}"
+                   Foreground="{StaticResource kz.brush.text.muted}"
+                   VerticalAlignment="Center" />
+      </StackPanel>
+
+    </StackPanel>
+  </Border>
+</UserControl>

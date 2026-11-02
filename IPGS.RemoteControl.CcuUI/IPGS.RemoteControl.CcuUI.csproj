@@ -39,7 +39,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\5.BaseUI\KztekComponentAvalonia\KztekComponentAvalonia\KztekComponentAvalonia.csproj" />
+    <ProjectReference Include="..\KztekComponentAvalonia\KztekComponentAvalonia.csproj" />
     <ProjectReference Include="..\IPGS.RemoteControl.CcuClient\IPGS.RemoteControl.CcuClient.csproj" />
   </ItemGroup>
 

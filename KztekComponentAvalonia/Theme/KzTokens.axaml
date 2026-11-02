@@ -1,0 +1,168 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- ── ĐOẠN NÀY DÀNH RIÊNG CHO PREVIEWER (Sẽ bị bỏ qua khi app chạy thật) ── -->
+    <Design.PreviewWith>
+        <Border Padding="20" Background="{StaticResource kz.brush.neutral.bg}">
+            <StackPanel Spacing="16">
+
+                <!-- Khối test màu Navy -->
+                <Border Background="{StaticResource kz.brush.navy.900}"
+                        Height="{StaticResource kz.height.lg}"
+                        Width="200"
+                        CornerRadius="{StaticResource kz.radius.md}"
+                        BoxShadow="{StaticResource kz.shadow.md}">
+                    <TextBlock Text="Navy 900 Shadow"
+                               Foreground="{StaticResource kz.brush.white}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontWeight="SemiBold"/>
+                </Border>
+
+                <!-- Khối test màu Orange -->
+                <Border Background="{StaticResource kz.brush.orange.500}"
+                        Height="{StaticResource kz.height.md}"
+                        Width="200"
+                        CornerRadius="{StaticResource kz.radius.sm}"
+                        BoxShadow="{StaticResource kz.shadow.focus}">
+                    <TextBlock Text="Orange 500 Focus"
+                               Foreground="{StaticResource kz.brush.white}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Border>
+
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+    <!-- ── Color Palette ──────────────────────────────────────────────────── -->
+    <Color x:Key="kz.color.navy.900">#251C53</Color>
+    <Color x:Key="kz.color.navy.hover">#1A1340</Color>
+    <Color x:Key="kz.color.navy.700">#4A3F8C</Color>
+    <Color x:Key="kz.color.navy.300">#B8B3D6</Color>
+    <Color x:Key="kz.color.navy.100">#F5F3FA</Color>
+
+    <Color x:Key="kz.color.orange.500">#F05922</Color>
+    <Color x:Key="kz.color.orange.hover">#D94817</Color>
+    <Color x:Key="kz.color.orange.600">#D94817</Color>
+    <Color x:Key="kz.color.orange.300">#FFAA80</Color>
+
+    <Color x:Key="kz.color.success">#16A34A</Color>
+    <Color x:Key="kz.color.warning">#F59E0B</Color>
+    <Color x:Key="kz.color.error">#DC2626</Color>
+    <Color x:Key="kz.color.info">#2563EB</Color>
+
+    <Color x:Key="kz.color.bg">#FFFFFF</Color>
+    <Color x:Key="kz.color.border">#E5E5E5</Color>
+    <Color x:Key="kz.color.divider">#CBCBCB</Color>
+    <Color x:Key="kz.color.text">#1A1A1A</Color>
+    <Color x:Key="kz.color.text.muted">#6B7280</Color>
+
+    <!-- ── Brushes ────────────────────────────────────────────────────────── -->
+    <SolidColorBrush x:Key="kz.brush.navy.900" Color="{StaticResource kz.color.navy.900}" />
+    <SolidColorBrush x:Key="kz.brush.navy.hover" Color="{StaticResource kz.color.navy.hover}" />
+    <SolidColorBrush x:Key="kz.brush.navy.700" Color="{StaticResource kz.color.navy.700}" />
+    <SolidColorBrush x:Key="kz.brush.navy.300" Color="{StaticResource kz.color.navy.300}" />
+    <SolidColorBrush x:Key="kz.brush.navy.100" Color="{StaticResource kz.color.navy.100}" />
+
+    <SolidColorBrush x:Key="kz.brush.orange.500" Color="{StaticResource kz.color.orange.500}" />
+    <SolidColorBrush x:Key="kz.brush.orange.hover" Color="{StaticResource kz.color.orange.hover}" />
+    <SolidColorBrush x:Key="kz.brush.orange.600" Color="{StaticResource kz.color.orange.600}" />
+    <SolidColorBrush x:Key="kz.brush.orange.300" Color="{StaticResource kz.color.orange.300}" />
+
+    <SolidColorBrush x:Key="kz.brush.success" Color="{StaticResource kz.color.success}" />
+    <SolidColorBrush x:Key="kz.brush.warning" Color="{StaticResource kz.color.warning}" />
+    <SolidColorBrush x:Key="kz.brush.error"   Color="{StaticResource kz.color.error}" />
+    <SolidColorBrush x:Key="kz.brush.info"    Color="{StaticResource kz.color.info}" />
+
+    <SolidColorBrush x:Key="kz.brush.bg"         Color="{StaticResource kz.color.bg}" />
+    <SolidColorBrush x:Key="kz.brush.border"      Color="{StaticResource kz.color.border}" />
+    <SolidColorBrush x:Key="kz.brush.divider"     Color="{StaticResource kz.color.divider}" />
+    <SolidColorBrush x:Key="kz.brush.text"        Color="{StaticResource kz.color.text}" />
+    <SolidColorBrush x:Key="kz.brush.text.muted"  Color="{StaticResource kz.color.text.muted}" />
+    <SolidColorBrush x:Key="kz.brush.white"       Color="White" />
+    <SolidColorBrush x:Key="kz.brush.transparent" Color="Transparent" />
+
+    <!-- Success tints -->
+    <Color x:Key="kz.color.success.bg">#DCFCE7</Color>
+    <Color x:Key="kz.color.success.text">#15803D</Color>
+    <SolidColorBrush x:Key="kz.brush.success.bg"   Color="{StaticResource kz.color.success.bg}" />
+    <SolidColorBrush x:Key="kz.brush.success.text" Color="{StaticResource kz.color.success.text}" />
+
+    <!-- Warning tints -->
+    <Color x:Key="kz.color.warning.bg">#FEF9C3</Color>
+    <Color x:Key="kz.color.warning.text">#B45309</Color>
+    <SolidColorBrush x:Key="kz.brush.warning.bg"   Color="{StaticResource kz.color.warning.bg}" />
+    <SolidColorBrush x:Key="kz.brush.warning.text" Color="{StaticResource kz.color.warning.text}" />
+
+    <!-- Error tints -->
+    <Color x:Key="kz.color.error.bg">#FEE2E2</Color>
+    <Color x:Key="kz.color.error.text">#B91C1C</Color>
+    <SolidColorBrush x:Key="kz.brush.error.bg"   Color="{StaticResource kz.color.error.bg}" />
+    <SolidColorBrush x:Key="kz.brush.error.text" Color="{StaticResource kz.color.error.text}" />
+
+    <!-- Info tints -->
+    <Color x:Key="kz.color.info.bg">#DBEAFE</Color>
+    <Color x:Key="kz.color.info.text">#1D4ED8</Color>
+    <SolidColorBrush x:Key="kz.brush.info.bg"   Color="{StaticResource kz.color.info.bg}" />
+    <SolidColorBrush x:Key="kz.brush.info.text" Color="{StaticResource kz.color.info.text}" />
+
+    <!-- Neutral tints -->
+    <Color x:Key="kz.color.neutral.bg">#F3F4F6</Color>
+    <Color x:Key="kz.color.neutral.text">#374151</Color>
+    <SolidColorBrush x:Key="kz.brush.neutral.bg"   Color="{StaticResource kz.color.neutral.bg}" />
+    <SolidColorBrush x:Key="kz.brush.neutral.text" Color="{StaticResource kz.color.neutral.text}" />
+
+    <!-- Status tints (online / offline) — alias cho badge trạng thái nhóm thiết bị KzDeviceTree -->
+    <Color x:Key="kz.color.status.online.bg">#DCFCE7</Color>
+    <Color x:Key="kz.color.status.online.fg">#22C55E</Color>
+    <Color x:Key="kz.color.status.offline.bg">#FEE2E2</Color>
+    <Color x:Key="kz.color.status.offline.fg">#EF4444</Color>
+    <SolidColorBrush x:Key="kz.brush.status.online.bg"  Color="{StaticResource kz.color.status.online.bg}" />
+    <SolidColorBrush x:Key="kz.brush.status.online.fg"  Color="{StaticResource kz.color.status.online.fg}" />
+    <SolidColorBrush x:Key="kz.brush.status.offline.bg" Color="{StaticResource kz.color.status.offline.bg}" />
+    <SolidColorBrush x:Key="kz.brush.status.offline.fg" Color="{StaticResource kz.color.status.offline.fg}" />
+
+    <!-- Accent tints -->
+    <Color x:Key="kz.color.accent.bg">#FEF0E9</Color>
+    <Color x:Key="kz.color.accent.text">#C2440E</Color>
+    <SolidColorBrush x:Key="kz.brush.accent.bg"   Color="{StaticResource kz.color.accent.bg}" />
+    <SolidColorBrush x:Key="kz.brush.accent.text" Color="{StaticResource kz.color.accent.text}" />
+
+    <!-- ── Shadows ─────────────────────────────────────────────────────────── -->
+    <!-- 0 1 2 0 rgba(37,28,83,0.05) -->
+    <BoxShadows x:Key="kz.shadow.sm">0 1 2 0 #0D251C53</BoxShadows>
+    <!-- 0 4 8 0 rgba(37,28,83,0.08) -->
+    <BoxShadows x:Key="kz.shadow.md">0 4 8 0 #14251C53</BoxShadows>
+    <!-- 0 8 24 0 rgba(37,28,83,0.12) -->
+    <BoxShadows x:Key="kz.shadow.lg">0 8 24 0 #1E251C53</BoxShadows>
+    <!-- 0 0 0 3 rgba(240,89,34,0.25) -->
+    <BoxShadows x:Key="kz.shadow.focus">0 0 0 3 #40F05922</BoxShadows>
+
+    <!-- ── Corner Radii ───────────────────────────────────────────────────── -->
+    <CornerRadius x:Key="kz.radius.sm">4</CornerRadius>
+    <CornerRadius x:Key="kz.radius.md">8</CornerRadius>
+    <CornerRadius x:Key="kz.radius.lg">12</CornerRadius>
+    <CornerRadius x:Key="kz.radius.xl">16</CornerRadius>
+    <CornerRadius x:Key="kz.radius.pill">9999</CornerRadius>
+
+    <!-- ── Heights ────────────────────────────────────────────────────────── -->
+    <x:Double x:Key="kz.height.sm">32</x:Double>
+    <x:Double x:Key="kz.height.md">40</x:Double>
+    <x:Double x:Key="kz.height.lg">48</x:Double>
+
+    <!-- ── Font Sizes ─────────────────────────────────────────────────────── -->
+    <x:Double x:Key="kz.font.sm">12</x:Double>
+    <x:Double x:Key="kz.font.md">14</x:Double>
+    <x:Double x:Key="kz.font.lg">16</x:Double>
+    <x:Double x:Key="kz.font.xl">20</x:Double>
+    <x:Double x:Key="kz.font.2xl">24</x:Double>
+    <x:Double x:Key="kz.font.3xl">30</x:Double>
+
+    <!-- ── Spacing ────────────────────────────────────────────────────────── -->
+    <Thickness x:Key="kz.padding.sm">8,4</Thickness>
+    <Thickness x:Key="kz.padding.md">12,8</Thickness>
+    <Thickness x:Key="kz.padding.lg">16,10</Thickness>
+    <Thickness x:Key="kz.padding.btn.sm">12,0</Thickness>
+    <Thickness x:Key="kz.padding.btn.md">16,0</Thickness>
+    <Thickness x:Key="kz.padding.btn.lg">20,0</Thickness>
+
+</ResourceDictionary>

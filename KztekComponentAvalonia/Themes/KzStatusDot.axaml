@@ -1,0 +1,60 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls">
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#E8EAF0" MinWidth="500" MinHeight="220">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <Border.Styles>
+                <Style Selector="kz|KzStatusDot">
+                    <Setter Property="Theme" Value="{DynamicResource {x:Type kz:KzStatusDot}}" />
+                </Style>
+            </Border.Styles>
+            <StackPanel Spacing="14" VerticalAlignment="Center">
+                <kz:KzStatusDot Classes="kz-dot-online"  Label="Trực tuyến"  ShowLabel="True" />
+                <kz:KzStatusDot Classes="kz-dot-offline" Label="Ngoại tuyến" ShowLabel="True" />
+                <kz:KzStatusDot Classes="kz-dot-warning" Label="Cảnh báo"    ShowLabel="True" />
+                <kz:KzStatusDot Classes="kz-dot-unknown" Label="Không rõ"    ShowLabel="True" />
+                <kz:KzStatusDot Classes="kz-dot-online"  ShowLabel="False"   DotSize="10" />
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+    <ControlTheme x:Key="{x:Type kz:KzStatusDot}" TargetType="kz:KzStatusDot">
+        <Setter Property="Foreground" Value="{StaticResource kz.brush.text}" />
+        <Setter Property="FontSize" Value="{StaticResource kz.font.sm}" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <Ellipse Name="PART_Dot"
+                             Width="{TemplateBinding DotSize}"
+                             Height="{TemplateBinding DotSize}"
+                             VerticalAlignment="Center" />
+                    <TextBlock Text="{TemplateBinding Label}"
+                               IsVisible="{TemplateBinding ShowLabel}"
+                               Foreground="{TemplateBinding Foreground}"
+                               FontSize="{TemplateBinding FontSize}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+
+        <Style Selector="^.kz-dot-online /template/ Ellipse#PART_Dot">
+            <Setter Property="Fill" Value="{StaticResource kz.brush.success}" />
+        </Style>
+        <Style Selector="^.kz-dot-offline /template/ Ellipse#PART_Dot">
+            <Setter Property="Fill" Value="{StaticResource kz.brush.error}" />
+        </Style>
+        <Style Selector="^.kz-dot-warning /template/ Ellipse#PART_Dot">
+            <Setter Property="Fill" Value="{StaticResource kz.brush.warning}" />
+        </Style>
+        <Style Selector="^.kz-dot-unknown /template/ Ellipse#PART_Dot">
+            <Setter Property="Fill" Value="{StaticResource kz.brush.text.muted}" />
+        </Style>
+    </ControlTheme>
+
+</ResourceDictionary>

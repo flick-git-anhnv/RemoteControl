@@ -1,0 +1,117 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls">
+    <!-- 1. NẠP MÀU SẮC: Kéo file Tokens vào để Previewer hiểu được các biến kz.brush... -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <ControlTheme x:Key="{x:Type kz:KzBadge}" TargetType="kz:KzBadge">
+        <Setter Property="FontSize" Value="{StaticResource kz.font.sm}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="8,3" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PART_Border"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="{TemplateBinding CornerRadius}"
+                        Padding="{TemplateBinding Padding}">
+                    <TextBlock Text="{TemplateBinding Content}"
+                               Foreground="{TemplateBinding Foreground}"
+                               FontSize="{TemplateBinding FontSize}"
+                               FontWeight="{TemplateBinding FontWeight}"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- ── StatusPill (default) ─────────────────────────────────────────── -->
+        <Style Selector="^.kz-badge-pill">
+            <Setter Property="CornerRadius" Value="{StaticResource kz.radius.pill}" />
+            <Setter Property="Padding" Value="10,4" />
+        </Style>
+
+        <!-- ── Tag ────────────────────────────────────────────────────────────── -->
+        <Style Selector="^.kz-badge-tag">
+            <Setter Property="CornerRadius" Value="{StaticResource kz.radius.sm}" />
+            <Setter Property="Padding" Value="8,3" />
+        </Style>
+
+        <!-- ── Variants ─────────────────────────────────────────────────────── -->
+        <Style Selector="^.kz-badge-success">
+            <Setter Property="Background" Value="{StaticResource kz.brush.success.bg}" />
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.success.text}" />
+        </Style>
+        <Style Selector="^.kz-badge-warning">
+            <Setter Property="Background" Value="{StaticResource kz.brush.warning.bg}" />
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.warning.text}" />
+        </Style>
+        <Style Selector="^.kz-badge-error">
+            <Setter Property="Background" Value="{StaticResource kz.brush.error.bg}" />
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.error.text}" />
+        </Style>
+        <Style Selector="^.kz-badge-info">
+            <Setter Property="Background" Value="{StaticResource kz.brush.info.bg}" />
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.info.text}" />
+        </Style>
+        <Style Selector="^.kz-badge-neutral">
+            <Setter Property="Background" Value="{StaticResource kz.brush.neutral.bg}" />
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.neutral.text}" />
+        </Style>
+        <Style Selector="^.kz-badge-accent">
+            <Setter Property="Background" Value="{StaticResource kz.brush.accent.bg}" />
+            <Setter Property="Foreground" Value="{StaticResource kz.brush.accent.text}" />
+        </Style>
+    </ControlTheme>
+
+    <!-- ── THÊM ĐOẠN NÀY ĐỂ FIX LỖI MÀN HÌNH PREVIEW ── -->
+    <!-- ── THÊM ĐOẠN NÀY ĐỂ FIX LỖI MÀN HÌNH PREVIEW ── -->
+    <Design.PreviewWith>
+        <Border Padding="40" Background="#F3F4F6" MinWidth="500" MinHeight="200">
+
+            <!-- 1. BÍ QUYẾT Ở ĐÂY: Bơm lại file Tokens vào tận bên trong nội tạng của khối Preview -->
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+
+            <!-- 2. ÉP THEME: Bắt buộc dùng DynamicResource thay vì StaticResource -->
+            <Border.Styles>
+                <Style Selector="kz|KzBadge">
+                    <Setter Property="Theme" Value="{DynamicResource {x:Type kz:KzBadge}}" />
+                </Style>
+            </Border.Styles>
+
+            <StackPanel Spacing="20" VerticalAlignment="Center">
+
+                <!-- Hàng 1: Dáng Pill (Bo tròn mạnh) -->
+                <TextBlock Text="Pill Badges" FontWeight="Bold" Foreground="#374151" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <kz:KzBadge Classes="kz-badge-pill kz-badge-success" Content="Success" />
+                    <kz:KzBadge Classes="kz-badge-pill kz-badge-warning" Content="Warning" />
+                    <kz:KzBadge Classes="kz-badge-pill kz-badge-error" Content="Error" />
+                    <kz:KzBadge Classes="kz-badge-pill kz-badge-info" Content="Info" />
+                    <kz:KzBadge Classes="kz-badge-pill kz-badge-neutral" Content="Neutral" />
+                    <kz:KzBadge Classes="kz-badge-pill kz-badge-accent" Content="Accent" />
+                </StackPanel>
+
+                <!-- Hàng 2: Dáng Tag (Bo tròn nhẹ) -->
+                <TextBlock Text="Tag Badges" FontWeight="Bold" Foreground="#374151" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <kz:KzBadge Classes="kz-badge-tag kz-badge-success" Content="Success" />
+                    <kz:KzBadge Classes="kz-badge-tag kz-badge-warning" Content="Warning" />
+                    <kz:KzBadge Classes="kz-badge-tag kz-badge-error" Content="Error" />
+                    <kz:KzBadge Classes="kz-badge-tag kz-badge-info" Content="Info" />
+                    <kz:KzBadge Classes="kz-badge-tag kz-badge-neutral" Content="Neutral" />
+                    <kz:KzBadge Classes="kz-badge-tag kz-badge-accent" Content="Accent" />
+                </StackPanel>
+
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+</ResourceDictionary>

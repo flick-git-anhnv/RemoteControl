@@ -1,0 +1,282 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls"
+             x:Class="KztekComponentAvalonia.Controls.KzDeviceTree"
+             mc:Ignorable="d" 
+             d:DesignWidth="400" d:DesignHeight="300">
+
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+      <!-- TreeViewItem theme — Navy/Orange KZTEK style -->
+      <ControlTheme x:Key="KzTreeItem" TargetType="TreeViewItem" x:DataType="kz:KzDeviceNode">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+      <Setter Property="Foreground" Value="{StaticResource kz.brush.text}" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="MinHeight" Value="32" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <StackPanel>
+            <!-- Row highlight -->
+            <Border Name="PART_RowBorder"
+                    Background="Transparent"
+                    BorderThickness="3,0,0,0"
+                    BorderBrush="Transparent"
+                    CornerRadius="6"
+                    Margin="2,1">
+              <Grid ColumnDefinitions="Auto,*">
+                <!-- Expand/collapse toggle -->
+                <ToggleButton Grid.Column="0"
+                              Name="PART_ExpandCollapseChevron"
+                              Width="20" Height="20"
+                              Margin="0,0,2,0"
+                              IsChecked="{Binding $parent[TreeViewItem].IsExpanded, Mode=TwoWay}"
+                              IsVisible="{Binding HasChildren}"
+                              VerticalAlignment="Center">
+                  <ToggleButton.Styles>
+                    <Style Selector="ToggleButton">
+                      <Setter Property="Background" Value="Transparent" />
+                      <Setter Property="BorderThickness" Value="0" />
+                      <Setter Property="Template">
+                        <ControlTemplate>
+                          <Border Background="Transparent" Width="20" Height="20">
+                            <Path Name="Arrow"
+                                  Data="M 0 0 L 7 5 L 0 10"
+                                  Stroke="{StaticResource kz.brush.navy.700}"
+                                  StrokeThickness="1.5"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  RenderTransformOrigin="50%,50%">
+                              <Path.RenderTransform>
+                                <RotateTransform Angle="0" />
+                              </Path.RenderTransform>
+                            </Path>
+                          </Border>
+                        </ControlTemplate>
+                      </Setter>
+                    </Style>
+                    <Style Selector="ToggleButton:checked /template/ Path#Arrow">
+                      <Setter Property="RenderTransform">
+                        <RotateTransform Angle="90" />
+                      </Setter>
+                    </Style>
+                  </ToggleButton.Styles>
+                </ToggleButton>
+                <!-- No expander placeholder -->
+                <Border Grid.Column="0" Width="20"
+                        IsVisible="{Binding !HasChildren}" />
+
+                <!-- Item content -->
+                <ContentPresenter Grid.Column="1"
+                                  Name="PART_HeaderPresenter"
+                                  Content="{TemplateBinding Header}"
+                                  ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                  Padding="{TemplateBinding Padding}"
+                                  VerticalContentAlignment="Center" />
+              </Grid>
+            </Border>
+
+            <!-- Children -->
+            <ItemsPresenter Name="PART_ItemsPresenter"
+                            IsVisible="{TemplateBinding IsExpanded}"
+                            Margin="16,0,0,0" />
+          </StackPanel>
+        </ControlTemplate>
+      </Setter>
+
+      <!-- Hover -->
+      <Style Selector="^:pointerover /template/ Border#PART_RowBorder">
+        <Setter Property="Background" Value="{StaticResource kz.brush.navy.100}" />
+      </Style>
+
+      <!-- Selected — navy.100 (#F5F3FA) gần trắng, khó phân biệt với nền trắng của panel.
+           Dùng navy.300 (#B8B3D6, "Navy nhạt — background nhẹ" theo brand KZTEK) + viền trái Cam
+           để nổi bật rõ item đang chọn, vẫn phân biệt được với hover (navy.100). -->
+      <!-- Selected: chỉ đổi màu viền và nền — KHÔNG đổi BorderThickness (đã cố định 3,0,0,0 ở template)
+           để nội dung bên trong không bị dịch sang phải khi selection thay đổi. -->
+      <Style Selector="^:selected /template/ Border#PART_RowBorder">
+        <Setter Property="Background" Value="{StaticResource kz.brush.navy.300}" />
+        <Setter Property="BorderBrush" Value="{StaticResource kz.brush.orange.500}" />
+      </Style>
+      <Style Selector="^:selected /template/ ContentPresenter#PART_HeaderPresenter">
+        <Setter Property="TextElement.Foreground" Value="{StaticResource kz.brush.navy.900}" />
+        <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+      </Style>
+    </ControlTheme>
+    </ResourceDictionary>
+  </UserControl.Resources>
+
+  <Border Background="{StaticResource kz.brush.white}"
+          BorderBrush="{StaticResource kz.brush.border}"
+          BorderThickness="1"
+          CornerRadius="{StaticResource kz.radius.lg}">
+
+    <DockPanel>
+
+      <!-- Optional header -->
+      <Border Name="HeaderArea"
+              DockPanel.Dock="Top"
+              Background="{StaticResource kz.brush.navy.900}"
+              Height="44"
+              CornerRadius="11,11,0,0"
+              Padding="16,0"
+              IsVisible="False">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Name="HeaderLabel"
+                     Text="Thiết bị"
+                     FontSize="{StaticResource kz.font.md}"
+                     FontWeight="SemiBold"
+                     Foreground="{StaticResource kz.brush.white}"
+                     VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1"
+                     Name="OnlineCount"
+                     FontSize="{StaticResource kz.font.sm}"
+                     Foreground="{StaticResource kz.brush.navy.300}"
+                     VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+
+      <!-- TreeView.
+           Fix F2 (iAccess UX-REVIEW 8.9): TreeView có ScrollViewer NỘI BỘ trong template mặc định —
+           phải Disabled scroll ngang qua attached property, nếu không BringIntoView khi select
+           tự scroll ngang làm cụt header dù ScrollViewer ngoài đã Disabled. -->
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+        <TreeView Name="PART_Tree"
+                  Background="Transparent"
+                  BorderThickness="0"
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                  Padding="6">
+
+          <TreeView.ItemContainerTheme>
+            <StaticResource ResourceKey="KzTreeItem" />
+          </TreeView.ItemContainerTheme>
+
+          <TreeView.ItemTemplate>
+            <TreeDataTemplate DataType="kz:KzDeviceNode"
+                              ItemsSource="{Binding Children}">
+              <!-- Fix "uốn lượn" (2026-08-25): dùng Grid thay StackPanel — cột tên "*" co giãn
+                   + ellipsis, cột IP/badge trạng thái "Auto" luôn neo cố định ở lề phải, không
+                   còn trôi theo độ dài tên như StackPanel Horizontal trước đây. -->
+              <Grid Height="30">
+                <Grid.ColumnDefinitions>
+                  <!-- Col0: status icon (leaf only) — fixed 20px, đủ cho ký tự icon -->
+                  <ColumnDefinition Width="20"/>
+                  <!-- Col1: device icon — fixed 22px -->
+                  <ColumnDefinition Width="22"/>
+                  <!-- Col2: tên thiết bị — "*" hấp thụ phần còn lại -->
+                  <ColumnDefinition Width="*"/>
+                  <!-- Col3: slot badge / group badge (loại trừ nhau) -->
+                  <ColumnDefinition Width="Auto"/>
+                  <!-- Col4: IP address (leaf only) -->
+                  <ColumnDefinition Width="Auto"/>
+                  <!-- Col5: status badge (leaf only) -->
+                  <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Status icon (leaf nodes only) -->
+                <TextBlock Grid.Column="0"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"
+                           Text="{Binding StatusIcon}"
+                           Foreground="{Binding StatusBrush}"
+                           IsVisible="{Binding ShowStatus}" />
+
+                <!-- Device icon -->
+                <TextBlock Grid.Column="1"
+                           Text="{Binding DeviceIcon}"
+                           FontSize="14"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"
+                           Foreground="{Binding DeviceIconBrush}" />
+
+                <!-- Device name (color for cameras reflects slot availability).
+                     Fix F2: tooltip tên đầy đủ — đọc được khi text bị giới hạn bởi bề ngang panel. -->
+                <TextBlock Grid.Column="2"
+                           Text="{Binding Name}"
+                           FontSize="{StaticResource kz.font.md}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip.Tip="{Binding Name}"
+                           Foreground="{Binding NameBrush}" />
+
+                <!-- Slot badge — camera nodes only: số slot trống + nhãn Còn slot / Hết slot.
+                     Tách khỏi badge trạng thái (cột 5) vì slot KHÔNG phải trạng thái kết nối. -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding HasSlots}">
+                  <Border CornerRadius="4" Padding="5,1"
+                          Margin="6,0,0,0"
+                          Background="{Binding SlotBrush}">
+                    <TextBlock Text="{Binding SlotText}"
+                               FontSize="10" FontWeight="SemiBold"
+                               Foreground="White" />
+                  </Border>
+                  <Border CornerRadius="4" Padding="5,1"
+                          Margin="4,0,0,0"
+                          Background="Transparent"
+                          BorderThickness="1"
+                          BorderBrush="{Binding SlotBrush}">
+                    <TextBlock Text="{Binding SlotLabel}"
+                               FontSize="10" FontWeight="SemiBold"
+                               Foreground="{Binding SlotBrush}" />
+                  </Border>
+                </StackPanel>
+
+                <!-- Group badges — 2 chip Online (xanh) / Offline (đỏ) trên node group.
+                     Cùng Column=3 với slot badge — loại trừ nhau: group không có slot,
+                     leaf không có ShowGroupBadges=true → KHÔNG phá layout hiện có. -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4"
+                            VerticalAlignment="Center" Margin="6,0"
+                            IsVisible="{Binding ShowGroupBadges}">
+                  <Border CornerRadius="4" Padding="5,1"
+                          Background="{DynamicResource kz.brush.status.online.bg}">
+                    <TextBlock Text="{Binding GroupOnlineCount}"
+                               Foreground="{DynamicResource kz.brush.status.online.fg}"
+                               FontSize="11" FontWeight="SemiBold"/>
+                  </Border>
+                  <Border CornerRadius="4" Padding="5,1"
+                          Background="{DynamicResource kz.brush.status.offline.bg}">
+                    <TextBlock Text="{Binding GroupOfflineCount}"
+                               Foreground="{DynamicResource kz.brush.status.offline.fg}"
+                               FontSize="11" FontWeight="SemiBold"/>
+                  </Border>
+                </StackPanel>
+
+                <!-- IP hint for leaf nodes -->
+                <TextBlock Grid.Column="4"
+                           Text="{Binding IpAddress}"
+                           FontSize="{StaticResource kz.font.sm}"
+                           Foreground="{StaticResource kz.brush.text.muted}"
+                           VerticalAlignment="Center"
+                           Margin="10,0,0,0"
+                           IsVisible="{Binding IsLeaf}" />
+
+                <!-- Status badge (leaf nodes only) — neo cố định ở cột cuối, luôn căn phải -->
+                <Border Grid.Column="5" CornerRadius="4" Padding="5,1"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Right"
+                        Margin="10,0,0,0"
+                        Background="{Binding StatusBadgeBrush}"
+                        IsVisible="{Binding ShowStatus}">
+                  <TextBlock Text="{Binding StatusLabel}"
+                             FontSize="10" FontWeight="SemiBold"
+                             Foreground="{Binding StatusBrush}" />
+                </Border>
+
+              </Grid>
+            </TreeDataTemplate>
+          </TreeView.ItemTemplate>
+
+        </TreeView>
+      </ScrollViewer>
+
+    </DockPanel>
+  </Border>
+</UserControl>

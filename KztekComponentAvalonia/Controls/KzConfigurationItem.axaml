@@ -1,0 +1,78 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="KztekComponentAvalonia.Controls.KzConfigurationItem">
+
+  <!--
+    Layout compact: Label PHÍA TRÊN, Input PHÍA DƯỚI (thay vì label-trái/input-phải cố định
+    300px) — không phụ thuộc độ rộng cột, nên khi màn Cấu hình chia nhiều cột (để vừa 1 màn
+    hình không cần scroll) label vẫn wrap gọn 1-2 dòng thay vì bị bóp hẹp/tràn.
+  -->
+  <UserControl.Styles>
+    <Style Selector="TextBox /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.border}" />
+      <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.navy.700}" />
+    </Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.orange.500}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+
+    <Style Selector="ComboBox">
+      <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.border}" />
+      <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="ComboBox:pointerover">
+      <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.navy.700}" />
+    </Style>
+    <Style Selector="ComboBox:focus">
+      <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.orange.500}" />
+    </Style>
+  </UserControl.Styles>
+
+  <!--
+    Kích thước tăng cho MÀN CẢM ỨNG (user yêu cầu 2026-07-26): ô nhập 34 → 46px cao, chữ 14 → 16,
+    nhãn 12.5 → 14. 34px là quá nhỏ để bấm chính xác bằng ngón tay; 46px đạt ngưỡng vùng chạm
+    tối thiểu khuyến nghị mà vẫn đủ gọn để 3 cột vừa 1 màn 1920×1080.
+  -->
+  <StackPanel Margin="0 5" Spacing="5">
+
+    <!-- Label -->
+    <TextBlock x:Name="TitleBlock"
+               FontSize="14"
+               FontFamily="Segoe UI"
+               Foreground="{DynamicResource kz.brush.navy.700}"
+               HorizontalAlignment="Center"
+               TextWrapping="Wrap"
+               LineHeight="18" />
+
+    <Grid>
+      <!-- Input -->
+      <TextBox x:Name="InputBox"
+               FontSize="16"
+               FontFamily="Segoe UI"
+               Foreground="{DynamicResource kz.brush.text}"
+               Padding="12 8"
+               Height="46"
+               VerticalContentAlignment="Center"
+               HorizontalContentAlignment="Center"
+               Background="{DynamicResource kz.brush.bg}" BorderBrush="{DynamicResource kz.brush.border}" CornerRadius="10"
+               BorderThickness="1" />
+
+      <!-- Combo mode -->
+      <ComboBox x:Name="ComboInput"
+                IsVisible="False"
+                FontSize="16"
+                FontFamily="Segoe UI"
+                Foreground="{DynamicResource kz.brush.text}"
+                Padding="12 8"
+                Height="46"
+                VerticalContentAlignment="Center"
+                HorizontalAlignment="Stretch"
+                Background="{DynamicResource kz.brush.bg}" BorderBrush="{DynamicResource kz.brush.border}" CornerRadius="10"
+                BorderThickness="1" />
+    </Grid>
+  </StackPanel>
+</UserControl>

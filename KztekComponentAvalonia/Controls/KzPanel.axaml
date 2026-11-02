@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:KztekComponentAvalonia.Controls"
+             x:Class="KztekComponentAvalonia.Controls.KzPanel"
+             mc:Ignorable="d" 
+             d:DesignWidth="400" d:DesignHeight="200">
+
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+
+  <Border Name="PanelRoot"
+          Background="{StaticResource kz.brush.white}"
+          BorderBrush="{StaticResource kz.brush.border}"
+          BorderThickness="1"
+          CornerRadius="{StaticResource kz.radius.lg}"
+          Padding="20"
+          BoxShadow="{StaticResource kz.shadow.sm}">
+    <Border.Transitions>
+      <Transitions>
+        <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.18" Easing="CubicEaseOut" />
+        <BrushTransition Property="BorderBrush" Duration="0:0:0.18" Easing="CubicEaseOut" />
+      </Transitions>
+    </Border.Transitions>
+    <ContentPresenter Content="{Binding $parent[controls:KzPanel].PanelContent}" />
+  </Border>
+</UserControl>

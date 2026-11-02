@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls"
+             x:Class="KztekComponentAvalonia.Controls.KzGroupBox"
+             mc:Ignorable="d" 
+             d:DesignWidth="400" d:DesignHeight="200">
+
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+
+  <Border Name="GroupRoot"
+          Background="{StaticResource kz.brush.white}"
+          BorderBrush="{StaticResource kz.brush.border}"
+          BorderThickness="1"
+          CornerRadius="{StaticResource kz.radius.lg}">
+    <DockPanel>
+
+      <!-- Header (shown when Title is set) -->
+      <Border Name="HeaderBorder"
+              DockPanel.Dock="Top"
+              Height="44"
+              Padding="16,0"
+              IsVisible="False">
+        <TextBlock Name="TitleText"
+                   FontSize="{StaticResource kz.font.md}"
+                   FontWeight="SemiBold"
+                   Foreground="{StaticResource kz.brush.navy.900}"
+                   VerticalAlignment="Center" />
+      </Border>
+
+      <!-- Divider (shown when Title is set) -->
+      <Rectangle Name="DividerLine"
+                 DockPanel.Dock="Top"
+                 Height="1"
+                 Fill="{StaticResource kz.brush.border}"
+                 IsVisible="False" />
+
+      <!-- Content slot -->
+      <ContentPresenter Name="ContentSlot"
+                        Content="{Binding $parent[kz:KzGroupBox].GroupContent}"
+                        Margin="16" />
+    </DockPanel>
+  </Border>
+</UserControl>

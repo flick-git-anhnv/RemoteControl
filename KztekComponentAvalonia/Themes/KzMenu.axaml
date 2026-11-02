@@ -1,0 +1,149 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia">
+    <Design.PreviewWith>
+        <!-- KzMenu dùng <Styles> root + Style selectors — không có ControlTheme riêng,
+             không cần inject Theme qua Border.Styles. Chỉ cần merge KzTokens. -->
+        <Border Padding="20" Background="#E8EAF0" MinWidth="600" MinHeight="200">
+            <Border.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.MergedDictionaries>
+                        <ResourceInclude Source="avares://KztekComponentAvalonia/Theme/KzTokens.axaml" />
+                    </ResourceDictionary.MergedDictionaries>
+                </ResourceDictionary>
+            </Border.Resources>
+            <StackPanel VerticalAlignment="Top" Spacing="16">
+                <!-- Menu bar nền navy.900, chữ trắng, hover white-tint -->
+                <kz:KzMenu>
+                    <MenuItem Header="Tệp" />
+                    <MenuItem Header="Hệ thống" />
+                    <MenuItem Header="Báo cáo" />
+                    <MenuItem Header="Trợ giúp" />
+                </kz:KzMenu>
+            </StackPanel>
+        </Border>
+    </Design.PreviewWith>
+    <!-- ── KzMenu bar background ─────────────────────────────────────────────── -->
+    <Style Selector="kz|KzMenu">
+        <Setter Property="Background" Value="{DynamicResource kz.brush.navy.900}" />
+        <Setter Property="Foreground" Value="{DynamicResource kz.brush.white}" />
+        <Setter Property="Padding"    Value="4,0" />
+        <Setter Property="Height"     Value="44" />
+    </Style>
+
+    <!-- ── Top-level MenuItem inside KzMenu ──────────────────────────────────── -->
+    <Style Selector="kz|KzMenu > MenuItem">
+        <Setter Property="Foreground"  Value="{DynamicResource kz.brush.white}" />
+        <Setter Property="FontSize"    Value="{DynamicResource kz.font.md}" />
+        <Setter Property="Height"      Value="44" />
+        <Setter Property="Padding"     Value="16,0" />
+        <Setter Property="Background"  Value="Transparent" />
+        <Setter Property="Cursor"      Value="Hand" />
+    </Style>
+
+    <!-- Giữ chữ TRẮNG ở mọi trạng thái của item cấp 1.
+    Thiếu phần này thì FluentTheme áp màu chữ tối lên nền navy khi hover/mở menu,
+    gần như không đọc được (phát hiện trên iPGSUseCam 2026-07-26). -->
+    <Style Selector="kz|KzMenu > MenuItem:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource kz.brush.white}" />
+    </Style>
+    <Style Selector="kz|KzMenu > MenuItem:selected">
+        <Setter Property="Foreground" Value="{DynamicResource kz.brush.white}" />
+    </Style>
+    <Style Selector="kz|KzMenu > MenuItem:open">
+        <Setter Property="Foreground" Value="{DynamicResource kz.brush.white}" />
+    </Style>
+    <Style Selector="kz|KzMenu > MenuItem:pointerover /template/ ContentPresenter">
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource kz.brush.white}" />
+    </Style>
+    <Style Selector="kz|KzMenu > MenuItem:selected /template/ ContentPresenter">
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource kz.brush.white}" />
+    </Style>
+    <Style Selector="kz|KzMenu > MenuItem:open /template/ ContentPresenter">
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource kz.brush.white}" />
+    </Style>
+
+    <!-- Top-level hover — subtle white tint -->
+    <Style Selector="kz|KzMenu > MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="#22FFFFFF" />
+    </Style>
+
+    <Style Selector="kz|KzMenu > MenuItem:selected /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="#22FFFFFF" />
+    </Style>
+
+    <!-- Top-level open (submenu visible) -->
+    <Style Selector="kz|KzMenu > MenuItem:open /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource kz.brush.navy.hover}" />
+    </Style>
+
+    <!-- Hide expand arrow on top-level menu bar items (Fluent: PathIcon#ArrowDecoration, Simple: Path#Arrow) -->
+    <Style Selector="kz|KzMenu > MenuItem /template/ PathIcon#ArrowDecoration">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="kz|KzMenu > MenuItem /template/ Path#Arrow">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <!-- Show arrows on nested sub-menu items (inside dropdown) -->
+    <Style Selector="kz|KzMenu > MenuItem MenuItem /template/ PathIcon#ArrowDecoration">
+        <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="kz|KzMenu > MenuItem MenuItem /template/ Path#Arrow">
+        <Setter Property="IsVisible" Value="True" />
+        <Setter Property="Fill" Value="{DynamicResource kz.brush.text.muted}" />
+    </Style>
+
+    <!-- ── Popup / Dropdown panel ────────────────────────────────────────────── -->
+    <!--
+        FIX: Selector "Popup > Border" không hoạt động trên Linux/Ubuntu vì Avalonia
+        render Popup trong PopupRoot riêng (separate OS window), style selector không
+        thể traverse qua ranh giới đó → dropdown bị nền đen trên Ubuntu.
+
+        Giải pháp cross-platform: style MenuFlyoutPresenter (host của submenu Popup).
+        MenuFlyoutPresenter là control nằm BÊN TRONG PopupRoot, selector áp dụng trực tiếp.
+    -->
+    <Style Selector="kz|KzMenu > MenuItem MenuFlyoutPresenter">
+        <Setter Property="Background"      Value="{DynamicResource kz.brush.white}" />
+        <Setter Property="BorderBrush"     Value="{DynamicResource kz.brush.border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius"    Value="8" />
+        <Setter Property="Padding"         Value="4" />
+    </Style>
+
+    <!-- ── Nested MenuItem (dropdown items) ──────────────────────────────────── -->
+    <Style Selector="kz|KzMenu > MenuItem MenuItem">
+        <Setter Property="Foreground"  Value="{DynamicResource kz.brush.text}" />
+        <Setter Property="FontSize"    Value="{DynamicResource kz.font.md}" />
+        <Setter Property="Padding"     Value="12,8" />
+        <Setter Property="MinHeight"   Value="36" />
+        <Setter Property="Background"  Value="Transparent" />
+        <Setter Property="Cursor"      Value="Hand" />
+    </Style>
+
+    <Style Selector="kz|KzMenu > MenuItem MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background"    Value="{DynamicResource kz.brush.navy.100}" />
+        <Setter Property="CornerRadius"  Value="6" />
+    </Style>
+
+    <Style Selector="kz|KzMenu > MenuItem MenuItem:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource kz.brush.navy.900}" />
+    </Style>
+
+    <!-- Separator inside dropdown -->
+    <Style Selector="kz|KzMenu > MenuItem Separator">
+        <Setter Property="Background" Value="{DynamicResource kz.brush.border}" />
+        <Setter Property="Height"     Value="1" />
+        <Setter Property="Margin"     Value="8,4" />
+    </Style>
+
+    <!-- Disabled items -->
+    <Style Selector="kz|KzMenu > MenuItem:disabled">
+        <Setter Property="Opacity" Value="0.45" />
+    </Style>
+
+    <Style Selector="kz|KzMenu > MenuItem MenuItem:disabled">
+        <Setter Property="Opacity" Value="0.45" />
+    </Style>
+
+</Styles>
