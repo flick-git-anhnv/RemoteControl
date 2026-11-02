@@ -30,7 +30,7 @@ Thực hiện kết nối SSH tới thiết bị ZCU `192.168.21.101` (tài kho�
 ### Phase 2: Cài đặt & Cấu hình AnyDesk
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
 |---|------|-------|--------|-----------|-----------------|
-| 2.1 | Cài đặt AnyDesk cho OS đích, cấu hình dịch vụ chạy nền, đặt mật khẩu Unattended Access (`Kztek@123456`) và trích xuất AnyDesk ID | devops-engineer | ⬜ | `steps/STEP-2.1-install-configure-anydesk.md` | — |
+| 2.1 | Cài đặt AnyDesk cho OS đích, cấu hình dịch vụ chạy nền, đặt mật khẩu Unattended Access (`Kztek@123456`) và trích xuất AnyDesk ID | devops-engineer | ✅ | `steps/STEP-2.1-install-configure-anydesk.md` | 2026-11-02 14:48 |
 
 ### Phase 3: Triển khai IPGS ZCU Remote Control Agent (Bỏ qua theo yêu cầu User)
 | # | Bước | Agent | Status | Step file | Hoàn thành lúc |
@@ -43,10 +43,8 @@ Thực hiện kết nối SSH tới thiết bị ZCU `192.168.21.101` (tài kho�
 | 4.1 | Kiểm tra trạng thái dịch vụ AnyDesk (Online + ID + Unattended Access) và tổng hợp bảng thông số kiểm tra kết nối cho User | devops-lead | ⬜ | `steps/STEP-4.1-verify-and-signoff.md` | — |
 
 ## Artifacts dự kiến (tổng)
-- [ ] AnyDesk cài đặt và cấu hình Unattended Access trên `192.168.21.101`
-- [ ] `/home/zcu/ipgs/remote-agent/` (Thư mục cài đặt ZCU Agent trên `192.168.21.101`)
-- [ ] Systemd service `ipgs-remote-agent.service` active & enabled
-- [ ] Bảng tổng hợp thông số kiểm tra kết nối (AnyDesk ID & Password + IPGS ZCU Agent IP/Port/Token + SSH/SFTP)
+- [x] AnyDesk cài đặt và cấu hình Unattended Access trên `192.168.21.101` (ID: `1457821647`, Version: `8.1.0`, Status: `online`)
+- [ ] Bảng tổng hợp thông số kiểm tra kết nối (AnyDesk ID & Password + Direct LAN IP/Port + SSH/SFTP)
 
 ## Blockers
 Không có
@@ -61,6 +59,7 @@ Không có
 |------|----------|-------|
 | 2026-11-02 | Tạo plan triển khai AnyDesk & ZcuAgent lên 192.168.21.101 | task-planner |
 | 2026-11-02 | Hoàn thành Step 1.1: Thăm dò môi trường thiết bị 192.168.21.101 (Ubuntu 22.04.5 amd64, LXQt X11 :0) | devops-engineer |
+| 2026-11-02 | Hoàn thành Step 2.1: Cài đặt AnyDesk 8.1.0, kích hoạt service, đặt Unattended Password và lấy ID `1457821647` | devops-engineer |
 
 ---
 **Status icons:** ⬜ Todo | 🔄 In Progress | ✅ Done | 🛑 Blocked | ⏭️ Skipped
