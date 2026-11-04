@@ -186,6 +186,30 @@ public sealed class ComputerProfileStore : IComputerProfileStore
         }
     }
 
+    /// <summary>
+    /// Ghi ĐÈ vân tay chứng chỉ TLS đã ghim (khác <see cref="UpdateTlsFingerprint"/> chỉ ghi khi trống).
+    /// Chỉ gọi ngay sau khi CCU vừa tự cài/cài lại ZcuAgent qua SSH (agent có thể đã đổi chứng chỉ).
+    /// <paramref name="fingerprint"/> null/rỗng = bỏ ghim → lần kết nối sau tự ghim lại (TOFU).
+    /// Trả về true nếu có hồ sơ khớp Host+Port.
+    /// </summary>
+    public bool ReplaceTlsFingerprint(string host, int port, string? fingerprint)
+    {
+        lock (_lockObj)
+        {
+            var existing = _profiles.FirstOrDefault(p =>
+                p.Host.Equals(host, StringComparison.OrdinalIgnoreCase) && p.Port == port);
+            if (existing == null) return false;
+
+            var value = string.IsNullOrWhiteSpace(fingerprint) ? null : fingerprint.Trim().ToUpperInvariant();
+            if (!string.Equals(existing.TlsCertFingerprint, value, StringComparison.OrdinalIgnoreCase))
+            {
+                existing.TlsCertFingerprint = value;
+                Persist();
+            }
+            return true;
+        }
+    }
+
     /// <summary>So sánh chuỗi có số theo giá trị (P2 < P10, 192.168.0.9 < 192.168.0.10).</summary>
     private sealed class NaturalComparer : IComparer<string?>
     {

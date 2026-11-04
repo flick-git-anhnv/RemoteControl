@@ -82,6 +82,56 @@ public static class ZcuAgentDiscoveryService
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Bắt tay TLS với agent chỉ để đọc vân tay SHA-256 chứng chỉ hiện tại (không HELLO/AUTH).
+    /// Thử lại tới <paramref name="attempts"/> lần (agent vừa restart có thể chưa mở cổng).
+    /// Trả về null nếu agent không chạy TLS hoặc không kết nối được.
+    /// </summary>
+    public static async Task<string?> ProbeTlsFingerprintAsync(
+        string host, int port, int attempts = 6, int delayMs = 1500, int timeoutMs = 4000,
+        CancellationToken cancellationToken = default)
+    {
+        for (var i = 0; i < Math.Max(1, attempts); i++)
+        {
+            if (i > 0)
+            {
+                try { await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false); }
+                catch (OperationCanceledException) { return null; }
+            }
+
+            string? fingerprint = null;
+            try
+            {
+                using var tcp = new TcpClient();
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(timeoutMs);
+                await tcp.ConnectAsync(host, port, cts.Token).ConfigureAwait(false);
+
+                await using var ssl = new System.Net.Security.SslStream(tcp.GetStream(), leaveInnerStreamOpen: false);
+                // G027: callback PHẢI nằm trong SslClientAuthenticationOptions.
+                await ssl.AuthenticateAsClientAsync(new System.Net.Security.SslClientAuthenticationOptions
+                {
+                    TargetHost = host,
+                    EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12
+                                        | System.Security.Authentication.SslProtocols.Tls13,
+                    RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
+                    {
+                        if (cert is not null)
+                            fingerprint = cert.GetCertHashString(System.Security.Cryptography.HashAlgorithmName.SHA256);
+                        return true;
+                    },
+                }, cts.Token).ConfigureAwait(false);
+            }
+            catch when (!cancellationToken.IsCancellationRequested)
+            {
+                // agent chưa sẵn sàng / không hỗ trợ TLS → thử lại
+            }
+
+            if (!string.IsNullOrEmpty(fingerprint)) return fingerprint;
+        }
+        return null;
+    }
+
     private static async Task<DiscoveredZcuAgent?> ProbeHostAsync(
         string host, int port, int connectTimeoutMs, int handshakeTimeoutMs, CancellationToken cancellationToken)
     {

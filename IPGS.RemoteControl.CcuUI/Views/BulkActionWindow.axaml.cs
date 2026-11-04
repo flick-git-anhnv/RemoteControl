@@ -379,6 +379,14 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 profile.Token = token;
                 profile.Port = agentPort;
                 ComputerProfileStore.Instance.Save(profile);
+
+                // G028: agent vừa cài lại có thể mang chứng chỉ TLS khác → ghim lại vân tay theo agent hiện tại.
+                var fp = await ZcuAgentDiscoveryService.ProbeTlsFingerprintAsync(profile.Host, agentPort);
+                if (ComputerProfileStore.Instance.ReplaceTlsFingerprint(profile.Host, agentPort, fp))
+                    profile.TlsCertFingerprint = fp is null ? null : fp.ToUpperInvariant();
+                lock (log) log.AppendLine(fp is null
+                    ? "⚠️ Chưa đọc được vân tay TLS — đã bỏ ghim cũ, lần kết nối đầu tiên sẽ tự ghim lại."
+                    : $"🔐 Đã ghim vân tay TLS mới: {fp[..Math.Min(16, fp.Length)]}…");
                 lock (log) return log.ToString();
             });
         }

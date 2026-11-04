@@ -262,7 +262,7 @@ exit 0
 
                 // 3. Top Processes & CPU
                 // top -b -n 1 returns batch mode output once.
-                using var topCmd = ssh.CreateCommand("top -b -n 1 | head -n 15");
+                using var topCmd = ssh.CreateCommand(TopParser.DefaultTopCommand);
                 string topResult = topCmd.Execute();
 
                 // 4. GPU / NPU / VPU (nếu có) — lỗi ở đây không được làm hỏng các chỉ số chính
@@ -369,59 +369,25 @@ exit 0
             }
         }
 
-        // 3. Parse Top (CPU & Processes)
-        // %Cpu(s):  5.0 us,  2.0 sy,  0.0 ni, 93.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
-        // PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
-        var topLines = topStr.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-        var cpuLine = topLines.FirstOrDefault(l => l.StartsWith("%Cpu"));
-        if (cpuLine != null)
+        // 3. Parse Top (CPU & Processes) using TopParser (hỗ trợ locale vi_VN dấu phẩy và steady-state mẫu 2)
+        var parsedTop = TopParser.Parse(topStr);
+        if (parsedTop.TotalCpuPercent.HasValue)
         {
-            // Tính toán tổng tải CPU chính xác: Total CPU % = 100 - idle% (audit U1)
-            var idleMatch = Regex.Match(cpuLine, @"([\d\.]+)\s*id");
-            if (idleMatch.Success && double.TryParse(idleMatch.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture, out double idleVal))
-            {
-                double totalCpu = Math.Clamp(100.0 - idleVal, 0.0, 100.0);
-                if (this.FindControl<TextBlock>("PART_CpuText") is { } cpuTxt)
-                    cpuTxt.Text = $"{totalCpu:F1}%";
-            }
-            else
-            {
-                var match = Regex.Match(cpuLine, @"([\d\.]+)\s*us");
-                if (match.Success && this.FindControl<TextBlock>("PART_CpuText") is { } cpuTxt)
-                    cpuTxt.Text = $"{match.Groups[1].Value}%";
-            }
+            if (this.FindControl<TextBlock>("PART_CpuText") is { } cpuTxt)
+                cpuTxt.Text = $"{parsedTop.TotalCpuPercent.Value:F1}%";
         }
 
-        int pidIndex = Array.FindIndex(topLines, l => l.Contains("PID") && l.Contains("USER"));
-        if (pidIndex >= 0)
+        Processes.Clear();
+        foreach (var p in parsedTop.Processes)
         {
-            Processes.Clear();
-            for (int i = pidIndex + 1; i < topLines.Length && i < pidIndex + 6; i++)
+            Processes.Add(new ProcessItem
             {
-                var pParts = topLines[i].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (pParts.Length >= 12)
-                {
-                    Processes.Add(new ProcessItem
-                    {
-                        Pid = pParts[0],
-                        User = pParts[1],
-                        Cpu = pParts[8],
-                        Mem = pParts[9],
-                        Command = pParts[11]
-                    });
-                }
-                else if (pParts.Length >= 11) // sometimes COMMAND is empty or shifted
-                {
-                    Processes.Add(new ProcessItem
-                    {
-                        Pid = pParts[0],
-                        User = pParts[1],
-                        Cpu = pParts[8],
-                        Mem = pParts[9],
-                        Command = pParts[10]
-                    });
-                }
-            }
+                Pid = p.Pid,
+                User = p.User,
+                Cpu = p.Cpu,
+                Mem = p.Mem,
+                Command = p.Command
+            });
         }
     }
 }

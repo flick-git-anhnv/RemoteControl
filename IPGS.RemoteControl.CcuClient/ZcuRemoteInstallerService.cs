@@ -30,7 +30,7 @@ namespace IPGS.RemoteControl.CcuClient
         public const string DefaultLanAllowedClientIPs = "192.168.0.0/16,10.0.0.0/8,172.16.0.0/12";
 
         public string AllowedClientIPs { get; set; } = DefaultLanAllowedClientIPs;
-        public int TargetFps { get; set; } = 15;
+        public int TargetFps { get; set; } = 30;
         public int JpegQuality { get; set; } = 70;
         public string? PublishSourceDir { get; set; }
     }
@@ -249,7 +249,9 @@ namespace IPGS.RemoteControl.CcuClient
                     ExecuteCommand(ssh, "systemctl --user stop ipgs-remote-agent.service 2>/dev/null || true");
                     // Dọn file cũ (giữ appsettings.json): bản cài trước có thể là self-contained, file runtime
                     // sót lại (libhostfxr.so...) làm host bỏ qua .NET hệ thống → "No frameworks were found".
-                    ExecuteCommand(ssh, $"find {remoteInstallDir} -mindepth 1 -maxdepth 1 ! -name appsettings.json -exec rm -rf {{}} + 2>/dev/null || true");
+                    // G028: GIỮ cả agent-tls.pfx — xoá đi thì agent sinh chứng chỉ mới, vân tay lệch với
+                    // vân tay CCU đã ghim trong profiles.json → CCU từ chối TLS, không xem được màn hình.
+                    ExecuteCommand(ssh, $"find {remoteInstallDir} -mindepth 1 -maxdepth 1 ! -name appsettings.json ! -name agent-tls.pfx -exec rm -rf {{}} + 2>/dev/null || true");
                     using var sftp = CreateSftpClient(options);
                     sftp.Connect();
                     UploadDirectory(sftp, publishDir, remoteInstallDir);

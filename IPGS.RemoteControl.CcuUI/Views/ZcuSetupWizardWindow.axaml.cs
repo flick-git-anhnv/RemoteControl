@@ -28,6 +28,23 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
         }
 
+        private async Task RefreshPinnedTlsFingerprintAsync(string host, int port)
+        {
+            try
+            {
+                Log("🔐 Đang đọc vân tay chứng chỉ TLS của ZcuAgent...");
+                var fp = await ZcuAgentDiscoveryService.ProbeTlsFingerprintAsync(host, port);
+                if (!ComputerProfileStore.Instance.ReplaceTlsFingerprint(host, port, fp)) return;
+                Log(fp is null
+                    ? "⚠️ Chưa đọc được vân tay TLS — đã bỏ ghim cũ, lần kết nối đầu tiên sẽ tự ghim lại."
+                    : $"✅ Đã ghim vân tay TLS mới: {fp[..Math.Min(16, fp.Length)]}…");
+            }
+            catch (Exception ex)
+            {
+                Log("⚠️ Không cập nhật được vân tay TLS: " + ex.Message);
+            }
+        }
+
         public ZcuSetupWizardWindow(ComputerProfile prefill)
         {
             InitializeComponent();
@@ -82,7 +99,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             string allowedIps = PART_AllowedIPs.Text?.Trim() is { Length: > 0 } ips
                 ? ips
                 : SshInstallerOptions.DefaultLanAllowedClientIPs;
-            if (!int.TryParse(PART_TargetFps.Text?.Trim(), out int targetFps)) targetFps = 15;
+            if (!int.TryParse(PART_TargetFps.Text?.Trim(), out int targetFps)) targetFps = 30;
             if (!int.TryParse(PART_JpegQuality.Text?.Trim(), out int jpegQuality)) jpegQuality = 70;
 
             if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser) || string.IsNullOrEmpty(token))
@@ -187,6 +204,10 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     ComputerProfileStore.Instance.Save(profile);
                     CreatedProfile = profile;
                 }
+
+                // G028: agent vừa cài lại có thể mang chứng chỉ TLS khác → ghim lại vân tay theo agent hiện tại,
+                // nếu không CCU sẽ từ chối TLS (vân tay cũ trong profiles.json) và màn hình điều khiển bị đen.
+                await RefreshPinnedTlsFingerprintAsync(_sshHost, agentPort);
 
                 await Task.Delay(1500);
                 Close(CreatedProfile);
