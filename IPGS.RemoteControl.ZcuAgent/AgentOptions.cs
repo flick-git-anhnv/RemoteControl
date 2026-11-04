@@ -67,6 +67,18 @@ public sealed class AgentOptions
     /// </summary>
     public bool AdaptiveQuality { get; set; } = true;
 
+    /// <summary>
+    /// true = khung hình giống hệt khung trước thì KHÔNG nén/gửi (màn hình tĩnh gần như không tốn CPU);
+    /// vẫn gửi 1 khung làm mới mỗi ~2s. false = luôn nén + gửi mọi khung như bản cũ.
+    /// </summary>
+    public bool SkipUnchangedFrames { get; set; } = true;
+
+    /// <summary>
+    /// Chu kỳ (giây) ghi log thống kê hiệu năng stream: FPS gửi/bỏ qua, thời gian capture / so sánh /
+    /// nén / ghi (trung bình + p95), KB/frame. 0 = tắt.
+    /// </summary>
+    public int PerfLogIntervalSec { get; set; } = 10;
+
     /// <summary>JPEG quality (40–95). Default: <see cref="RemoteControlConstants.JpegQuality"/> (70).</summary>
     public int JpegQuality { get; set; } = RemoteControlConstants.JpegQuality;
 

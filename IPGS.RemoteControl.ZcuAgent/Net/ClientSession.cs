@@ -54,10 +54,19 @@ internal sealed class ClientSession
     private byte[] _cropBuffer = [];
     private readonly byte[] _frameHeaderBuffer = new byte[MessageCodec.HeaderSize + MessageCodec.FrameMetadataHeaderSize];
 
-    /// <summary>Adaptive FPS: sàn FPS/chất lượng, và ngưỡng ghi 1 frame bị coi là chậm (ms).</summary>
-    private const int MinAdaptiveFps     = 5;
-    private const int MinAdaptiveQuality = 40;
-    private const int SlowWriteMs        = 120;
+    /// <summary>
+    /// Màn hình tĩnh (SkipUnchangedFrames): vẫn gửi 1 khung làm mới sau mỗi khoảng này để CCU/recorder
+    /// không bao giờ bị "đứng hình" quá lâu nếu có gì đó lệch.
+    /// </summary>
+    private const int StaticRefreshMs = 2_000;
+
+    /// <summary>
+    /// Sau <see cref="IdleStreakThreshold"/> khung liên tiếp không đổi thì chỉ chụp thưa lại mỗi
+    /// <see cref="IdlePollMs"/> ms (thay vì theo trần FPS) — bản thân XShmGetImage cũng tốn CPU.
+    /// Độ trễ tối đa khi màn hình bắt đầu đổi trở lại ≈ IdlePollMs.
+    /// </summary>
+    private const int IdlePollMs          = 100;
+    private const int IdleStreakThreshold = 5;
 
     /// <summary>
     /// Hash nội dung clipboard ZCU lần gần nhất đã biết (CCU vừa set, hoặc poll vừa gửi đi).
@@ -261,20 +270,29 @@ internal sealed class ClientSession
 
     private async Task RunCaptureSendLoopAsync(CancellationToken ct)
     {
-        var frameId       = 0L;
-        // Adaptive FPS/quality: TargetFps/JpegQuality là TRẦN. Khi ghi frame chậm (TCP backpressure =
-        // mạng nghẽn hoặc CCU xử lý không kịp) hạ FPS + chất lượng; ổn định một lúc thì tăng lại.
-        var maxFps      = Math.Max(1, _options.TargetFps);
-        var minFps      = Math.Min(maxFps, MinAdaptiveFps);
-        var curFps      = (double)maxFps;
-        var curQuality  = _options.JpegQuality;
-        var minQuality  = Math.Min(curQuality, MinAdaptiveQuality);
-        var badStreak   = 0;
-        var goodStreak  = 0;
-        var consecutiveSlowWrites = 0;
-        var frameInterval = 1000 / Math.Max(1, _options.TargetFps);
-        var sw            = Stopwatch.StartNew();
-        var nextPing      = Environment.TickCount64 + RemoteControlConstants.PingIntervalMs;
+        var frameId = 0L;
+
+        // Nấc 1 — FPS ZCU: chỉ điều tiết theo MẠNG (xem AdaptiveRateController). Khi CPU là giới
+        // hạn, vòng lặp tự chạy liền mạch ở tốc độ nén tối đa (sleep ≤ 0), giữ nguyên chất lượng.
+        var rate = new AdaptiveRateController(_options.TargetFps, _options.JpegQuality, _options.AdaptiveQuality);
+
+        // Bỏ qua khung tĩnh: mỗi session một detector riêng → khung đầu tiên luôn được gửi.
+        var detector = _options.SkipUnchangedFrames ? new FrameChangeDetector() : null;
+
+        // Bước 0 — đo đạc từng giai đoạn, ghi log định kỳ.
+        var perfIntervalMs = Math.Max(0, _options.PerfLogIntervalSec) * 1000L;
+        var stats          = new StreamStats(Environment.TickCount64);
+        var nextPerfLog    = Environment.TickCount64 + perfIntervalMs;
+
+        var lastSentMs      = 0L;
+        var unchangedStreak = 0;
+        var sw              = Stopwatch.StartNew();
+        var nextPing        = Environment.TickCount64 + RemoteControlConstants.PingIntervalMs;
+
+        _logger.LogInformation(
+            "Session {IP}: stream {Fps}fps q={Q}, adaptive(mạng)={Adaptive}, bỏ qua khung tĩnh={Skip}, perf log {Perf}s",
+            _remoteIp, rate.MaxFps, rate.MaxQuality, _options.AdaptiveQuality, detector is not null,
+            _options.PerfLogIntervalSec);
 
         try
         {
@@ -294,76 +312,119 @@ internal sealed class ClientSession
                     nextPing = now + RemoteControlConstants.PingIntervalMs;
                 }
 
-                // Capture frame
+                // 1) Capture
+                var t0 = Stopwatch.GetTimestamp();
                 var frame = _capturer.Capture();
-                if (frame is not null) frame = CropToMonitor(frame);
+                var captureMs = Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+
                 if (frame is not null)
                 {
-                    // NOTE: jpeg is backed by the encoder's reused buffer (audit Q3) —
-                    // consumed synchronously below, before the next EncodeJpeg call.
-                    var jpeg = _encoder.EncodeJpeg(frame, curQuality);
-                    if (jpeg.Length > 0 && jpeg.Length <= _options.MaxFrameBytes)
-                    {
-                        var tsMs = (uint)(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() & 0xFFFF_FFFF);
-                        var writeStart = Stopwatch.GetTimestamp();
-                        // Zero-Allocation Streaming (F-ROUND7-1): Stream trực tiếp qua WriteFrameJpegDirectAsync
-                        await WriteFrameJpegDirectAsync(frameId++, tsMs, frame.Width, frame.Height, jpeg, ct);
-                        var writeMs = Stopwatch.GetElapsedTime(writeStart).TotalMilliseconds;
+                    // 2) Crop theo màn hình đã chọn + so sánh với khung trước
+                    var t1 = Stopwatch.GetTimestamp();
+                    frame = CropToMonitor(frame);
+                    var changed = detector is null || HasFrameChanged(detector, frame);
+                    var compareMs = Stopwatch.GetElapsedTime(t1).TotalMilliseconds;
 
-                        // Chống trễ tích lũy (F-ROUND7-3): Ghi nhận backpressure nếu ghi frame chậm hơn 1.5 chu kỳ
-                        if (writeMs > frameInterval * 1.5)
+                    var nowMs = Environment.TickCount64;
+                    if (!changed && nowMs - lastSentMs < StaticRefreshMs)
+                    {
+                        unchangedStreak++;
+                        stats.RecordSkipped(captureMs, compareMs);
+                    }
+                    else
+                    {
+                        unchangedStreak = 0;
+
+                        // 3) Encode
+                        // NOTE: jpeg is backed by the encoder's reused buffer (audit Q3) —
+                        // consumed synchronously below, before the next EncodeJpeg call.
+                        var t2 = Stopwatch.GetTimestamp();
+                        var jpeg = _encoder.EncodeJpeg(frame, rate.CurrentQuality);
+                        var encodeMs = Stopwatch.GetElapsedTime(t2).TotalMilliseconds;
+
+                        if (jpeg.Length > 0 && jpeg.Length <= _options.MaxFrameBytes)
                         {
-                            consecutiveSlowWrites++;
+                            // 4) Write
+                            var tsMs = (uint)(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() & 0xFFFF_FFFF);
+                            var t3 = Stopwatch.GetTimestamp();
+                            // Zero-Allocation Streaming (F-ROUND7-1): Stream trực tiếp qua WriteFrameJpegDirectAsync
+                            await WriteFrameJpegDirectAsync(frameId++, tsMs, frame.Width, frame.Height, jpeg, ct);
+                            var writeMs = Stopwatch.GetElapsedTime(t3).TotalMilliseconds;
+
+                            lastSentMs = Environment.TickCount64;
+                            stats.RecordSent(captureMs, compareMs, encodeMs, writeMs, jpeg.Length);
+
+                            if (rate.OnFrameWritten(writeMs))
+                            {
+                                _logger.LogInformation(
+                                    "Session {IP}: điều tiết theo MẠNG (ghi {Write:F0}ms, ngưỡng {Slow}ms) → trần {Fps:F1}fps, q={Q}",
+                                    _remoteIp, writeMs, rate.SlowWriteMs, rate.CurrentFps, rate.CurrentQuality);
+                            }
+                        }
+                        else if (jpeg.Length > _options.MaxFrameBytes)
+                        {
+                            _logger.LogWarning("Frame {Id} JPEG {Len} B exceeds MaxFrameBytes — dropped",
+                                frameId, jpeg.Length);
                         }
                         else
                         {
-                            consecutiveSlowWrites = 0;
+                            // Nén lỗi (đã log trong encoder) → lần sau phải gửi lại dù màn hình không đổi.
+                            detector?.Reset();
                         }
-
-                        if (_options.AdaptiveQuality)
-                        {
-                            if (writeMs > SlowWriteMs) { badStreak++; goodStreak = 0; }
-                            else if (writeMs < SlowWriteMs / 4) { goodStreak++; badStreak = 0; }
-
-                            if (badStreak >= 3)
-                            {
-                                curFps     = Math.Max(minFps, curFps * 0.75);
-                                curQuality = Math.Max(minQuality, curQuality - 10);
-                                badStreak  = 0;
-                                _logger.LogDebug("Session {IP}: nghẽn (write {Ms:F0}ms) → {Fps:F1}fps, q={Q}",
-                                    _remoteIp, writeMs, curFps, curQuality);
-                            }
-                            else if (goodStreak >= 30)
-                            {
-                                curFps     = Math.Min(maxFps, curFps + 1);
-                                curQuality = Math.Min(_options.JpegQuality, curQuality + 5);
-                                goodStreak = 0;
-                            }
-                            frameInterval = (int)(1000 / curFps);
-                        }
-                    }
-                    else if (jpeg.Length > _options.MaxFrameBytes)
-                    {
-                        _logger.LogWarning("Frame {Id} JPEG {Len} B exceeds MaxFrameBytes — dropped",
-                            frameId, jpeg.Length);
                     }
                 }
 
-                // Throttle to target FPS & Congestion Relief (F-ROUND7-3)
-                var elapsed = (int)sw.ElapsedMilliseconds;
-                var sleep   = frameInterval - elapsed;
+                // Log hiệu năng định kỳ (Bước 0)
+                if (perfIntervalMs > 0 && Environment.TickCount64 >= nextPerfLog)
+                {
+                    var s = stats.TakeSnapshot(Environment.TickCount64);
+                    nextPerfLog = Environment.TickCount64 + perfIntervalMs;
+                    _logger.LogInformation(
+                        "Perf {IP}: gửi {Sent:F1}fps, bỏ qua(tĩnh) {Skip:F1}fps | capture {CapAvg:F1}/{CapP95:F1}ms | " +
+                        "so sánh {CmpAvg:F1}/{CmpP95:F1}ms | nén {EncAvg:F1}/{EncP95:F1}ms | ghi {WrAvg:F1}/{WrP95:F1}ms | " +
+                        "{Kb:F0}KB/frame, {Kbps:F0}kbps | trần {Fps:F1}fps q={Q} (avg/p95)",
+                        _remoteIp, s.SentFps, s.SkippedFps,
+                        s.Capture.AvgMs, s.Capture.P95Ms,
+                        s.Compare.AvgMs, s.Compare.P95Ms,
+                        s.Encode.AvgMs, s.Encode.P95Ms,
+                        s.Write.AvgMs, s.Write.P95Ms,
+                        s.AvgJpegKb, s.BitrateKbps, rate.CurrentFps, rate.CurrentQuality);
+                }
+
+                // Throttle: theo trần FPS; màn hình tĩnh một lúc thì chụp thưa lại (IdlePollMs).
+                var interval = rate.FrameIntervalMs;
+                if (unchangedStreak >= IdleStreakThreshold)
+                    interval = Math.Max(interval, IdlePollMs);
+
+                var sleep = interval - (int)sw.ElapsedMilliseconds;
                 if (sleep > 0)
                 {
                     await Task.Delay(sleep, ct);
                 }
-                else if (consecutiveSlowWrites > 0)
+                else
                 {
-                    // Mạng nghẽn kéo dài: yield để nhường CPU giải phóng buffer socket TCP
+                    // CPU là giới hạn: chạy liền mạch, chỉ yield để giải phóng _writeLock cho Pong/Input.
                     await Task.Yield();
                 }
             }
         }
         catch (OperationCanceledException) { /* expected */ }
+    }
+
+    /// <summary>
+    /// So sánh khung hiện tại với khung trước (bỏ qua khung tĩnh). Tách thành method đồng bộ
+    /// vì ReadOnlySpan không được dùng làm biến cục bộ trong async method.
+    /// </summary>
+    private static unsafe bool HasFrameChanged(FrameChangeDetector detector, CapturedFrame frame)
+    {
+        var length = (long)frame.BytesPerRow * frame.Height;
+        if (length <= 0 || length > int.MaxValue) return true;
+
+        var pixels = frame.PixelPtr != IntPtr.Zero
+            ? new ReadOnlySpan<byte>((void*)frame.PixelPtr, (int)length)
+            : frame.PixelData.AsSpan(0, (int)Math.Min(length, frame.PixelData.Length));
+
+        return detector.HasChanged(pixels, frame.Width, frame.Height, frame.BytesPerRow);
     }
 
     // ── Multi-monitor helpers ─────────────────────────────────────────────
@@ -391,9 +452,20 @@ internal sealed class ClientSession
         var need = rowBytes * m.H;
         if (_cropBuffer.Length < need) _cropBuffer = new byte[need];
 
-        for (var row = 0; row < m.H; row++)
-            Buffer.BlockCopy(frame.PixelData, (m.Y + row) * frame.BytesPerRow + m.X * 4,
-                             _cropBuffer, row * rowBytes, rowBytes);
+        if (frame.PixelPtr != IntPtr.Zero)
+        {
+            for (var row = 0; row < m.H; row++)
+            {
+                var srcPtr = IntPtr.Add(frame.PixelPtr, (m.Y + row) * frame.BytesPerRow + m.X * 4);
+                System.Runtime.InteropServices.Marshal.Copy(srcPtr, _cropBuffer, row * rowBytes, rowBytes);
+            }
+        }
+        else
+        {
+            for (var row = 0; row < m.H; row++)
+                Buffer.BlockCopy(frame.PixelData, (m.Y + row) * frame.BytesPerRow + m.X * 4,
+                                 _cropBuffer, row * rowBytes, rowBytes);
+        }
 
         return new CapturedFrame
         {

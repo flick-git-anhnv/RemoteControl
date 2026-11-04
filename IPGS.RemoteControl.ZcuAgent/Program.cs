@@ -30,7 +30,12 @@ if (!string.Equals(sessionType, "x11", StringComparison.OrdinalIgnoreCase))
         "Proceeding with X11DisplayResolver auto-detection for Headless/RDP/Virtual sessions...");
 }
 
-var host = Host.CreateDefaultBuilder(args)
+// Chế độ benchmark (Bước 0 — đo FPS ZCU): `--bench` đo capture / so sánh / nén JPEG rồi thoát,
+// KHÔNG mở cổng TCP. Bỏ cờ này khỏi args trước khi đưa vào Host (command-line config provider).
+var benchMode = args.Any(a => string.Equals(a, "--bench", StringComparison.OrdinalIgnoreCase));
+var hostArgs  = args.Where(a => !string.Equals(a, "--bench", StringComparison.OrdinalIgnoreCase)).ToArray();
+
+var host = Host.CreateDefaultBuilder(hostArgs)
     .ConfigureServices((ctx, services) =>
     {
         // Bind AgentOptions from appsettings.json "RemoteControl" section (TDD §12)
@@ -54,6 +59,9 @@ var host = Host.CreateDefaultBuilder(args)
         logging.AddConsole();
     })
     .Build();
+
+if (benchMode)
+    return EncoderBenchmark.Run(host.Services);
 
 await host.RunAsync();
 return 0;
