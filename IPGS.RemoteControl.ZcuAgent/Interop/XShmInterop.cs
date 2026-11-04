@@ -27,16 +27,16 @@ internal static class XShm
     public static extern IntPtr XShmCreateImage(
         IntPtr display, IntPtr visual, uint depth,
         int format, IntPtr data,
-        ref XShmSegmentInfo shmInfo,
+        IntPtr shmInfo,
         uint width, uint height);
 
     [DllImport(LibXext)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool XShmAttach(IntPtr display, ref XShmSegmentInfo shmInfo);
+    public static extern bool XShmAttach(IntPtr display, IntPtr shmInfo);
 
     [DllImport(LibXext)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool XShmDetach(IntPtr display, ref XShmSegmentInfo shmInfo);
+    public static extern bool XShmDetach(IntPtr display, IntPtr shmInfo);
 
     /// <summary>
     /// Capture the drawable into the SHM-backed XImage.
@@ -70,19 +70,25 @@ internal static class XShm
     public const int IPC_PRIVATE = 0;
     public const int IPC_CREAT   = 0x200;
     public const int IPC_RMID    = 0;
-    /// <summary>Owner read+write (0600 octal).</summary>
-    public const int SHM_MODE    = 0x180;
+    /// <summary>Read+write permissions (0666 octal) so Xorg can attach even across UIDs.</summary>
+    public const int SHM_MODE    = 0x1B6;
 }
 
 /// <summary>
 /// Mirrors the C <c>XShmSegmentInfo</c> struct from <c>&lt;X11/extensions/XShm.h&gt;</c>.
 /// See TDD §9.2.
+/// <para>
+/// GOTCHA (G020): In C client headers (<c>&lt;X11/X.h&gt;</c> without <c>_XSERVER64</c>),
+/// <c>ShmSeg</c> (<c>XID</c>) is <c>unsigned long</c> — which is 8 bytes on 64-bit Linux (LP64)
+/// and 4 bytes on 32-bit Linux (ILP32). Using <see cref="nuint"/> matches the exact C ABI
+/// so <c>shmid</c>, <c>shmaddr</c>, and <c>readOnly</c> are never shifted by 4 bytes.
+/// </para>
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct XShmSegmentInfo
 {
-    /// <summary>ShmSeg X resource ID (XID — 32-bit even on 64-bit).</summary>
-    public int    shmseg;
+    /// <summary>ShmSeg X resource ID (unsigned long in libXext — 8 bytes on LP64).</summary>
+    public nuint  shmseg;
     /// <summary>SysV shared memory ID from shmget().</summary>
     public int    shmid;
     /// <summary>Virtual address of attached shared memory (from shmat()).</summary>

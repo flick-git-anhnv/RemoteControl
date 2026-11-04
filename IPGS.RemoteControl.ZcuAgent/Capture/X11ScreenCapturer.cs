@@ -35,7 +35,7 @@ internal sealed class X11ScreenCapturer : IScreenCapturer
     // XShm state
     private bool   _useSHM;
     private IntPtr _shmXImage = IntPtr.Zero;     // XImage* backed by SHM
-    private XShmSegmentInfo _shmInfo;
+    private IntPtr _shmInfoPtr = IntPtr.Zero;    // Unmanaged XShmSegmentInfo* (MUST NOT move with GC — libXext stores this pointer in XImage.obdata!)
     private int    _shmId = -1;
     private IntPtr _shmAddr = IntPtr.Zero;        // virtual address of SHM block
 
@@ -212,7 +212,16 @@ internal sealed class X11ScreenCapturer : IScreenCapturer
         }
 
         var img = Marshal.PtrToStructure<XImageHeader>(_shmXImage);
-        return CopyPixels(img);
+        // Zero-Copy SHM: pass unmanaged shared memory pointer directly to JpegEncoder
+        // instead of copying ~5.2–8.3 MB into a managed byte[] every frame.
+        return new CapturedFrame
+        {
+            PixelData   = [],
+            PixelPtr    = img.Data,
+            Width       = img.Width,
+            Height      = img.Height,
+            BytesPerRow = img.BytesPerLine,
+        };
     }
 
     // ── XGetImage fallback ────────────────────────────────────────────────
@@ -283,15 +292,19 @@ internal sealed class X11ScreenCapturer : IScreenCapturer
             // shmat returns (void*)-1 on failure
             if (_shmAddr == new IntPtr(-1)) { CleanupSHM(); return false; }
 
-            _shmInfo = new XShmSegmentInfo
+            var shmInfo = new XShmSegmentInfo
             {
+                shmseg   = 0,
                 shmid    = _shmId,
                 shmaddr  = _shmAddr,
                 readOnly = 0,
             };
 
+            _shmInfoPtr = Marshal.AllocHGlobal(Marshal.SizeOf<XShmSegmentInfo>());
+            Marshal.StructureToPtr(shmInfo, _shmInfoPtr, false);
+
             _shmXImage = XShm.XShmCreateImage(_display, visual, depth,
-                X11.ZPixmap, _shmAddr, ref _shmInfo, (uint)w, (uint)h);
+                X11.ZPixmap, _shmAddr, _shmInfoPtr, (uint)w, (uint)h);
             if (_shmXImage == IntPtr.Zero) { CleanupSHM(); return false; }
 
             // Reset the shared error flag immediately before XShmAttach.
@@ -300,7 +313,7 @@ internal sealed class X11ScreenCapturer : IScreenCapturer
             // will set ShmErrorOccurred = true via that handler.
             X11ErrorTracker.ShmErrorOccurred = false;
 
-            if (!XShm.XShmAttach(_display, ref _shmInfo)) { CleanupSHM(); return false; }
+            if (!XShm.XShmAttach(_display, _shmInfoPtr)) { CleanupSHM(); return false; }
 
             // XSync flushes the request queue and waits for all pending replies and error
             // events — forces any async BadAccess to arrive and trigger the handler before
@@ -330,9 +343,17 @@ internal sealed class X11ScreenCapturer : IScreenCapturer
     {
         if (_display != IntPtr.Zero && _shmXImage != IntPtr.Zero)
         {
-            try { XShm.XShmDetach(_display, ref _shmInfo); } catch { }
+            if (_shmInfoPtr != IntPtr.Zero)
+            {
+                try { XShm.XShmDetach(_display, _shmInfoPtr); } catch { }
+            }
             try { X11.XDestroyImage(_shmXImage); } catch { }
             _shmXImage = IntPtr.Zero;
+        }
+        if (_shmInfoPtr != IntPtr.Zero)
+        {
+            try { Marshal.FreeHGlobal(_shmInfoPtr); } catch { }
+            _shmInfoPtr = IntPtr.Zero;
         }
         if (_shmAddr != IntPtr.Zero && _shmAddr != new IntPtr(-1))
         {

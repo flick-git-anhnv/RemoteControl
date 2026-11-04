@@ -138,13 +138,55 @@ public sealed class RemoteControlClient : IRemoteControlClient
         SetState(ConnectionState.Disconnected, "User requested disconnect");
     }
 
+    private long _pendingMouseMove = -1;
+    private int  _mouseMoveSending;
+
     /// <inheritdoc/>
     /// <remarks>Coordinates must already be in ZCU screen space. See TDD §5.3.</remarks>
     public Task SendMouseMoveAsync(int x, int y)
     {
         if (_state != ConnectionState.Streaming) return Task.CompletedTask;
-        var payload = MessageCodec.EncodeMouseMove(x, y);
-        return SendLockedAsync(MessageType.MouseMove, payload, CancellationToken.None);
+
+        // Latest-wins coalescing: ghi đè toạ độ mới nhất, ngăn ngừa nghẽn hàng đợi TCP khi di chuột dày đặc
+        long packed = ((long)x << 32) | (uint)y;
+        Interlocked.Exchange(ref _pendingMouseMove, packed);
+
+        if (Interlocked.CompareExchange(ref _mouseMoveSending, 1, 0) == 0)
+        {
+            _ = DrainMouseMoveAsync();
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task DrainMouseMoveAsync()
+    {
+        try
+        {
+            while (_state == ConnectionState.Streaming)
+            {
+                long packed = Interlocked.Exchange(ref _pendingMouseMove, -1);
+                if (packed == -1) break;
+
+                int x = (int)(packed >> 32);
+                int y = (int)(packed & 0xFFFFFFFFL);
+                var payload = MessageCodec.EncodeMouseMove(x, y);
+
+                await SendLockedAsync(MessageType.MouseMove, payload, CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Lỗi gửi toạ độ chuột coalesced");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _mouseMoveSending, 0);
+            if (Interlocked.Read(ref _pendingMouseMove) != -1 &&
+                Interlocked.CompareExchange(ref _mouseMoveSending, 1, 0) == 0)
+            {
+                _ = DrainMouseMoveAsync();
+            }
+        }
     }
 
     /// <inheritdoc/>
@@ -643,9 +685,12 @@ public sealed class RemoteControlClient : IRemoteControlClient
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(sessionCt);
                 cts.CancelAfter(RemoteControlConstants.HandshakeTimeoutMs);
 
-                var ssl = new System.Net.Security.SslStream(
-                    _tcp!.GetStream(), leaveInnerStreamOpen: false,
-                    userCertificateValidationCallback: (sender, cert, chain, errors) =>
+                var authOptions = new System.Net.Security.SslClientAuthenticationOptions
+                {
+                    TargetHost = _host,
+                    EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12
+                                        | System.Security.Authentication.SslProtocols.Tls13,
+                    RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
                     {
                         if (cert is null) return false;
                         var hash = cert.GetCertHashString(System.Security.Cryptography.HashAlgorithmName.SHA256);
@@ -660,19 +705,24 @@ public sealed class RemoteControlClient : IRemoteControlClient
                         }
                         TlsCertificateValidated?.Invoke(this, hash);
                         return true;
-                    });
-                await ssl.AuthenticateAsClientAsync(new System.Net.Security.SslClientAuthenticationOptions
-                {
-                    TargetHost = _host,
-                    EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12
-                                        | System.Security.Authentication.SslProtocols.Tls13,
-                }, cts.Token).ConfigureAwait(false);
+                    }
+                };
+
+                var ssl = new System.Net.Security.SslStream(_tcp!.GetStream(), leaveInnerStreamOpen: false);
+                await ssl.AuthenticateAsClientAsync(authOptions, cts.Token).ConfigureAwait(false);
 
                 _isEncrypted = true;
                 return ssl;
             }
             catch (Exception ex) when (!sessionCt.IsCancellationRequested)
             {
+                if (!string.IsNullOrEmpty(ExpectedCertFingerprint))
+                {
+                    _logger.LogError(ex, "TLS handshake với {Host} thất bại hoặc fingerprint không khớp khi đã cấu hình ghim chứng chỉ. Cấm hạ cấp về TCP plaintext!", _host);
+                    throw new System.Security.Authentication.AuthenticationException(
+                        $"TLS handshake thất bại hoặc fingerprint không khớp ({_host}). Cấm hạ cấp về TCP plaintext.", ex);
+                }
+
                 _logger.LogInformation(ex, "TLS handshake với {Host} thất bại — agent có thể là bản cũ, lùi về TCP thường", _host);
                 _tlsUnsupported = true;
                 try { _tcp?.Dispose(); } catch { /* ignore */ }
@@ -711,11 +761,14 @@ public sealed class RemoteControlClient : IRemoteControlClient
             switch (type)
             {
                 case MessageType.FrameJpeg:
+                    // Frame hình ảnh là bằng chứng kết nối sống (chống timeout 30s khi đang stream)
+                    Interlocked.Exchange(ref _lastPongTicks, DateTime.UtcNow.Ticks);
                     HandleFrameJpeg(payload);
                     break;
 
                 case MessageType.Ping:
-                    // Reply with same nonce, do NOT update _lastPongTicks (server PING is not our PONG).
+                    // Server PING cũng chứng minh kết nối đang hoạt động tốt
+                    Interlocked.Exchange(ref _lastPongTicks, DateTime.UtcNow.Ticks);
                     var pingNonce = MessageCodec.DecodePingPong(payload);
                     await SendLockedAsync(MessageType.Pong,
                         MessageCodec.EncodePingPong(pingNonce), sessionCt).ConfigureAwait(false);
@@ -885,6 +938,9 @@ public sealed class RemoteControlClient : IRemoteControlClient
         // Exchange nulls atomically to prevent double-close.
         var stream = Interlocked.Exchange(ref _stream, null);
         var tcp    = Interlocked.Exchange(ref _tcp, null);
+
+        Interlocked.Exchange(ref _pendingMouseMove, -1);
+        Interlocked.Exchange(ref _mouseMoveSending, 0);
 
         // Đang upload/download dở thì rớt kết nối → báo lỗi thay vì treo chờ.
         var lost = new IOException("Mất kết nối trong lúc truyền file");

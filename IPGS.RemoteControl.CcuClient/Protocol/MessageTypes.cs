@@ -84,7 +84,7 @@ public static class RemoteControlConstants
     /// <summary>Maximum accepted payload size. Server/client MUST close if exceeded.</summary>
     public const int  MaxFrameBytes        = 8 * 1024 * 1024;  // 8 MB
 
-    public const int  TargetFps            = 15;
+    public const int  TargetFps            = 30;
     public const int  JpegQuality          = 70;
 
     public const int  PingIntervalMs       = 5_000;

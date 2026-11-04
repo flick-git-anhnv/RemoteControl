@@ -67,10 +67,9 @@ internal sealed class MouseInjector : IMouseInjector
     {
         if (!_initialized || _disposed) return;
         XTest.XTestFakeButtonEvent(_display, (uint)button, isDown, 0);
-        // GOTCHA: XFlush MUST be called after XTestFakeButtonEvent
+        // GOTCHA: XFlush MUST be called after XTestFakeButtonEvent to dispatch buffered event immediately.
+        // Removed blocking XSync round-trip (same as Move) to eliminate click/scroll lag under load.
         X11.XFlush(_display);
-        // XSync: same rationale as Move() — surface any async X error immediately.
-        X11.XSync(_display, false);
     }
 
     // ── IDisposable ───────────────────────────────────────────────────────

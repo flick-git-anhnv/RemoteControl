@@ -44,11 +44,11 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     // Dispatcher.UIThread.Post lambdas and on the frame-decode thread (L5 fix).
     private volatile bool _disposed;
 
-    // ── Ping-Pong Double-Buffering (audit M1: triệt tiêu 124 MB/s rác LOH) ──
-    private WriteableBitmap? _frontBuffer;
-    private WriteableBitmap? _backBuffer;
-    private int _bufferW;
-    private int _bufferH;
+    // ── Ping-Pong Double-Buffering & Pool (triệt tiêu 100% rác WriteableBitmap LOH) ──
+    private WriteableBitmap? _pendingFrame;   // frame mới nhất đang chờ UI hiển thị
+    private WriteableBitmap? _shownFrame;     // frame đang hiển thị (chỉ đụng trên UI thread)
+    private WriteableBitmap? _recycledBitmap; // bitmap buffer rảnh để tái sử dụng
+    private int _postQueued;
     private readonly object _bufferLock = new();
 
     /// <summary>
@@ -403,88 +403,83 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         // đang bay trên receive-thread vẫn có thể gọi vào đây một nhịp cuối).
         if (_isRenderPaused || _disposed) return;
 
-        // Decode JPEG on the calling (background) thread — SkiaSharp is thread-safe.
-        using var skBmp = SKBitmap.Decode(e.JpegData.Span);
-        if (skBmp is null) return;
+        var jpegSpan = e.JpegData.Span;
+        if (jpegSpan.IsEmpty) return;
 
-        // Ensure BGRA8888 to match Avalonia WriteableBitmap's pixel format.
-        SKBitmap toRender;
-        bool mustDispose = false;
-
-        if (skBmp.ColorType == SKColorType.Bgra8888)
+        // Direct Zero-Copy JPEG Decode into WriteableBitmap framebuffer via SKCodec:
+        // Eliminates intermediate SKBitmap allocation, skBmp.Copy(Bgra8888) allocation,
+        // and the 5.2–8.3 MB row-by-row Buffer.MemoryCopy loop on the CCU host.
+        WriteableBitmap? displayBitmap = null;
+        unsafe
         {
-            toRender = skBmp;
-        }
-        else
-        {
-            var converted = skBmp.Copy(SKColorType.Bgra8888);
-            if (converted is null) return;
-            toRender   = converted;
-            mustDispose = true;
-        }
-
-        try
-        {
-            int w = toRender.Width, h = toRender.Height;
-
-            WriteableBitmap displayBitmap;
-            WriteableBitmap? oldFront = null;
-            WriteableBitmap? oldBack = null;
-            lock (_bufferLock)
+            fixed (byte* pJpeg = jpegSpan)
             {
-                if (_disposed) return;
+                using var skData = SKData.Create((IntPtr)pJpeg, jpegSpan.Length);
+                if (skData is null) return;
+                using var codec = SKCodec.Create(skData);
+                if (codec is null) return;
 
-                // Re-allocate buffers only when size changes or first frame
-                if (_frontBuffer == null || _backBuffer == null || _bufferW != w || _bufferH != h)
-                {
-                    oldFront = _frontBuffer;
-                    oldBack  = _backBuffer;
-                    var pSize = new Avalonia.PixelSize(w, h);
-                    var dpi   = new Avalonia.Vector(96.0, 96.0);
-                    _frontBuffer = new WriteableBitmap(pSize, dpi, PixelFormat.Bgra8888, AlphaFormat.Opaque);
-                    _backBuffer  = new WriteableBitmap(pSize, dpi, PixelFormat.Bgra8888, AlphaFormat.Opaque);
-                    _bufferW = w;
-                    _bufferH = h;
-                }
+                int w = codec.Info.Width, h = codec.Info.Height;
+                if (w <= 0 || h <= 0) return;
 
-                // Direct zero-copy copy from SKBitmap unmanaged memory to WriteableBitmap back buffer (audit M1)
-                IntPtr pixPtr = toRender.GetPixels();
-                using (var locked = _backBuffer.Lock())
+                var targetInfo = new SKImageInfo(w, h, SKColorType.Bgra8888, SKAlphaType.Opaque);
+
+                lock (_bufferLock)
                 {
-                    unsafe
+                    if (_disposed) return;
+
+                    var candidate = System.Threading.Interlocked.Exchange(ref _recycledBitmap, null);
+                    if (candidate is not null && candidate.PixelSize.Width == w && candidate.PixelSize.Height == h)
                     {
-                        Buffer.MemoryCopy(
-                            (void*)pixPtr,
-                            (void*)locked.Address,
-                            toRender.ByteCount,
-                            toRender.ByteCount);
+                        displayBitmap = candidate;
+                    }
+                    else
+                    {
+                        candidate?.Dispose();
+                        displayBitmap = new WriteableBitmap(
+                            new Avalonia.PixelSize(w, h), new Avalonia.Vector(96.0, 96.0),
+                            PixelFormat.Bgra8888, AlphaFormat.Opaque);
+                    }
+
+                    using var locked = displayBitmap.Lock();
+                    var result = codec.GetPixels(targetInfo, locked.Address, locked.RowBytes, SKCodecOptions.Default);
+                    if (result is not (SKCodecResult.Success or SKCodecResult.IncompleteInput))
+                    {
+                        var discarded = System.Threading.Interlocked.Exchange(ref _recycledBitmap, displayBitmap);
+                        discarded?.Dispose();
+                        return;
                     }
                 }
-
-                // Swap ping-pong buffers
-                var temp = _frontBuffer;
-                _frontBuffer = _backBuffer;
-                _backBuffer = temp;
-                displayBitmap = _frontBuffer;
             }
+        }
 
+        if (displayBitmap is null) return;
+
+        // Latest-wins: UI chậm thì đưa frame chờ cũ về recycled buffer thay vì hủy.
+        var superseded = System.Threading.Interlocked.Exchange(ref _pendingFrame, displayBitmap);
+        if (superseded is not null)
+        {
+            var oldRecycled = System.Threading.Interlocked.Exchange(ref _recycledBitmap, superseded);
+            oldRecycled?.Dispose();
+        }
+
+        if (System.Threading.Interlocked.Exchange(ref _postQueued, 1) == 0)
+        {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                if (_disposed)
+                System.Threading.Interlocked.Exchange(ref _postQueued, 0);
+                var next = System.Threading.Interlocked.Exchange(ref _pendingFrame, null);
+                if (next is null) return;
+                if (_disposed) { next.Dispose(); return; }
+                var old = _shownFrame;
+                _shownFrame = next;
+                CurrentFrame = next;
+                if (old is not null)
                 {
-                    oldFront?.Dispose();
-                    oldBack?.Dispose();
-                    return;
+                    var oldRecycled = System.Threading.Interlocked.Exchange(ref _recycledBitmap, old);
+                    oldRecycled?.Dispose();
                 }
-                CurrentFrame = displayBitmap;
-                // Dispose old buffers only AFTER UI thread has set CurrentFrame to the new bitmap (F-NEW-5)
-                oldFront?.Dispose();
-                oldBack?.Dispose();
             });
-        }
-        finally
-        {
-            if (mustDispose) toRender.Dispose();
         }
     }
 
@@ -505,11 +500,11 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         _client.Dispose();
         lock (_bufferLock)
         {
-            _frontBuffer?.Dispose();
-            _frontBuffer = null;
-            _backBuffer?.Dispose();
-            _backBuffer = null;
+            System.Threading.Interlocked.Exchange(ref _pendingFrame, null)?.Dispose();
+            System.Threading.Interlocked.Exchange(ref _recycledBitmap, null)?.Dispose();
             CurrentFrame = null;
+            _shownFrame?.Dispose();
+            _shownFrame = null;
         }
     }
 }

@@ -17,6 +17,12 @@ internal readonly record struct ScreenSize(int Width, int Height);
 internal sealed class CapturedFrame
 {
     public required byte[] PixelData   { get; init; }
+    /// <summary>
+    /// Optional unmanaged pointer to raw BGRA8888 pixels (e.g., MIT-SHM shared memory address).
+    /// When non-zero, <see cref="IFrameEncoder"/> reads directly from this pointer (zero-copy)
+    /// without needing <see cref="PixelData"/> to be populated.
+    /// </summary>
+    public IntPtr          PixelPtr    { get; init; }
     public required int    Width       { get; init; }
     public required int    Height      { get; init; }
     /// <summary>Bytes per row (may be padded).</summary>

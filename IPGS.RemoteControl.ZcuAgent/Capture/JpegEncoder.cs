@@ -51,9 +51,11 @@ internal sealed class JpegEncoder : IFrameEncoder, IDisposable
                 colorType: SKColorType.Bgra8888,
                 alphaType: SKAlphaType.Opaque);
 
-            // Zero-Copy encode: nén JPEG trực tiếp từ pinned buffer của captured frame (audit F-NEW-3)
-            // Loại bỏ hoàn toàn 8.3MB Buffer.MemoryCopy per-frame trên CPU ZCU
-            using var data = EncodeDirect(info, frame.PixelData, frame.BytesPerRow, quality);
+            // Zero-Copy encode: nén JPEG trực tiếp từ con trỏ MIT-SHM (PixelPtr) hoặc pinned buffer (audit F-NEW-3)
+            // Loại bỏ hoàn toàn 5.2–8.3MB Buffer.MemoryCopy / Marshal.Copy per-frame trên CPU ZCU
+            using var data = frame.PixelPtr != IntPtr.Zero
+                ? EncodeFromPointer(info, frame.PixelPtr, frame.BytesPerRow, quality)
+                : EncodeDirect(info, frame.PixelData, frame.BytesPerRow, quality);
 
             if (data is null || data.Size == 0)
             {
@@ -81,6 +83,12 @@ internal sealed class JpegEncoder : IFrameEncoder, IDisposable
             _logger.LogError(ex, "JPEG encode failed");
             return ReadOnlyMemory<byte>.Empty;
         }
+    }
+
+    private static SKData? EncodeFromPointer(SKImageInfo info, IntPtr pixelPtr, int rowBytes, int quality)
+    {
+        using var image = SKImage.FromPixels(info, pixelPtr, rowBytes);
+        return image?.Encode(SKEncodedImageFormat.Jpeg, quality);
     }
 
     private static SKData? EncodeDirect(SKImageInfo info, byte[] pixelData, int rowBytes, int quality)
