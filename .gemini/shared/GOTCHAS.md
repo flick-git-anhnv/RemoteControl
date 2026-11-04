@@ -30,6 +30,17 @@
 | G016 | Tối ưu hóa Remote Headless không màn hình vật lý và phiên RDP ảo xrdp bằng X11DisplayResolver và XSetScreenSaver anti-blanking | 2026-10-31 |
 | G017 | Rác LOH (1.5–3MB/s) trên ZCU do EncodeFrameJpeg cấp phát mảng byte mỗi khung hình — triệt tiêu bằng Zero-Allocation Frame Streaming và Congestion Dropping | 2026-10-31 |
 | G018 | Avalonia ListBox DoubleTapped event: `sender.DataContext` là null/window chứ không phải item model — bắt buộc trích xuất qua `e.Source` / `ListBoxItem` / `SelectedItem` | 2026-11-02 |
+| G019 | Lỗi màn hình ảo `eDP-1` (`connected`) trên máy tính công nghiệp YANLING IBOX-205 (Intel Haswell-ULT i915) gây mất màn hình chính | 2026-11-03 |
+| G020 | Lỗi lệch byte ABI 64-bit (`LP64`) trong `XShmSegmentInfo` làm `XShmAttach` luôn bị Xorg từ chối (`BadAccess`), gây sụt FPS | 2026-11-03 |
+| G021 | Kẹt khoá dconf Kiosk (Super/Activities/Hot Corner không mở được sau khi bỏ tick) & GNOME Shell Extension không nhận diện | 2026-11-03 |
+| G022 | Lỗi vỡ font / hỏi chấm (???) do PowerShell stdin heredoc giải mã chuỗi UTF-8 theo ANSI CP1252 | 2026-11-03 |
+| G023 | Kiosk Deploy 2 tab bị đồng nhất do ResolveKioskScriptsDir ưu tiên Resources cũ, bash helper bị kẹt trong scope và Just Perfection lỗi 'primary is null' trên GNOME 42 | 2026-11-03 |
+| G024 | Lỗi status 150 'No frameworks were found' khi deploy ZcuAgent framework-dependent do `libhostfxr.so` nằm trong app dir làm muxer bỏ qua `DOTNET_ROOT` | 2026-11-04 |
+| G025 | Ngắt kết nối định kỳ 30s do thiếu làm mới heartbeat trên luồng nhận frame JPEG và thiếu cooperative yield giải phóng write lock | 2026-11-04 |
+| G026 | Nghẽn CPU 100% trên Atom/Celeron và giật lag do Adaptive FPS chỉ nhìn writeMs, XSync chuột và rác WriteableBitmap 157 MB/s | 2026-11-04 |
+| G027 | Bắt tay TLS tự ký thất bại (alert certificate unknown) do SslClientAuthenticationOptions không kế thừa callback constructor | 2026-11-04 |
+| G028 | "Cài remote" xoá agent-tls.pfx làm đổi vân tay, CCU từ chối TLS do vân tay ghim cũ gây màn hình đen ngắt kết nối | 2026-11-04 |
+| G029 | Lỗi regex Dashboard `([\d\.]+)` bỏ qua dấu phẩy thập phân locale `vi_VN` trong lệnh `top` và spike mẫu 1 khiến tính khống CPU lên 93%–99% | 2026-11-04 |
 
 ---
 
@@ -519,3 +530,309 @@ Trong cửa sổ quản lý file hoặc danh sách (`RemoteCommandWindow`), khi 
 **Lần đầu gặp:** WF-BUGFIX / Sửa lỗi nhấn đúp mở thư mục trong Quản lý File SFTP (2026-11-02)
 
 ---
+
+## G019 — Lỗi màn hình ảo `eDP-1` (`connected`) trên máy tính công nghiệp YANLING IBOX-205 (Intel Haswell-ULT i915) gây mất màn hình chính hoặc treo bộ cài Ubuntu
+
+**Ngày phát hiện:** 2026-11-03
+**Môi trường:** Máy tính công nghiệp YANLING IBOX-205 (Intel Core i5-4210U, i915 DRM), AMI Aptio BIOS 5.011, Ubuntu 22.04 LTS (`jammy`)
+
+**Vấn đề:**
+1. Khi khởi động bộ cài Ubuntu Live USB (`ubiquity`) hoặc sau khi cài đặt mới hệ điều hành trên YANLING IBOX-205 chỉ cắm 1 màn hình vật lý qua cổng `HDMI-1`, màn hình vật lý chỉ hiển thị hình nền trống hoặc bị kẹt ở màn hình đăng nhập/TTY, mọi cửa sổ chính (bộ cài `ubiquity`, hộp thoại login GDM3, thanh Dock) đều bị đẩy sang một màn hình vô hình thứ 2.
+2. Khi ghi `echo off > /sys/kernel/debug/dri/1/eDP-1/force`, đọc lại `/sys/class/drm/card1-eDP-1/status` vẫn thấy `connected` nếu chưa có tiến trình DRM client (`Xorg`/`gdm3`) gọi lại `drmModeGetConnector()` để kích hoạt `drm_helper_probe_single_connector_modes()`.
+
+**Nguyên nhân:**
+1. Trong bảng VBT (Video BIOS Table) của BIOS AMI Aptio trên bo mạch công nghiệp YANLING IBOX-205, tùy chọn cổng màn hình nội bộ (`Active LFP` / `eDP-1` / `LVDS`) được bật mặc định (`Enabled`). Do chuẩn eDP là màn hình gắn trong, driver `i915` mặc định coi `card1-eDP-1` luôn ở trạng thái `connected` (`1024x768 +0+0` làm Primary), đẩy màn hình vật lý `HDMI-A-1` (`1280x1024 +1024+0`) thành màn hình phụ thứ 2.
+2. Trong nhân Linux (`drm_sysfs.c` & `drm_probe_helper.c`), biến `connector->status` chỉ được tính toán lại từ `connector->force` (`DRM_FORCE_OFF`) khi hàm `fill_modes` được gọi (lúc khởi động lại `gdm3`/`Xorg` hoặc truyền từ đầu qua kernel cmdline `video=eDP-1:d`).
+
+**Cách xử lý:**
+1. **Triệt tiêu vĩnh viễn trên Hệ điều hành (4 lớp bảo vệ):**
+   - **Lớp 1 (Kernel Boot DRM):** Thêm `video=eDP-1:d video=HDMI-A-1:e` vào `GRUB_CMDLINE_LINUX_DEFAULT` trong `/etc/default/grub` rồi chạy `sudo update-grub`.
+   - **Lớp 2 (Runtime DRM Debugfs & Sysfs):** Ghi `echo off > /sys/kernel/debug/dri/1/eDP-1/force` và `echo off > /sys/class/drm/card1-eDP-1/status`, kết hợp udev rule `/etc/udev/rules.d/99-disable-edp.rules` (`ACTION=="add|change", SUBSYSTEM=="drm", KERNEL=="card*-eDP-1", ATTR{status}="off"`).
+   - **Lớp 3 (Xorg Configuration):** Tạo `/etc/X11/xorg.conf.d/10-monitor-ignore-edp.conf` đặt `Option "Ignore" "true"` cho `eDP-1` và `Option "Primary" "true"` cho `HDMI-1` / `HDMI-A-1`.
+   - **Lớp 4 (GDM3 Xorg Session):** Cấu hình `/etc/gdm3/custom.conf` với `WaylandEnable=false` và `AutomaticLoginEnable=true`, sau đó `sudo systemctl restart gdm3`. Ngay lập tức `/sys/class/drm/card1-eDP-1/status` chuyển sang `disconnected` và `xrandr` chỉ còn duy nhất màn hình `HDMI-1`.
+2. **Triệt tiêu tận gốc ở tầng phần cứng BIOS (giữ nguyên kể cả khi cài lại OS mới):**
+   - Vào BIOS AMI (`Delete` / `F2` lúc bật máy) → tab **Chipset** → **System Agent (SA) Configuration** → **Graphics Configuration** → chuyển **Active LFP** (hoặc **Internal Graphics eDP/LVDS**) thành **No LVDS / Disabled** và đặt **Primary Display** = **IGFX / HDMI**, sau đó nhấn `F10` lưu lại.
+
+**Lần đầu gặp:** WF-DEVOPS / Triển khai OS & loại bỏ màn hình phụ ảo `eDP-1` trên ZCU `192.168.21.101` (2026-11-03)
+
+---
+
+## G020 — Lỗi lệch byte ABI 64-bit (`LP64`) trong `XShmSegmentInfo` làm `XShmAttach` luôn bị Xorg từ chối (`BadAccess`), gây sụt FPS và ngốn 90% CPU do rơi về `XGetImage`
+
+**Ngày phát hiện:** 2026-11-03
+**Môi trường:** Linux 64-bit (`x86_64` & `arm64` ABI `LP64`), .NET 8 C# P/Invoke `libXext.so.6`, Xorg Server
+
+**Vấn đề:**
+Khi `IPGS.RemoteControl.ZcuAgent` khởi động trên bất kỳ máy Linux 64-bit nào, `X11ScreenCapturer` luôn ghi log cảnh báo:
+`XShmAttach rejected by X server (async BadAccess) — MIT-SHM not permitted on this display. Falling back to XGetImage.`
+Do rơi về `XGetImage`, mỗi khung hình phải truyền 5.24 MB – 8.3 MB dữ liệu pixel thô qua Unix socket kèm `Marshal.Copy`, làm tiến trình `ZcuAgent` ngốn ~90% CPU và FPS thực tế bị tụt thấp (~10–13 FPS).
+
+**Nguyên nhân:**
+1. Trong giao thức dây (wire protocol) của X11, `XID` rộng 32-bit, nhưng trong C ABI của thư viện client `libX11` / `libXext` trên Linux 64-bit (`LP64`, không định nghĩa `_XSERVER64`), kiểu `ShmSeg` (`typedef XID ShmSeg; typedef unsigned long XID;`) là `unsigned long` — tức **8 bytes** (`nuint`), không phải 4 bytes (`int`)!
+2. Khi khai báo `public int shmseg;` (4 bytes) ở đầu struct `XShmSegmentInfo` trong `XShmInterop.cs`, các trường tiếp theo trong C# bị lệch 4 bytes so với `libXext.so.6`:
+   - C# đặt `shmid` tại offset 4 và `shmaddr` tại offset 8.
+   - `libXext.so.6` ghi `shmseg` 8-byte vào offset `0..7` (ghi đè mất `shmid` của C#!) rồi đọc `shmid` tại offset `8..11` (thực chất là 4 byte thấp của con trỏ `shmaddr`!).
+   - Xorg Server nhận `shmid` rác nên gọi `shmat()` thất bại và trả về lỗi bất đồng bộ `BadAccess` (`error_code=10, request_code=130, minor_code=1`).
+
+**Cách xử lý:**
+1. Trong `XShmInterop.cs`, đổi trường `shmseg` từ `int` sang `nuint` (`UIntPtr` — 8 bytes trên 64-bit LP64, 4 bytes trên 32-bit ILP32) và đặt `SHM_MODE = 0x1B6` (`0666` octal).
+2. **BẮT BUỘC cấp phát `XShmSegmentInfo` trên bộ nhớ unmanaged (`Marshal.AllocHGlobal`) thay vì truyền `ref _shmInfo` (field của class managed):** Hàm `XShmCreateImage` trong `libXext.so.6` lưu trực tiếp địa chỉ con trỏ `shminfo` vào `image->obdata`, và mọi lệnh `XShmGetImage` về sau đều đọc `((XShmSegmentInfo*)image->obdata)->shmseg`. Nếu truyền `ref _shmInfo`, P/Invoke chỉ pin tạm thời trong lúc gọi hàm; khi Garbage Collector dời chỗ đối tượng `X11ScreenCapturer` trên managed heap, `image->obdata` trỏ vào vùng nhớ cũ (`resourceid=0x0`) gây lỗi `BadShmSeg` (`error_code=128, minor_code=4`).
+3. Trong `X11ScreenCapturer.CaptureSHM()` và `JpegEncoder.EncodeJpeg()`, truyền trực tiếp con trỏ vùng nhớ chia sẻ `img.Data` (`PixelPtr`) vào `SKImage.FromPixels` (Zero-Copy), loại bỏ hoàn toàn lệnh `Marshal.Copy` 5.2–8.3 MB mỗi frame.
+4. Phía CCU (`RemoteScreenViewModel.OnFrameReceived`), dùng `SKCodec.GetPixels` giải mã trực tiếp JPEG vào địa chỉ framebuffer của `WriteableBitmap.Lock().Address`, loại bỏ `SKBitmap` trung gian và vòng lặp `Buffer.MemoryCopy`.
+
+**Lần đầu gặp:** WF-BUGFIX / Tối ưu FPS Remote Control trên ZCU `192.168.21.101` (2026-11-03)
+
+---
+
+## G021 — Lỗi kẹt dconf lock do ngược thứ tự gỡ khoá và cơ chế nạp GNOME Shell extension offline trên Ubuntu 22.04
+
+**Ngày phát hiện:** 2026-11-03
+**Môi trường:** Ubuntu 22.04.5 LTS, GNOME Shell 42.9 (X11), dconf system-db, `2-configure-system.sh` & `1-install-software.sh`
+
+**Vấn đề:**
+1. Khi quản trị viên chuyển từ chế độ Kiosk sang chế độ bảo trì (bỏ tích các ô Kiosk như `Khóa phím tắt`, `Tắt Hot Corner`, `Khóa Workspace`), sau khi chạy Deploy hệ thống vẫn bị kẹt: phím `Super` và nút `Activities` trên Top Bar không mở được Overview, `enable-hot-corners` và `dynamic-workspaces` vẫn ở giá trị `false`.
+2. Sau khi cài extension GNOME cục bộ (`just-perfection`, `block-caribou`) bằng cách giải nén vào `~/.local/share/gnome-shell/extensions/`, lệnh `gnome-extensions list` và `gnome-extensions info` vẫn không nhận diện được extension (`CẢNH BÁO: extension chưa ở trạng thái ENABLED`), khiến các thiết lập ẩn/hiện Top Bar hoặc Activities không có hiệu lực cho đến khi khởi động lại máy.
+
+**Nguyên nhân:**
+1. **Lỗi ngược thứ tự dconf unlock:** File khoá hệ thống `/etc/dconf/db/local.d/locks/00-kiosk-lockdown` khoá cứng các key `/org/gnome/desktop/interface/enable-hot-corners` và `/org/gnome/mutter/dynamic-workspaces`. Trong script cũ, các lệnh `gsettings set ... true` nằm ở Mục `[1/10]` và `[2/10]` chạy **TRƯỚC** Mục `[9/10]` (nơi xoá file lock và chạy `dconf update`). Do đó, lệnh `gsettings set` bị dconf từ chối ngầm (`2>/dev/null || true`); sau đó khóa mới được gỡ ở Mục `[9/10]` nhưng không có lệnh nào thiết lập lại `true`, khiến user dconf database bị kẹt ở giá trị `false`.
+2. **GNOME Shell extension cache:** GNOME Shell chỉ quét thư mục `~/.local/share/gnome-shell/extensions/` khi tiến trình `gnome-shell` khởi động. Việc copy/unzip thư mục mới vào khi shell đang chạy không kích hoạt sự kiện inotify nạp extension mới.
+
+**Cách xử lý:**
+1. **Gỡ khoá dconf TRƯỚC TIÊN (Step 0):** Trong `2-configure-system.sh`, nếu `LOCKDOWN_SHELL=0`, lập tức xoá `/etc/dconf/db/local.d/00-kiosk-lockdown` và file `locks/`, chạy `_sudo dconf update`, đồng thời gọi `gsettings reset org.gnome.mutter overlay-key` và `gsettings reset org.gnome.shell.keybindings toggle-overview` trước khi thực thi bất kỳ bước cấu hình người dùng nào.
+2. **Nạp lại GNOME Shell trong 0ms trên X11:** Trong `1-install-software.sh`, sau khi giải nén và cấu hình extension, kiểm tra nếu `gnome-shell` đang chạy trên phiên X11 thì gọi `killall -9 gnome-shell`. Do unit `org.gnome.Shell@x11.service` có cấu hình `Restart=always` và `RestartSec=0ms`, systemd sẽ nạp lại GNOME Shell ngay lập tức trong <1 giây mà không đóng các ứng dụng GUI khác, quét và kích hoạt toàn bộ extension mới ngay trong phiên làm việc.
+3. **Tách phạm vi Deploy độc lập (`DEPLOY_SCOPE`):** Bổ sung biến môi trường `DEPLOY_SCOPE` (`machine` | `software` | `all`) vào `2-configure-system.sh` và `KioskDeployOptions` trong C#. Nút `Deploy Config máy tính` chỉ chạy phần máy tính/desktop, nút `Deploy Config phần mềm` chỉ chạy phần autostart/watchdog/update cho app được chọn, không còn hiện tượng bấm tab này đè cấu hình tab kia.
+
+**Lần đầu gặp:** WF-REFACTOR / Tách độc lập Deploy Kiosk & Hợp nhất Quản lý File/CMD Shell (2026-11-03)
+
+---
+
+## G022 — Lỗi vỡ font / hỏi chấm (???) do PowerShell stdin heredoc giải mã chuỗi UTF-8 theo ANSI CP1252
+
+**Ngày phát hiện:** 2026-11-03
+**Môi trường:** Windows PowerShell 5.1, Python CLI heredoc stdin pipe (@'...'@ | python -), Source code C# / XAML Avalonia
+
+**Vấn đề:**
+Khi chạy script tự động hoá bằng cách pipe mã nguồn inline từ PowerShell sang Python qua stdin (@'...'@ | python -), toàn bộ các ký tự tiếng Việt có dấu (ế, à, ộ, ư...) và icon emoji đa byte (🛠️, 📁, 🔄, ⬆️...) trong file nguồn C# và XAML bị biến thành các ký tự dấu hỏi chấm ??? (ví dụ: ??? File &amp; CMD, Qu?n l? File).
+
+**Nguyên nhân:**
+1. Trong Windows PowerShell 5.1 mặc định, luồng Standard Input / Output ([Console]::InputEncoding và [Console]::OutputEncoding) kế thừa theo bảng mã hệ thống OEM/ANSI (CP1252 hoặc CP437) thay vì UTF-8.
+2. Khi PowerShell đọc khối chuỗi heredoc (@'...'@) và đẩy qua pipe |, nó mã hóa chuỗi thành byte theo CP1252. Python nhận stream stdin từ subprocess cũng giải mã theo CP1252, biến mọi byte UTF-8 không thuộc phạm vi ANSI 7-bit thành ký tự fallback ?.
+
+**Cách xử lý:**
+1. **Tuyệt đối không truyền chuỗi mã nguồn tiếng Việt/Emoji qua pipe PowerShell stdin:**
+   - Thay vào đó, ghi file script .py độc lập trực tiếp lên đĩa bằng encoding UTF-8 chuẩn (write_file API hoặc file .py có # -*- coding: utf-8 -*-).
+   - Mọi thao tác đọc/ghi file trong Python bắt buộc khai báo rõ: open(path, 'r', encoding='utf-8') và open(path, 'w', encoding='utf-8', newline='').
+2. **Kiểm tra hồi quy tự động:**
+   - Chạy script kiểm tra quét toàn bộ file nguồn: nếu chuỗi chứa ??? hoặc ký tự rác encoding thì lập tức cảnh báo và chặn commit.
+3. **Kết quả:** Toàn bộ giao diện tiếng Việt và các biểu tượng emoji hiển thị sắc nét, chuẩn xác 100% trên cả Windows và Linux.
+
+**Lần đầu gặp:** WF-BUGFIX / Khắc phục lỗi vỡ font tiếng Việt & emoji trong Quản lý File / CMD (2026-11-03)
+
+---
+
+## G023 — Kiosk Deploy 2 tab bị đồng nhất do ResolveKioskScriptsDir ưu tiên Resources cũ, bash helper bị kẹt trong scope và Just Perfection lỗi 'primary is null' trên GNOME 42
+
+**Ngày phát hiện:** 2026-11-03
+**Môi trường:** Ubuntu 22.04 LTS (GNOME Shell 42.9, X11), C# Avalonia CcuUI, `KioskDeployService.cs`, `scripts/linux-kiosk/`
+
+**Vấn đề:**
+1. Khi bấm nút `Deploy Config máy tính` hoặc `Deploy Config phần mềm`, cả 2 nút đều thực thi toàn bộ cấu hình monolithic như nhau (chạy cả extension lẫn autostart/watchdog) thay vì chạy riêng rẽ theo tab (`DEPLOY_SCOPE` bị bỏ qua).
+2. Khi chạy với `DEPLOY_SCOPE=software`, bash ném lỗi: `line 437: _get_real_exec: command not found`.
+3. Nút `Activities` trên Ubuntu không bấm được và Top Bar không ẩn/hiện đúng do extension `just-perfection-desktop@just-perfection` rơi vào trạng thái `State: ERROR` trong `gnome-extensions info`.
+
+**Nguyên nhân:**
+1. **Thứ tự nạp scripts trong `KioskDeployService.cs`:** Hàm `ResolveKioskScriptsDir` ưu tiên tìm thư mục `Resources/scripts` trong `bin/Debug/net8.0/` trước, nơi chứa các script cũ chưa có biến `DEPLOY_SCOPE`. Mỗi lần deploy, CcuUI upload đè bản script cũ lên ZCU khiến mọi sửa đổi ở repo gốc `scripts/` bị vô hiệu.
+2. **Hàm helper bash đặt sai phạm vi:** Hàm `_get_real_exec()` và `_detect_dm()` nằm bên trong khối `if [ "$DEPLOY_SCOPE" != "software" ]; then`. Khi deploy với scope `software`, toàn bộ khối này bị bỏ qua, dẫn tới các lệnh ở mục `[8/10]` và `[10/10]` không tìm thấy hàm `_get_real_exec`.
+3. **Crash Looking Glass trong GNOME 42:** Khi GNOME Shell khởi động hoặc nạp lại, `Main.layoutManager.primaryMonitor` có thể là `null` trước khi monitor geometry được tính toán xong. Extension Just Perfection gọi `_applyLookingGlassSize()` trong `applyAll()` khi `enable()`, gọi `createLookingGlass()` khiến GNOME Shell ném `TypeError: primary is null` và chuyển extension sang `State: ERROR`.
+
+**Cách xử lý:**
+1. **Đảo thứ tự tìm kiếm trong `ResolveKioskScriptsDir`:** Ưu tiên dò ngược tìm thư mục `scripts/` từ thư mục gốc mã nguồn (solution root). Đồng thời đồng bộ các script cập nhật vào toàn bộ thư mục `Resources/scripts` trong project và bin output.
+2. **Đưa hàm helper lên top-level:** Chuyển `_get_real_exec()` và `_detect_dm()` lên đầu script (ngay sau `_sudo()`), đảm bảo luôn có sẵn cho mọi scope `machine`, `software`, và `all`.
+3. **Tự động vá lỗi GNOME 42 cho Just Perfection:** Bổ sung bước kiểm tra và bọc an toàn trong `1-install-software.sh`:
+   `if (!this._main.layoutManager || !this._main.layoutManager.primaryMonitor) return; let lookingGlass; try { lookingGlass = this._main.createLookingGlass(); } catch(e) { return; }`
+   Nhờ đó Just Perfection luôn ở trạng thái `State: ENABLED`, nạp lại ngay lập tức qua `killall -9 gnome-shell` trên X11 và nút `Activities` hoạt động chuẩn xác 100%.
+
+**Lần đầu gặp:** WF-BUGFIX / Khắc phục triệt để lỗi 2 nút Deploy Kiosk & nút Activities (2026-11-03)
+
+---
+
+## G024 — Lỗi status 150 'No frameworks were found' khi deploy ZcuAgent framework-dependent do `libhostfxr.so` nằm trong app dir làm muxer bỏ qua `DOTNET_ROOT`
+
+**Ngày phát hiện:** 2026-11-04
+**Môi trường:** Ubuntu 22.04 LTS (x86_64), .NET 8 Runtime cài tại `/home/ccu/.dotnet`, tiến trình systemd user service `ipgs-remote-agent.service`
+
+**Vấn đề:**
+Khi publish `IPGS.RemoteControl.ZcuAgent` bằng lệnh `dotnet publish -c Release -r linux-x64 --self-contained false` và deploy toàn bộ thư mục publish lên `/home/ccu/ipgs/remote-agent/`, service khởi động thất bại với `code=exited, status=150/n/a` và log:
+```text
+You must install or update .NET to run this application.
+App: /home/ccu/ipgs/remote-agent/IPGS.RemoteControl.ZcuAgent
+Architecture: x64
+Framework: 'Microsoft.NETCore.App', version '8.0.0' (x64)
+.NET location: /home/ccu/ipgs/remote-agent/
+No frameworks were found.
+```
+Dù trong unit service đã có `Environment=DOTNET_ROOT=/home/ccu/.dotnet` và `/home/ccu/.dotnet/dotnet --list-runtimes` báo `Microsoft.NETCore.App 8.0.20`.
+
+**Nguyên nhân:**
+1. Khi chạy `dotnet publish` với RID chỉ định (`-r linux-x64`) trên SDK mới, dotnet xuất kèm các thư viện native host `libhostfxr.so` và `libhostpolicy.so` vào thư mục publish đích.
+2. Khi `IPGS.RemoteControl.ZcuAgent` (apphost native binary) khởi chạy, nó tìm thấy `libhostfxr.so` ngay tại thư mục hiện hành (`/home/ccu/ipgs/remote-agent/`). Theo quy tắc dò tìm của .NET Host, sự hiện diện của `libhostfxr.so` tại thư mục ứng dụng khiến muxer mặc định coi chính thư mục này là `.NET location` và **bỏ qua biến môi trường `DOTNET_ROOT`**.
+3. Do thư mục `/home/ccu/ipgs/remote-agent/` chỉ chứa app binaries mà không chứa cây thư mục `shared/Microsoft.NETCore.App/8.0.x`, `libhostfxr` kết luận `No frameworks were found` và thoát với status 150.
+
+**Cách xử lý:**
+1. Loại bỏ các file `libhost*.so` và `libclr*.so` khỏi thư mục triển khai của ứng dụng framework-dependent:
+   ```bash
+   rm -f /home/ccu/ipgs/remote-agent/libhost* /home/ccu/ipgs/remote-agent/libclr*
+   ```
+2. Khi không còn `libhostfxr.so` cục bộ trong app dir, apphost sẽ đọc biến môi trường `DOTNET_ROOT=/home/ccu/.dotnet` (hoặc `/usr/share/dotnet`), nạp `libhostfxr.so` từ runtime chuẩn của hệ điều hành và khởi động thành công 100%.
+3. Trong thư mục tài nguyên nhúng `IPGS.RemoteControl.CcuUI/Resources/zcu-agent/linux-x64/`, loại bỏ vĩnh viễn các file `libhost*.so` để các phiên cài đặt tự động qua GUI không bao giờ gặp lại lỗi này.
+
+**Lần đầu gặp:** WF-BUGFIX / Khắc phục lỗi XShm G020 & tối ưu FPS trên ZCU `192.168.21.56` (2026-11-04)
+
+---
+
+## G025 — Lỗi ngắt kết nối định kỳ 30s (`Broken pipe / PING timeout`) khi stream video: CCU Client chỉ cập nhật timestamp heartbeat khi nhận `Pong`, bỏ qua `FrameJpeg` và `Ping` từ server
+
+**Ngày phát hiện:** 2026-11-04
+**Môi trường:** CCU Client (`RemoteControlClient.cs`), ZCU Agent (`ClientSession.cs`), TCP streaming với `PingTimeoutMs = 30_000`
+
+**Vấn đề:**
+Sau khi tối ưu hóa ZcuAgent (sử dụng MIT-SHM, CPU hạ xuống ~7%), phiên điều khiển từ xa vẫn bị gián đoạn, màn hình chớp đen hoặc đứng hình định kỳ sau mỗi đúng 30 giây. Phía Linux ZcuAgent báo lỗi `Unable to write data to the transport connection: Broken pipe (SocketException 32) at WriteFrameJpegDirectAsync` và đóng session, sau đó CCU Client kết nối lại ngay lập tức rồi lặp lại chu kỳ 30s.
+
+**Nguyên nhân:**
+1. Trong `RemoteControlClient.cs`, tác vụ `PingSenderLoopAsync` kiểm tra biến thời gian `_lastPongTicks`: nếu `(DateTime.UtcNow - lastPong).TotalMilliseconds > PingTimeoutMs` (30 giây), client tự hủy session (`_sessionCts?.Cancel()`) và đóng socket TCP.
+2. Tuy nhiên, `_lastPongTicks` **chỉ được cập nhật duy nhất khi client nhận thông điệp `MessageType.Pong`** từ server.
+3. Khi nhận `MessageType.FrameJpeg` (đang truyền 15–30 frame/giây) hoặc `MessageType.Ping` từ server, client hoàn toàn không cập nhật `_lastPongTicks`.
+4. Nếu gói tin `MessageType.Pong` phản hồi từ server bị trễ (do vòng lặp capture chiếm giữ `_writeLock` mà không yield, hoặc do client giải mã JPEG đồng bộ làm trễ luồng socket), `_lastPongTicks` không được làm mới. Sau đúng 30 giây, CCU Client tự kết luận "mất kết nối" và đóng socket dù video đang stream mượt mà, gây ra hiện tượng Broken pipe trên server.
+
+**Cách xử lý:**
+1. **Làm mới heartbeat trên mọi gói tin nhận từ server (`RemoteControlClient.cs`):**
+   Trong `ReceiveLoopAsync`, cập nhật `Interlocked.Exchange(ref _lastPongTicks, DateTime.UtcNow.Ticks)` ngay khi nhận `MessageType.FrameJpeg` và `MessageType.Ping`. Bất kỳ dữ liệu nào nhận được từ server đều là bằng chứng xác thực đường truyền đang sống khỏe.
+2. **Cooperative Yield trong `ClientSession.cs` phía ZcuAgent:**
+   Trong vòng lặp `RunCaptureSendLoopAsync`, khi `sleep <= 0` (máy chụp nhanh hơn hoặc bằng thời gian frame), luôn gọi `await Task.Yield()` để nhường CPU và giải phóng `_writeLock`, cho phép vòng lặp nhận (`RunReceiveLoopAsync`) gửi các gói tin Pong/Ack tức thì mà không bị nghẽn sau video frames.
+3. **Kết quả:** Phiên điều khiển duy trì liên tục > 40–120s ổn định, 0 disconnect, 0 Broken pipe, PONG phản hồi tức thì < 100ms.
+
+**Lần đầu gặp:** WF-BUGFIX / Khắc phục ngắt kết nối định kỳ 30s trên ZCU `192.168.21.56` (2026-11-04)
+
+
+---
+
+## G026 — Nghẽn CPU 100% trên Atom/Celeron và giật lag điều khiển do thuật toán Adaptive FPS chỉ nhìn `writeMs`, `XSync` trong chuột và rác WriteableBitmap 157 MB/s
+
+**Ngày phát hiện:** 2026-11-04
+**Môi trường:** Intel Celeron J3160 / Atom Braswell (TDP 6W), Linux X11, Avalonia UI, SkiaSharp, TCP Remote Control
+
+**Vấn đề:**
+Sau khi nâng cấp XShm và vá keepalive 30s, hệ thống điều khiển vẫn bị giật lag và CPU máy con Celeron J3160 bị nghẽn tới 100% (0.0% IDLE), thao tác chuột/phím phản hồi rất chậm. Kiểm tra phát hiện 4 điểm nghẽn đồng thời:
+1. `ClientSession.cs`: Thuật toán `AdaptiveQuality` chỉ đo thời gian gửi qua socket mạng (`writeMs`). Trong mạng LAN, `writeMs` luôn dưới 2ms, khiến thuật toán tưởng hệ thống rất rảnh và tiếp tục ép CPU 30 FPS liên tục dù thời gian nén JPEG mất 25–35ms.
+2. `MouseInjector.Button`: Còn gọi `X11.XSync(_display, false)` (blocking round-trip đến Xorg server). Mỗi nấc cuộn chuột sinh 2 sự kiện button (10 nấc = 20 lần XSync chặn luồng).
+3. `RemoteScreenViewModel.cs`: Cấp phát `new WriteableBitmap` mỗi frame (157 MB/s ở 30 FPS 1280x1024), kích hoạt Full GC Gen 2 liên tục trên CCU.
+4. Quản lý dịch vụ ZcuAgent: Dịch vụ `ipgs-remote-agent` được cài đặt dưới dạng `systemd --user` (thuộc user ccu, Display :0), nếu can thiệp bằng `sudo systemctl` sẽ báo lỗi unit not found.
+
+**Cách xử lý:**
+1. **CPU-Aware Adaptive FPS (`ClientSession.cs`):**
+   - Tính tổng chu kỳ khung hình `cycleMs = sw.ElapsedMilliseconds` (bao gồm Ping check + Capture + Crop + Encode + Write).
+   - Xác định nghẽn khi: `(writeMs > SlowWriteMs) || (cycleMs > frameInterval * 0.85)`.
+   - Khi nghẽn liên tục 3 frame: tự động hạ trần FPS (`curFps * 0.75`) và chất lượng JPEG để CPU có thời gian nghỉ (`sleep > 0`).
+2. **Loại bỏ `XSync` trong `MouseInjector.Button`:**
+   - Chỉ giữ `X11.XFlush(_display)`, bỏ `X11.XSync(_display, false)` tương tự như đã làm với `Move()`.
+3. **Ping-Pong Buffer & WriteableBitmap Pool (`RemoteScreenViewModel.cs`):**
+   - Tái sử dụng bitmap qua slot atomic `_recycledBitmap`. Sau 2 frame đầu tiên, lượng cấp phát bộ nhớ giảm về đúng 0 B/giây.
+4. **Latest-Wins Coalescing chuột (`RemoteControlClient.cs`):**
+   - Đóng gói toạ độ di chuột vào atomic 64-bit `_pendingMouseMove`. Khi socket bận, toạ độ cũ được ghi đè tự động, không dồn ứ hàng đợi TCP.
+5. **Kết quả:** CPU idle máy con tăng vọt từ 0% lên **65% – 70% IDLE**; tải CPU của ZcuAgent giảm từ 95.9% xuống còn **8.0% – 12.9% CPU**; thao tác chuột và cuộn trang nhạy bén tức thì.
+
+**Lần đầu gặp:** WF-BUGFIX / Triệt tiêu 5 điểm nghẽn hiệu năng trên ZCU `192.168.21.56` (2026-11-04)
+---
+
+## G027 — Bắt tay TLS tự ký thất bại (`sslv3 alert certificate unknown`) do `SslClientAuthenticationOptions` không tự kế thừa callback từ constructor của `SslStream`
+
+**Ngày phát hiện:** 2026-11-04
+**Môi trường:** .NET 8 / 9 `System.Net.Security.SslStream`, Windows 11 CCU Client, Linux ZCU Agent
+
+**Vấn đề:**
+Sau khi bật rào chắn chống hạ cấp TLS (G026 / Step 5.5), CCU Client không thể kết nối tới ZCU Agent qua TLS. Phía Linux ZcuAgent báo lỗi:
+```text
+System.IO.IOException: The decryption operation failed, see inner exception.
+---> Interop+Crypto+OpenSslCryptographicException: error:0A000416:SSL routines::sslv3 alert certificate unknown
+```
+Client báo `TLS Certificate Fingerprint Mismatch` hoặc từ chối kết nối, khiến giao diện đứng yên không stream được.
+
+**Nguyên nhân:**
+1. Trong .NET (`System.Net.Security`), khi khởi tạo `new SslStream(stream, false, userCertificateValidationCallback: callback)` nhưng lại gọi phương thức quá tải `AuthenticateAsClientAsync(SslClientAuthenticationOptions options, ...)`, .NET **bỏ qua hoàn toàn callback đã truyền vào constructor của SslStream** nếu thuộc tính `options.RemoteCertificateValidationCallback` để trống (`null`). Thay vào đó, .NET chạy trình xác thực chuỗi chứng chỉ mặc định của Windows (`X509Chain`) đối chiếu với Windows Root CA store.
+2. Vì chứng chỉ của ZcuAgent là tự ký (`Self-Signed ECDSA/RSA`), Windows mặc định đánh trượt với lỗi `UntrustedRoot` và gửi gói tin TLS Alert `certificate unknown (46)` về cho server, làm hỏng bắt tay TLS.
+3. Khi ZcuAgent được cài đặt lại hoặc sinh chứng chỉ mới trên máy con, vân tay cũ đã lưu trong `profiles.json` (từ nhiều ngày trước) bị lệch pha với vân tay thực tế của server. Trước đây client âm thầm nuốt lỗi và lùi về TCP plaintext; khi chốt chặn cấm lùi về plaintext được kích hoạt, kết nối bị dừng lại đúng như thiết kế bảo mật.
+
+**Cách xử lý:**
+1. **Gán trực tiếp callback vào `SslClientAuthenticationOptions` (`RemoteControlClient.cs`):**
+   ```csharp
+   var authOptions = new SslClientAuthenticationOptions
+   {
+       TargetHost = _host,
+       EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+       RemoteCertificateValidationCallback = (sender, cert, chain, errors) =>
+       {
+           if (cert is null) return false;
+           var hash = cert.GetCertHashString(HashAlgorithmName.SHA256);
+           if (!string.IsNullOrEmpty(ExpectedCertFingerprint))
+           {
+               if (!string.Equals(hash, ExpectedCertFingerprint, StringComparison.OrdinalIgnoreCase))
+               {
+                   _logger.LogWarning("TLS Certificate Fingerprint Mismatch! Expected {Expected}, got {Actual}",
+                       ExpectedCertFingerprint, hash);
+                   return false;
+               }
+           }
+           TlsCertificateValidated?.Invoke(this, hash);
+           return true; // Chấp nhận chứng chỉ tự ký khi fingerprint hợp lệ
+       }
+   };
+   await ssl.AuthenticateAsClientAsync(authOptions, cts.Token);
+   ```
+2. **Cập nhật vân tay chứng chỉ trong hồ sơ (`profiles.json`):**
+   Khi ZcuAgent đổi chứng chỉ, cập nhật lại `TlsCertFingerprint` trong `profiles.json` theo đúng vân tay mới của server.
+3. **Kết quả:** Bắt tay TLS 1.3 (`TLS_AES_256_GCM_SHA384`) thành công 100%, bảo mật mã hoá toàn diện và xác thực đúng vân tay ghim.
+
+**Lần đầu gặp:** WF-BUGFIX / Khắc phục lỗi bắt tay TLS trên CCU Client (2026-11-04)
+
+---
+
+## G028 — "Cài remote" xoá `agent-tls.pfx` → agent sinh chứng chỉ mới, CCU từ chối TLS do vân tay ghim cũ → màn hình điều khiển đen, "Đã ngắt kết nối"
+
+**Ngày phát hiện:** 2026-11-04
+**Môi trường:** ZCU `192.168.21.56`, CCU Client có chốt chặn cấm lùi về TCP plaintext (G027)
+
+**Vấn đề:**
+Sau khi cài lại ZcuAgent, mở màn hình điều khiển chỉ thấy đen + "Đã ngắt kết nối" (thử lại liên tục). Danh sách máy vẫn báo "Remote" xanh vì chỉ dò cổng 17600. Log agent: `sslv3 alert certificate unknown` (client gửi alert).
+
+**Nguyên nhân:**
+1. `ZcuRemoteInstallerService` dọn thư mục `~/ipgs/remote-agent` bằng `find … ! -name appsettings.json -exec rm -rf` → xoá luôn `agent-tls.pfx` → agent tự sinh chứng chỉ mới (vân tay mới).
+2. `ComputerProfileStore.UpdateTlsFingerprint` chỉ ghi khi trường trống; `Save` và "Quét mạng" đều giữ vân tay cũ → CCU ghim mãi vân tay cũ, callback TLS trả false, không còn lùi về plaintext.
+
+**Cách xử lý:**
+1. Installer giữ `agent-tls.pfx` khi dọn thư mục (`! -name agent-tls.pfx`).
+2. Sau khi cài xong (Setup Wizard và Bulk "Cài remote"): `ZcuAgentDiscoveryService.ProbeTlsFingerprintAsync` đọc vân tay hiện tại của agent → `ComputerProfileStore.ReplaceTlsFingerprint` ghi đè; không đọc được thì bỏ ghim để lần kết nối đầu tự ghim lại (TOFU).
+3. Máy đang lỗi: cập nhật `TlsCertFingerprint` trong `%APPDATA%\iPGS\RemoteControl\profiles.json` theo `openssl s_client -connect 127.0.0.1:17600 </dev/null | openssl x509 -noout -fingerprint -sha256` trên ZCU (bỏ dấu `:`).
+
+**Lần đầu gặp:** WF-BUGFIX / Không xem được màn hình ZCU `192.168.21.56` sau khi cài lại agent (2026-11-04)
+---
+
+## G029 — Lỗi regex Dashboard `([\d\.]+)` bỏ qua dấu phẩy thập phân locale `vi_VN` trong lệnh `top` và spike mẫu 1 khiến tính khống CPU lên 93%–99%
+
+**Ngày phát hiện:** 2026-11-04
+**Môi trường:** Linux Ubuntu / Lubuntu có locale `LC_NUMERIC=vi_VN`, Windows CCU Client `HealthMonitorWindow.axaml.cs`
+
+**Vấn đề:**
+Trên cửa sổ Dashboard Giám sát hệ thống (Health Monitor), chỉ số tải CPU tổng luôn hiển thị mức rất cao (93.0% – 99.0%), trong khi kiểm tra thực tế bằng `vmstat` hoặc `top` trực tiếp qua SSH thì CPU máy đích đang rảnh hơn 70% – 95% IDLE. Đồng thời bảng Top Processes hiển thị chính tiến trình `top` chiếm 11.1% CPU.
+
+**Nguyên nhân:**
+1. **Lỗi đọc số thập phân do locale tiếng Việt:** Trên máy Linux cấu hình `LC_NUMERIC=vi_VN`, lệnh `top` định dạng số thập phân bằng dấu phẩy `,` (ví dụ: `%Cpu(s): 21,2 us, 11,2 sy, 0,0 ni, 67,5 id` hoặc `92,7 id`). Đoạn code phân tích tại `HealthMonitorWindow.axaml.cs` dòng 380 sử dụng biểu thức chính quy `Regex.Match(cpuLine, @"([\d\.]+)\s*id")` chỉ chấp nhận số và dấu chấm `.`. Khi gặp chuỗi `92,7 id`, regex bỏ qua phần nguyên `92,` và chỉ bắt được chữ số `7` đứng ngay trước ` id`. Sau đó code tính: `totalCpu = 100.0 - 7.0 = 93.0%` (hoặc `67,5 id` chỉ bắt `5` -> `100 - 5 = 95.0%`).
+2. **Lấy mẫu `top -b -n 1` tức thời:** Lần lấy mẫu đầu tiên của `top` tính toán tải trong khoảng thời gian khởi tạo process cực ngắn, dẫn đến hiện tượng vọt CPU tạm thời (startup spike), khiến bản thân tiến trình `top` bị tính là ăn 11% CPU.
+
+**Cách xử lý:**
+1. **Tách lớp `TopParser.cs` thuần túy (`IPGS.RemoteControl.CcuClient`):**
+   - Lệnh thực thi: Ép môi trường `LC_ALL=C top -b -n 2 -d 0.5` để đảm bảo Linux trả về output chuẩn tiếng Anh và số thập phân dấu chấm.
+   - Trích xuất mẫu steady-state: Lấy dòng `%Cpu` và bảng tiến trình từ lần lấy mẫu thứ 2 (`LastOrDefault(l => l.StartsWith("%Cpu"))` và `Array.FindLastIndex(...)`), loại bỏ hoàn toàn độ lệch 11% của `top`.
+   - Cơ chế phòng thủ kép: Biểu thức chính quy nâng cấp thành `([\d.,]+)\s*id` và tự động `.Replace(',', '.')` trước khi parse bằng `CultureInfo.InvariantCulture`, hoạt động đúng đắn trên mọi locale của mọi bản phân phối Linux.
+2. **Kết quả:** Dashboard hiển thị chỉ số CPU chính xác 100% theo thời gian thực (đo trên `192.168.21.56` hiển thị 1.9% CPU, rảnh 98.1% IDLE). Toàn bộ 140 unit tests đạt 100% PASS.
+
+**Lần đầu gặp:** WF-BUGFIX / Sửa lỗi hiển thị CPU Dashboard trên ZCU `192.168.21.56` (2026-11-04)

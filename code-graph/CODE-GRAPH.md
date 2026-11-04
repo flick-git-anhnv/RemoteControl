@@ -1,8 +1,14 @@
 # CODE-GRAPH.md — Bản đồ codebase: Remote Control Tool (CCU ↔ ZCU)
-**Cập nhật lần cuối:** 2026-11-02 | **Bởi:** tech-lead | **Version:** 3.8
+**Cập nhật lần cuối:** 2026-11-03 | **Bởi:** tech-lead | **Version:** 3.9
 
 > File này được duy trì tự động bởi coding agents.
 > **Đọc file này TRƯỚC khi đọc source code** để hiểu cấu trúc dự án mà không cần mở từng file.
+
+> **Ghi chú version 3.9 (2026-11-03):** Tách độc lập Kiosk Deploy, hợp nhất Quản lý File & CMD Shell và chuẩn hóa 100% UTF-8:
+> - **Tách độc lập Deploy Kiosk (KioskDeployService.cs & KioskDeployWindow.axaml.cs):** Phân chia DeployScope (MachineOnly cho Tab Config máy tính, SoftwareOnly cho Tab Config phần mềm), sửa thứ tự gỡ lock dconf (Step 0) trong 2-configure-system.sh và kích hoạt lại GNOME Shell trong 0ms giúp mở lại nút Activities ngay lập tức.
+> - **Hợp nhất UI Quản lý File & CMD Shell (RemoteCommandWindow.axaml & .cs, ConnectionEntryWindow.axaml & .cs):** Gộp 2 nút thành 1 nút 🛠️ File & CMD trên thẻ máy tính. Nâng cấp Tab 2 của RemoteCommandWindow sang DataGrid 4 cột sortable, hỗ trợ lọc file live PART_TxtFileFilter, nút Đi, nút >_ CMD tại đây, giữ nguyên Download, Sync, Xóa đệ quy SSH 
+m -rf.
+> - **Khắc phục triệt để lỗi Encoding / vỡ font tiếng Việt & Emoji (G022):** Chuẩn hóa toàn bộ file nguồn theo UTF-8 không BOM/LF-CRLF sạch, đảm bảo hiển thị hoàn hảo các ký tự có dấu và biểu tượng.
 
 > **Ghi chú version 3.8:** Tích hợp trực tiếp thư viện `KztekComponentAvalonia` và chuẩn hóa Solution `IPGS.RemoteControl.sln`:
 > - **Tích hợp KztekComponentAvalonia nội bộ repo:** Sao chép toàn bộ mã nguồn `KztekComponentAvalonia` vào repository `6.RemoteControlTool`, chuyển đổi toàn bộ `ProjectReference` từ tham chiếu ngoài sang tham chiếu nội bộ (`..\KztekComponentAvalonia\KztekComponentAvalonia.csproj`).

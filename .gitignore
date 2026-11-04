@@ -281,3 +281,6 @@ dist/
 
 # Gemini Backups
 .gemini_backup*/
+
+# Script/kết quả chẩn đoán cục bộ (có mật khẩu SSH) — KHÔNG commit
+scratch/
