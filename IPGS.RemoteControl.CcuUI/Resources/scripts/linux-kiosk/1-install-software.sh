@@ -224,6 +224,25 @@ if ! gnome-extensions list 2>/dev/null | grep -q "^$EXT_UUID$" || [ ! -d "$EXT_D
 else
     echo "  → Extension đã cài, bỏ qua bước install."
 fi
+
+# Sửa bug GNOME 42 trong Just Perfection: Looking Glass gọi layoutManager.primaryMonitor khi monitor chưa init gây 'TypeError: primary is null' -> State: ERROR
+if [ -f "$EXT_DIR/lib/API.js" ]; then
+    python3 -c "
+path = '$EXT_DIR/lib/API.js'
+try:
+    with open(path, 'r', encoding='utf-8') as f:
+        c = f.read()
+    target = 'let lookingGlass = this._main.createLookingGlass();'
+    replacement = 'if (!this._main.layoutManager || !this._main.layoutManager.primaryMonitor) return; let lookingGlass; try { lookingGlass = this._main.createLookingGlass(); } catch(e) { return; }'
+    if target in c:
+        c = c.replace(target, replacement, 1)
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(c)
+except Exception:
+    pass
+" 2>/dev/null || true
+fi
+
 _force_enable_ext "$EXT_UUID"
 
 STATE="$(gnome-extensions info "$EXT_UUID" 2>/dev/null | grep 'State:' | awk '{print $2}')"
@@ -422,6 +441,13 @@ if [ "$INSTALL_UNCLUTTER" = "1" ]; then
     fi
 else
     echo "=== [5/5] Bỏ qua cài unclutter (không được chọn — KHÔNG tự gỡ nếu đã cài trước đó) ==="
+fi
+
+# Nạp lại GNOME Shell trên X11 để quét và kích hoạt extension mới / cập nhật Top Bar ngay lập tức
+if pgrep -u "$USER" -f '^/usr/bin/gnome-shell' >/dev/null 2>&1; then
+    echo "  → Đang nạp lại GNOME Shell để áp dụng các thay đổi giao diện/extension ngay..."
+    killall -9 gnome-shell 2>/dev/null || true
+    sleep 1
 fi
 
 echo ""

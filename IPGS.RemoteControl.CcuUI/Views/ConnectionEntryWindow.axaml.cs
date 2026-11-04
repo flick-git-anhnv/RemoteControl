@@ -270,10 +270,17 @@ public partial class ConnectionEntryWindow : Window
         dlg.Show();
     }
 
+    public void OnItemFileAndCommandClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { Tag: ComputerProfile profile }) return;
+        var dlg = new RemoteCommandWindow(profile);
+        dlg.Show();
+    }
+
     public void OnItemFileManagerClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control { Tag: ComputerProfile profile }) return;
-        var dlg = new FileManagerWindow(profile);
+        var dlg = new RemoteCommandWindow(profile, initialTabIndex: 1);
         dlg.Show();
     }
 

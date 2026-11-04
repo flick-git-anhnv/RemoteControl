@@ -82,6 +82,9 @@ LOCKDOWN_SHELL="${12:-1}"
 ENABLE_WATCHDOG="${13:-1}"
 ENABLE_FIREWALL="${14:-1}"
 
+# F30: Scope deploy — "machine" (Tab 1), "software" (Tab 2), hoặc "all" (cả 2 tab)
+DEPLOY_SCOPE="${DEPLOY_SCOPE:-all}"
+
 # Helper sudo cho SSH session không có TTY.
 # C# truyền KIOSK_SUDO_PASS qua môi trường; nếu không có thì dùng sudo bình thường
 # (sẽ hỏi password nếu có TTY, hoặc fail nếu không có TTY).
@@ -93,9 +96,69 @@ _sudo() {
     fi
 }
 
+# Khai báo sớm các đường dẫn dconf & helper backup để có thể gỡ khoá dconf TRƯỚC TIÊN
+DCONF_PROFILE="/etc/dconf/profile/user"
+DCONF_LOCAL_D="/etc/dconf/db/local.d"
+DCONF_SETTINGS="$DCONF_LOCAL_D/00-kiosk-lockdown"
+DCONF_LOCKS="$DCONF_LOCAL_D/locks/00-kiosk-lockdown"
+BAK_SUFFIX="bak-$(date +%Y%m%d%H%M%S)"
+BACKUP_DIR="/var/backups/kztek-kiosk"          # backup file hệ thống (cần sudo)
+USER_BACKUP_DIR="$HOME/.local/state/kztek-kiosk-backups"  # backup file user-level
+UNLOCK_HELPER="/usr/local/sbin/ipgs-kiosk-unlock"
+
+_backup_sys_file() {
+    [ -f "$1" ] || return 0
+    _sudo mkdir -p "$BACKUP_DIR"
+    _sudo cp "$1" "$BACKUP_DIR/$(basename "$(dirname "$1")")-$(basename "$1").$BAK_SUFFIX" || true
+}
+
+_sweep_stray_dconf_backups() {
+    local moved=0 f
+    for f in "$DCONF_SETTINGS".* "$DCONF_LOCKS".* "$DCONF_PROFILE".*; do
+        [ -f "$f" ] || continue
+        _sudo mkdir -p "$BACKUP_DIR"
+        _sudo mv "$f" "$BACKUP_DIR/$(basename "$(dirname "$f")")-$(basename "$f")" || true
+        moved=$((moved+1))
+    done
+    [ "$moved" -gt 0 ] && echo "  → F11: đã chuyển $moved file backup nằm sai chỗ trong dconf db → $BACKUP_DIR"
+    return 0
+}
+
+# ─────────────────────────────────────────────────────────────
+# Giải symlink để lấy đường dẫn tuyệt đối THẬT của binary/script.
+# Dùng ở mục [10/10] watchdog và [8/10] desktop icon.
+# Nếu không tìm thấy → trả về input gốc (không exit, caller quyết định).
+_get_real_exec() {
+    local app="$1"
+    local resolved
+    if [ "${app:0:1}" = "/" ]; then
+        resolved="$(readlink -f "$app" 2>/dev/null || echo "$app")"
+    else
+        local found; found="$(command -v "$app" 2>/dev/null || true)"
+        if [ -z "$found" ]; then echo "$app"; return 0; fi
+        resolved="$(readlink -f "$found" 2>/dev/null || echo "$found")"
+    fi
+    echo "$resolved"
+}
+
+# ─────────────────────────────────────────────────────────────
+# Dò display manager THẬT đang dùng trên máy — KHÔNG hardcode gdm3.
+# Trả về: gdm3 / gdm / lightdm / sddm / <khác> / "" (không xác định được).
+_detect_dm() {
+    local dm=""
+    if [ -f /etc/X11/default-display-manager ]; then
+        dm="$(basename "$(cat /etc/X11/default-display-manager)" 2>/dev/null)"
+    fi
+    if [ -z "$dm" ]; then
+        dm="$(basename "$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)" .service 2>/dev/null)"
+    fi
+    echo "$dm"
+}
+
 echo "=== [2] Cấu hình hệ thống cho Kiosk iPGS — Ubuntu 22.04 ==="
-echo "  Kiosk user : $KIOSK_USER"
-echo "  App exec   : $APP_EXEC"
+echo "  Deploy Scope: $DEPLOY_SCOPE"
+echo "  Kiosk user  : $KIOSK_USER"
+echo "  App exec    : $APP_EXEC"
 echo "  HotCorner=$DISABLE_HOTCORNER UbuntuDock=$DISABLE_UBUNTU_DOCK DesktopIcons=$DISABLE_DESKTOP_ICONS Sleep=$BLOCK_SLEEP InitialSetup=$SKIP_INITIAL_SETUP Autologin=$ENABLE_AUTOLOGIN SwUpdate=$DISABLE_SW_UPDATE Autostart=$ENABLE_AUTOSTART LockWorkspace=$LOCK_SINGLE_WORKSPACE LockdownShell=$LOCKDOWN_SHELL Watchdog=$ENABLE_WATCHDOG Firewall=$ENABLE_FIREWALL"
 echo ""
 
@@ -106,7 +169,28 @@ if [ "$EUID" -eq 0 ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────
+# GỠ KHOÁ DCONF TRƯỚC TIÊN NẾU LOCKDOWN_SHELL=0
+# Lỗi ngược thứ tự: nếu để gỡ khoá ở mục [9/10] thì các lệnh gsettings set ở [1/10] & [2/10]
+# (như enable-hot-corners=true, dynamic-workspaces=true) sẽ bị dconf lock chặn lại ngầm!
+if [ "$DEPLOY_SCOPE" != "software" ] && [ "$LOCKDOWN_SHELL" = "0" ]; then
+    if [ -f "$DCONF_SETTINGS" ] || [ -f "$DCONF_LOCKS" ]; then
+        echo "=== [0/10] Gỡ khóa dconf hệ thống trước khi áp dụng cấu hình (chế độ bảo trì) ==="
+        _backup_sys_file "$DCONF_SETTINGS"
+        _backup_sys_file "$DCONF_LOCKS"
+        _sudo rm -f "$DCONF_SETTINGS" "$DCONF_LOCKS"
+        _sweep_stray_dconf_backups
+        _sudo dconf update
+        # Reset các phím tắt và overlay-key về mặc định để mở được Activities
+        gsettings reset org.gnome.mutter overlay-key 2>/dev/null || true
+        gsettings reset org.gnome.shell.keybindings toggle-overview 2>/dev/null || true
+        gsettings reset org.gnome.shell.keybindings toggle-application-view 2>/dev/null || true
+        echo "  → Đã gỡ dconf lockdown thành công. Các thiết lập gsettings bên dưới sẽ có hiệu lực ngay."
+    fi
+fi
+
+# ─────────────────────────────────────────────────────────────
 # 2 chiều: 1 = tắt/ẩn, 0 = bật/hiện lại như mặc định GNOME
+if [ "$DEPLOY_SCOPE" != "software" ]; then
 if [ "$DISABLE_HOTCORNER" = "1" ]; then
     echo "=== [1/10] Tắt hot corner, notification banner, screensaver/lock ==="
     # `|| true`: các key này có thể đã bị dconf lock bởi mục [9/9] (F09) — khi đó
@@ -121,6 +205,10 @@ else
     gsettings set org.gnome.desktop.notifications show-banners true
     gsettings set org.gnome.desktop.screensaver lock-enabled true 2>/dev/null || true
     gsettings set org.gnome.desktop.session idle-delay 300
+    # Đảm bảo phím Super và Overview hoạt động lại
+    gsettings reset org.gnome.mutter overlay-key 2>/dev/null || true
+    gsettings reset org.gnome.shell.keybindings toggle-overview 2>/dev/null || true
+    gsettings reset org.gnome.shell.keybindings toggle-application-view 2>/dev/null || true
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -177,37 +265,6 @@ else
     echo "=== [5/10] Bỏ đánh dấu gnome-initial-setup-done (màn hình initial-setup sẽ hiện lại) ==="
     rm -f "$HOME/.config/gnome-initial-setup-done"
 fi
-
-# ─────────────────────────────────────────────────────────────
-# Giải symlink để lấy đường dẫn tuyệt đối THẬT của binary/script.
-# Dùng ở mục [10/10] watchdog và [8/10] desktop icon.
-# Nếu không tìm thấy → trả về input gốc (không exit, caller quyết định).
-_get_real_exec() {
-    local app="$1"
-    local resolved
-    if [ "${app:0:1}" = "/" ]; then
-        resolved="$(readlink -f "$app" 2>/dev/null || echo "$app")"
-    else
-        local found; found="$(command -v "$app" 2>/dev/null || true)"
-        if [ -z "$found" ]; then echo "$app"; return 0; fi
-        resolved="$(readlink -f "$found" 2>/dev/null || echo "$found")"
-    fi
-    echo "$resolved"
-}
-
-# ─────────────────────────────────────────────────────────────
-# Dò display manager THẬT đang dùng trên máy — KHÔNG hardcode gdm3.
-# Trả về: gdm3 / gdm / lightdm / sddm / <khác> / "" (không xác định được).
-_detect_dm() {
-    local dm=""
-    if [ -f /etc/X11/default-display-manager ]; then
-        dm="$(basename "$(cat /etc/X11/default-display-manager)" 2>/dev/null)"
-    fi
-    if [ -z "$dm" ]; then
-        dm="$(basename "$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)" .service 2>/dev/null)"
-    fi
-    echo "$dm"
-}
 
 if [ "$ENABLE_AUTOLOGIN" = "1" ]; then
     DM_NAME="$(_detect_dm)"
@@ -290,8 +347,10 @@ else
         *)       echo "CẢNH BÁO: không xác định được display manager — bỏ qua tắt autologin." >&2 ;;
     esac
 fi
+fi # [DEPLOY_SCOPE != software]
 
 # ─────────────────────────────────────────────────────────────
+if [ "$DEPLOY_SCOPE" != "machine" ]; then
 if [ "$DISABLE_SW_UPDATE" = "1" ]; then
     echo "=== [7/10] Tắt popup Software Updater ==="
     mkdir -p "$HOME/.config/autostart"
@@ -517,6 +576,7 @@ if [ "$_f15_any" = "0" ]; then
 else
     echo "  → F15-a kết quả: trusted=$_F15_TRUSTED icon, cảnh báo=$_F15_WARN."
 fi
+fi # [DEPLOY_SCOPE != machine]
 
 # ─────────────────────────────────────────────────────────────
 # [9/9] F09 — Khoá lối thoát kiosk bằng dconf system-wide + LOCK.
@@ -550,39 +610,8 @@ fi
 # gỡ file chính → đường gỡ khoá bảo trì bị hỏng. Vì vậy: backup PHẢI ghi ra ngoài cây
 # /etc/dconf/db/ (dùng $BACKUP_DIR dưới đây), và mọi thao tác gỡ khoá phải dọn cả
 # file 00-kiosk-lockdown* còn sót rồi XÁC MINH bằng gsettings writable.
-DCONF_PROFILE="/etc/dconf/profile/user"
-DCONF_LOCAL_D="/etc/dconf/db/local.d"
-DCONF_SETTINGS="$DCONF_LOCAL_D/00-kiosk-lockdown"
-DCONF_LOCKS="$DCONF_LOCAL_D/locks/00-kiosk-lockdown"
-BAK_SUFFIX="bak-$(date +%Y%m%d%H%M%S)"
-BACKUP_DIR="/var/backups/kztek-kiosk"          # backup file hệ thống (cần sudo)
-USER_BACKUP_DIR="$HOME/.local/state/kztek-kiosk-backups"  # backup file user-level
-UNLOCK_HELPER="/usr/local/sbin/ipgs-kiosk-unlock"
 
-# F11: backup 1 file hệ thống ra $BACKUP_DIR (KHÔNG bao giờ để cạnh file gốc trong
-# thư mục mà dconf/GDM quét). Tên đích có thêm tên thư mục cha để tránh trùng
-# basename (settings và locks cùng tên 00-kiosk-lockdown).
-_backup_sys_file() {
-    [ -f "$1" ] || return 0
-    _sudo mkdir -p "$BACKUP_DIR"
-    _sudo cp "$1" "$BACKUP_DIR/$(basename "$(dirname "$1")")-$(basename "$1").$BAK_SUFFIX" || true
-}
-
-# F11: dọn mọi file rác 00-kiosk-lockdown.* / user.* (backup của bản script cũ) đang
-# nằm SAI CHỖ trong local.d/ + locks/ + profile/ — chuyển sang $BACKUP_DIR. Chỉ đụng
-# file có prefix của mình, KHÔNG đụng config khác (VD 01-* của quản trị viên).
-_sweep_stray_dconf_backups() {
-    local moved=0 f
-    for f in "$DCONF_SETTINGS".* "$DCONF_LOCKS".* "$DCONF_PROFILE".*; do
-        [ -f "$f" ] || continue
-        _sudo mkdir -p "$BACKUP_DIR"
-        _sudo mv "$f" "$BACKUP_DIR/$(basename "$(dirname "$f")")-$(basename "$f")" || true
-        moved=$((moved+1))
-    done
-    [ "$moved" -gt 0 ] && echo "  → F11: đã chuyển $moved file backup nằm sai chỗ trong dconf db → $BACKUP_DIR"
-    return 0
-}
-
+if [ "$DEPLOY_SCOPE" != "software" ]; then
 if [ "$LOCKDOWN_SHELL" = "1" ]; then
     echo "=== [9/10] Khoá lối thoát kiosk (dconf system-wide + lock) ==="
 
@@ -820,6 +849,7 @@ else
         echo "  → Chưa từng khoá (không có $DCONF_SETTINGS) — bỏ qua."
     fi
 fi
+fi # [DEPLOY_SCOPE != software]
 
 # ─────────────────────────────────────────────────────────────
 # [10] F10 — Watchdog systemd USER service: tự khởi động lại app kiosk khi bị
@@ -846,6 +876,7 @@ fi
 WATCHDOG_UNIT_NAME="ipgs-kiosk-app.service"
 WATCHDOG_UNIT="$HOME/.config/systemd/user/$WATCHDOG_UNIT_NAME"
 
+if [ "$DEPLOY_SCOPE" != "machine" ]; then
 if [ "$ENABLE_WATCHDOG" = "1" ]; then
     echo "=== [10/10] Watchdog systemd: tự khởi động lại app kiosk khi đóng/crash ==="
     mkdir -p "$HOME/.config/systemd/user"
@@ -922,12 +953,14 @@ else
         echo "  → Chưa từng cài watchdog — bỏ qua."
     fi
 fi
+fi # [DEPLOY_SCOPE != machine]
 
 # ─────────────────────────────────────────────────────────────
 # [11/11] Tường lửa ufw (F27). LUÔN allow OpenSSH TRƯỚC khi enable — nếu quên bước
 # này, bật ufw trên máy chỉ có SSH sẽ tự khoá luôn quyền truy cập từ xa (không có GUI
 # để mở lại nếu kỹ thuật viên đang thao tác qua SSH). Đã verify thứ tự này an toàn
 # trên máy Lubuntu thật (SSH vẫn sống sau khi enable) — dùng chung logic cho GNOME.
+if [ "$DEPLOY_SCOPE" != "software" ]; then
 if [ "$ENABLE_FIREWALL" = "1" ]; then
     echo "=== [11/11] Bật tường lửa ufw ==="
     if ! command -v ufw >/dev/null 2>&1; then
@@ -945,9 +978,19 @@ else
     echo "=== [11/11] Tắt tường lửa ufw (giữ nguyên rule, chỉ ufw disable) ==="
     command -v ufw >/dev/null 2>&1 && _sudo ufw disable 2>&1 || echo "  → Chưa cài ufw — bỏ qua."
 fi
+fi # [DEPLOY_SCOPE != software]
 
 # ─────────────────────────────────────────────────────────────
 echo ""
+# Nạp lại GNOME Shell trên X11 để áp dụng thay đổi giao diện/activities ngay lập tức (không cần restart máy)
+if [ "$DEPLOY_SCOPE" != "software" ]; then
+    if pgrep -u "$USER" -f '^/usr/bin/gnome-shell' >/dev/null 2>&1; then
+        echo "  → Đang nạp lại GNOME Shell trên X11 để áp dụng cấu hình desktop/activities ngay..."
+        killall -9 gnome-shell 2>/dev/null || true
+        sleep 1
+    fi
+fi
+
 echo "✓ HOÀN THÀNH. Cần LOG OUT / RESTART để áp dụng đầy đủ (đặc biệt autologin GDM + autostart)."
 echo "  Kiểm tra sau khi restart:"
 echo "    - Máy tự vào thẳng user '$KIOSK_USER' không cần đăng nhập"

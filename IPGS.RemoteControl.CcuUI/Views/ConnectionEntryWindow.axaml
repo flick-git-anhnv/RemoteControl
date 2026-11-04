@@ -215,10 +215,10 @@
                   <!-- Row 2: Advanced Management -->
                   <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                     <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemFileManagerClick"
-                                 Content="📁 Quản lý File"
+                                 Click="OnItemFileAndCommandClick"
+                                 Content="🛠️ File &amp; CMD"
                                  IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                                 ToolTip.Tip="{Binding SshStatusTooltip}"
+                                 ToolTip.Tip="Quản lý File (SFTP) &amp; Thực thi Lệnh từ xa (SSH)"
                                  KzSize="Sm" />
                     <kz:KzButton Tag="{Binding}"
                                  Click="OnItemHealthMonitorClick"
@@ -243,12 +243,6 @@
                                  Content="🔁 Restart"
                                  IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
                                  ToolTip.Tip="Khởi động lại ứng dụng Remote Agent trên máy này"
-                                 KzSize="Sm" />
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemRunCommandClick"
-                                 Content=">_ CMD Shell"
-                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                                 ToolTip.Tip="{Binding SshStatusTooltip}"
                                  KzSize="Sm" />
                   </StackPanel>
                 </StackPanel>

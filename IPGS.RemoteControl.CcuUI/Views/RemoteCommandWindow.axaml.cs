@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -26,6 +27,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
         public string Icon => (IsDirectory || IsSymbolicLink) ? "📁" : "📄";
         public Avalonia.Media.FontWeight FontWeight => (IsDirectory || IsSymbolicLink) ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.Normal;
+        public string TypeText => (IsDirectory || IsSymbolicLink) ? "Thư mục" : "Tệp tin";
+        public string LastModifiedText => LastModified.ToString("dd/MM/yyyy HH:mm");
         
         public string SizeText
         {
@@ -130,9 +133,14 @@ namespace IPGS.RemoteControl.CcuUI.Views
         private readonly string _sshPassword;
         private SftpClient? _sftpClient;
 
+        private readonly List<RemoteFileItem> _allRemoteFiles = new();
+        private readonly ObservableCollection<RemoteFileItem> _displayRemoteFiles = new();
+
         public RemoteCommandWindow() : this(new ComputerProfile()) { }
 
-        public RemoteCommandWindow(ComputerProfile prefill)
+        public RemoteCommandWindow(ComputerProfile prefill) : this(prefill, 0) { }
+
+        public RemoteCommandWindow(ComputerProfile prefill, int initialTabIndex)
         {
             InitializeComponent();
 
@@ -200,15 +208,50 @@ namespace IPGS.RemoteControl.CcuUI.Views
             var btnSync = this.FindControl<Button>("PART_BtnFileSync");
             if (btnSync != null) btnSync.Click += OnFileSyncClick;
 
-            var fileListBox = this.FindControl<ListBox>("PART_FileListBox");
-            if (fileListBox != null)
+            var fileDataGrid = this.FindControl<DataGrid>("PART_FileDataGrid");
+            if (fileDataGrid != null)
             {
-                fileListBox.AddHandler(DragDrop.DragEnterEvent, OnFileDragEnter);
-                fileListBox.AddHandler(DragDrop.DropEvent, OnFileDrop);
+                fileDataGrid.ItemsSource = _displayRemoteFiles;
+                fileDataGrid.AddHandler(DragDrop.DragEnterEvent, OnFileDragEnter);
+                fileDataGrid.AddHandler(DragDrop.DropEvent, OnFileDrop);
+            }
+
+            var txtFilter = this.FindControl<TextBox>("PART_TxtFileFilter");
+            if (txtFilter != null)
+            {
+                txtFilter.PropertyChanged += (s, e) =>
+                {
+                    if (e.Property.Name == nameof(TextBox.Text))
+                    {
+                        ApplyFileFilter();
+                    }
+                };
+            }
+
+            var tabControl = this.FindControl<TabControl>("PART_TabControl");
+            if (tabControl != null && initialTabIndex > 0 && initialTabIndex < tabControl.ItemCount)
+            {
+                tabControl.SelectedIndex = initialTabIndex;
             }
 
             // Initial load of files
             _ = LoadDirectoryAsync($"/home/{_sshUser}");
+        }
+
+        private void ApplyFileFilter()
+        {
+            var txtFilter = this.FindControl<TextBox>("PART_TxtFileFilter");
+            string filter = txtFilter?.Text?.Trim() ?? "";
+
+            _displayRemoteFiles.Clear();
+            var filtered = string.IsNullOrEmpty(filter)
+                ? _allRemoteFiles
+                : _allRemoteFiles.Where(f => f.Name.Contains(filter, StringComparison.OrdinalIgnoreCase));
+
+            foreach (var item in filtered)
+            {
+                _displayRemoteFiles.Add(item);
+            }
         }
 
         // ==========================================
@@ -261,75 +304,60 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 snippetCombo.SelectedItem = null;
             }
 
-            string sudoPass = sudoPassBox != null && !string.IsNullOrEmpty(sudoPassBox.Text) ? sudoPassBox.Text : _sshPassword;
-            string cmdToRun = input?.Text?.Trim() ?? "";
+            string sudoPassword = sudoPassBox?.Text ?? "";
+            if (string.IsNullOrEmpty(sudoPassword)) sudoPassword = _sshPassword;
 
-            var statusMsg = this.FindControl<TextBlock>("PART_StatusMsg");
-            var btnRun = this.FindControl<Button>("PART_BtnRunCommand");
-            var logConsole = this.FindControl<TextBox>("PART_LogConsole");
+            string command = input?.Text?.Trim() ?? "";
 
-            if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser))
-            {
-                SetStatus("Thiếu thông tin kết nối SSH.", true);
-                return;
-            }
-
-            if (string.IsNullOrEmpty(cmdToRun))
+            if (string.IsNullOrWhiteSpace(command))
             {
                 SetStatus("Vui lòng nhập lệnh cần chạy.", true);
                 return;
             }
 
+            if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser))
+            {
+                SetStatus("Thiếu thông tin kết nối SSH (IP hoặc User).", true);
+                return;
+            }
+
+            var btnRun = this.FindControl<Button>("PART_BtnRunCommand");
             if (btnRun != null) btnRun.IsEnabled = false;
-            if (logConsole != null) logConsole.Text = "";
-            
-            SetStatus("Đang kết nối và thực thi...", false);
+
+            SetStatus("Đang thực thi lệnh qua SSH...", false);
+            Log($"$ {command}");
 
             try
             {
-                await Task.Run(async () =>
+                using var ssh = new SshClient(_sshHost, _sshPort, _sshUser, _sshPassword);
+                await ssh.ConnectAsync(default);
+
+                if (!ssh.IsConnected)
                 {
-                    using var ssh = new SshClient(_sshHost, _sshPort, _sshUser, _sshPassword);
-                    ssh.Connect();
-                    if (!ssh.IsConnected)
-                        throw new Exception("Không thể mở kết nối SSH tới máy đích.");
+                    SetStatus("Không thể kết nối SSH tới máy đích.", true);
+                    return;
+                }
 
-                    // S3: password đi qua stdin của channel — không nhúng vào command line
-                    var (result, err) = await RunSshCommandAsync(ssh, cmdToRun, sudoPass, Log);
+                // S3: RunSshCommandAsync ghi password sudo vào STDIN, không nhúng vào command line
+                var (output, error) = await RunSshCommandAsync(ssh, command, sudoPassword, Log);
 
-                    result = result.TrimEnd();
-                    if (!string.IsNullOrEmpty(result))
-                    {
-                        Log(result);
-                    }
+                if (!string.IsNullOrEmpty(output))
+                {
+                    Log(output.TrimEnd());
+                }
 
-                    err = err.TrimEnd();
-                    if (!string.IsNullOrEmpty(err))
-                    {
-                        Log("[STDERR / WARNING]:\n" + err);
-                    }
+                if (!string.IsNullOrEmpty(error))
+                {
+                    Log($"[STDERR]\n{error.TrimEnd()}");
+                }
 
-                    ssh.Disconnect();
-                });
-
-                SetStatus("🎉 Lệnh đã thực thi xong!", false, true);
+                SetStatus("Thực thi hoàn tất.", false, true);
+                ssh.Disconnect();
             }
             catch (Exception ex)
             {
-                // F07: lệnh reboot/shutdown làm SSH ngắt là KẾT QUẢ MONG ĐỢI (máy đích đang
-                // khởi động lại/tắt) — hiển thị thông tin thân thiện thay vì LỖI đỏ.
-                // Điều kiện kép (lệnh thuộc nhóm shutdown VÀ lỗi là mất-kết-nối) đảm bảo
-                // lỗi thật khác (sai password sudo, lệnh không tồn tại...) vẫn báo như cũ.
-                if (SshCommandHints.IsShutdownCommand(cmdToRun) && SshCommandHints.IsConnectionDropped(ex))
-                {
-                    SetStatus("ℹ️ Đã gửi lệnh khởi động lại/tắt máy — kết nối SSH sẽ ngắt trong giây lát.", false);
-                    Log(SshCommandHints.ShutdownInfoMessage);
-                }
-                else
-                {
-                    SetStatus("❌ Lỗi: " + ex.Message, true);
-                    Log("❌ LỖI: " + ex.Message);
-                }
+                Log($"[ERROR] {ex.Message}");
+                SetStatus($"Lỗi: {ex.Message}", true);
             }
             finally
             {
@@ -341,61 +369,64 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                if (string.IsNullOrEmpty(text)) return;
-                var logConsole = this.FindControl<TextBox>("PART_LogConsole");
-                if (logConsole != null)
+                var console = this.FindControl<TextBox>("PART_LogConsole");
+                if (console != null)
                 {
-                    logConsole.Text += $"[{DateTime.Now:HH:mm:ss}]\n{text}\n\n";
-                    logConsole.CaretIndex = logConsole.Text.Length;
+                    console.Text += $"{text}\n";
+                    console.CaretIndex = console.Text.Length;
                 }
             });
         }
 
-        private void SetStatus(string msg, bool isError, bool isSuccess = false)
+        private void SetStatus(string msg, bool isError = false, bool isSuccess = false)
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                var statusMsg = this.FindControl<TextBlock>("PART_StatusMsg");
-                if (statusMsg != null)
+                var status = this.FindControl<TextBlock>("PART_StatusMsg");
+                if (status != null)
                 {
-                    statusMsg.Text = msg;
-                    if (isError) statusMsg.Foreground = Avalonia.Media.Brushes.Red;
-                    else if (isSuccess) statusMsg.Foreground = Avalonia.Media.Brushes.Green;
-                    else statusMsg.Foreground = Avalonia.Media.Brushes.SlateGray;
+                    status.Foreground = isError ? Avalonia.Media.Brushes.Red : 
+                                      (isSuccess ? Avalonia.Media.Brushes.Green : Avalonia.Media.Brushes.DarkOrange);
+                    status.Text = msg;
                 }
             });
         }
 
         // ==========================================
-        // TAB 2: FILE TRANSFER
+        // TAB 2: FILE MANAGEMENT (SFTP)
         // ==========================================
-        
         private async Task EnsureSftpConnectedAsync()
         {
             if (_sftpClient == null)
             {
                 _sftpClient = new SftpClient(_sshHost, _sshPort, _sshUser, _sshPassword);
             }
+
             if (!_sftpClient.IsConnected)
             {
                 await Task.Run(() => _sftpClient.Connect());
             }
         }
 
-        private async Task LoadDirectoryAsync(string? newPath = null)
+        private async Task LoadDirectoryAsync(string? path = null)
         {
             var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
-            string path = newPath ?? txtPath?.Text?.Trim() ?? "/home";
+            if (string.IsNullOrEmpty(path))
+            {
+                path = txtPath?.Text?.Trim();
+            }
+            if (string.IsNullOrEmpty(path))
+            {
+                path = $"/home/{_sshUser}";
+            }
 
-            if (string.IsNullOrEmpty(path)) path = "/home";
-
-            SetStatus($"Đang tải danh sách file tại {path}...", false);
+            SetStatus($"Đang tải dữ liệu thư mục {path}...", false);
 
             try
             {
                 await EnsureSftpConnectedAsync();
-                
-                var files = await Task.Run(() => 
+
+                var files = await Task.Run(() =>
                 {
                     try {
                         return _sftpClient!.ListDirectory(path);
@@ -428,8 +459,9 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
                     if (txtPath != null) txtPath.Text = path;
-                    var listBox = this.FindControl<ListBox>("PART_FileListBox");
-                    if (listBox != null) listBox.ItemsSource = items;
+                    _allRemoteFiles.Clear();
+                    _allRemoteFiles.AddRange(items);
+                    ApplyFileFilter();
                     SetStatus($"Đã tải {items.Count} mục.", false, true);
                 });
             }
@@ -461,13 +493,35 @@ namespace IPGS.RemoteControl.CcuUI.Views
             }
         }
 
-        public void OnFileItemDoubleTapped(object? sender, TappedEventArgs e)
+        public void OnFileGoClick(object? sender, RoutedEventArgs e)
         {
-            var listBox = this.FindControl<ListBox>("PART_FileListBox") ?? sender as ListBox;
+            var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
+            _ = LoadDirectoryAsync(txtPath?.Text);
+        }
+
+        public void OnOpenTerminalHereClick(object? sender, RoutedEventArgs e)
+        {
+            var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
+            string currentPath = txtPath?.Text?.Trim() ?? "/home";
+            var tabControl = this.FindControl<TabControl>("PART_TabControl");
+            if (tabControl != null) tabControl.SelectedIndex = 0;
+
+            var input = this.FindControl<TextBox>("PART_CommandInput");
+            if (input != null)
+            {
+                input.Text = $"cd {ShQuote(currentPath)} && ";
+                input.Focus();
+                input.CaretIndex = input.Text.Length;
+            }
+        }
+
+        public void OnFileDataGridDoubleTapped(object? sender, TappedEventArgs e)
+        {
+            var grid = this.FindControl<DataGrid>("PART_FileDataGrid") ?? sender as DataGrid;
             var item = (sender as Control)?.DataContext as RemoteFileItem
                        ?? (e.Source as StyledElement)?.DataContext as RemoteFileItem
-                       ?? (e.Source as Visual)?.FindAncestorOfType<ListBoxItem>()?.DataContext as RemoteFileItem
-                       ?? listBox?.SelectedItem as RemoteFileItem;
+                       ?? (e.Source as Visual)?.FindAncestorOfType<DataGridRow>()?.DataContext as RemoteFileItem
+                       ?? grid?.SelectedItem as RemoteFileItem;
 
             if (item != null && (item.IsDirectory || item.IsSymbolicLink))
             {
@@ -479,12 +533,12 @@ namespace IPGS.RemoteControl.CcuUI.Views
             }
         }
 
-        public void OnFileListBoxKeyDown(object? sender, KeyEventArgs e)
+        public void OnFileDataGridKeyDown(object? sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
             {
-                var listBox = this.FindControl<ListBox>("PART_FileListBox") ?? sender as ListBox;
-                if (listBox?.SelectedItem is RemoteFileItem item && (item.IsDirectory || item.IsSymbolicLink))
+                var grid = this.FindControl<DataGrid>("PART_FileDataGrid") ?? sender as DataGrid;
+                if (grid?.SelectedItem is RemoteFileItem item && (item.IsDirectory || item.IsSymbolicLink))
                 {
                     e.Handled = true;
                     string targetPath = !string.IsNullOrWhiteSpace(item.FullName)
@@ -497,6 +551,11 @@ namespace IPGS.RemoteControl.CcuUI.Views
             {
                 e.Handled = true;
                 _ = NavigateUpAsync();
+            }
+            else if (e.Key == Key.Delete)
+            {
+                e.Handled = true;
+                OnFileDeleteClick(sender, e);
             }
         }
 
@@ -623,16 +682,33 @@ namespace IPGS.RemoteControl.CcuUI.Views
             }
         }
 
+        private static string SafeLocalName(string name)
+        {
+            var invalid = Path.GetInvalidFileNameChars();
+            var sb = new StringBuilder(name.Length);
+            foreach (char c in name)
+            {
+                sb.Append(invalid.Contains(c) ? '_' : c);
+            }
+            return sb.ToString();
+        }
+
         private async void OnFileDownloadClick(object? sender, RoutedEventArgs e)
         {
-            var listBox = this.FindControl<ListBox>("PART_FileListBox");
-            if (listBox?.SelectedItems == null || listBox.SelectedItems.Count == 0)
+            var dataGrid = this.FindControl<DataGrid>("PART_FileDataGrid");
+            var selectedList = dataGrid?.SelectedItems?.Cast<RemoteFileItem>().ToList();
+            if (selectedList == null || selectedList.Count == 0)
             {
-                SetStatus("Vui lòng chọn ít nhất 1 file để tải về.", true);
-                return;
+                if (dataGrid?.SelectedItem is RemoteFileItem single)
+                    selectedList = new List<RemoteFileItem> { single };
+                else
+                {
+                    SetStatus("Vui lòng chọn ít nhất 1 file để tải về.", true);
+                    return;
+                }
             }
 
-            var items = listBox.SelectedItems.Cast<RemoteFileItem>().Where(i => !i.IsDirectory).ToList();
+            var items = selectedList.Where(i => !i.IsDirectory).ToList();
             if (items.Count == 0)
             {
                 SetStatus("Chỉ có thể tải về file, không thể tải cả thư mục.", true);
@@ -649,7 +725,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     var options = new FilePickerSaveOptions
                     {
                         Title = "Lưu file",
-                        SuggestedFileName = item.Name
+                        SuggestedFileName = SafeLocalName(item.Name)
                     };
 
                     var file = await StorageProvider.SaveFilePickerAsync(options);
@@ -672,7 +748,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
                     foreach (var item in items)
                     {
-                        string localPath = Path.Combine(localDir, item.Name);
+                        string localPath = Path.Combine(localDir, SafeLocalName(item.Name));
                         using var fs = new FileStream(localPath, FileMode.Create, FileAccess.Write);
                         await Task.Run(() => _sftpClient!.DownloadFile(item.FullName, fs));
                     }
@@ -688,14 +764,20 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
         private async void OnFileDeleteClick(object? sender, RoutedEventArgs e)
         {
-            var listBox = this.FindControl<ListBox>("PART_FileListBox");
-            if (listBox?.SelectedItems == null || listBox.SelectedItems.Count == 0)
+            var dataGrid = this.FindControl<DataGrid>("PART_FileDataGrid");
+            var selectedList = dataGrid?.SelectedItems?.Cast<RemoteFileItem>().ToList();
+            if (selectedList == null || selectedList.Count == 0)
             {
-                SetStatus("Vui lòng chọn file hoặc thư mục để xóa.", true);
-                return;
+                if (dataGrid?.SelectedItem is RemoteFileItem single)
+                    selectedList = new List<RemoteFileItem> { single };
+                else
+                {
+                    SetStatus("Vui lòng chọn file hoặc thư mục để xóa.", true);
+                    return;
+                }
             }
 
-            var items = listBox.SelectedItems.Cast<RemoteFileItem>().ToList();
+            var items = selectedList;
             var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
             string currentPath = txtPath?.Text?.Trim() ?? "/home";
 

@@ -71,6 +71,7 @@ LOCKDOWN_SHELL="${8:-1}"
 ENABLE_WATCHDOG="${9:-1}"
 ENABLE_FIREWALL="${10:-1}"
 
+DEPLOY_SCOPE="${DEPLOY_SCOPE:-all}"
 _sudo() {
     if [ -n "${KIOSK_SUDO_PASS:-}" ]; then
         echo "$KIOSK_SUDO_PASS" | sudo -S "$@" 2>/dev/null
@@ -78,6 +79,22 @@ _sudo() {
         sudo "$@"
     fi
 }
+
+# ─────────────────────────────────────────────────────────────
+# Giải symlink để lấy đường dẫn tuyệt đối THẬT của binary/script.
+_get_real_exec() {
+    local app="$1"
+    local resolved
+    if [ "${app:0:1}" = "/" ]; then
+        resolved="$(readlink -f "$app" 2>/dev/null || echo "$app")"
+    else
+        local found; found="$(command -v "$app" 2>/dev/null || true)"
+        if [ -z "$found" ]; then echo "$app"; return 0; fi
+        resolved="$(readlink -f "$found" 2>/dev/null || echo "$found")"
+    fi
+    echo "$resolved"
+}
+
 
 echo "=== [2] Cấu hình hệ thống cho Kiosk iPGS — Lubuntu (LXQt) ==="
 echo "  Kiosk user : $KIOSK_USER"
@@ -94,6 +111,7 @@ fi
 # ─────────────────────────────────────────────────────────────
 # [1/9] Chặn suspend/sleep + tắt DPMS/screensaver X11 — cơ chế DE-agnostic (systemd +
 # X11 core, không phụ thuộc GNOME hay LXQt) nên dùng được thay cho gsettings power.
+if [ "$DEPLOY_SCOPE" != "software" ]; then
 if [ "$BLOCK_SLEEP" = "1" ]; then
     echo "=== [1/9] Chặn suspend/sleep + tắt DPMS/screensaver ==="
     _sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target 2>/dev/null || true
@@ -219,8 +237,10 @@ else
         *)       echo "CẢNH BÁO: không xác định được display manager — bỏ qua tắt autologin." >&2 ;;
     esac
 fi
+fi # [DEPLOY_SCOPE != software]
 
 # ─────────────────────────────────────────────────────────────
+if [ "$DEPLOY_SCOPE" != "machine" ]; then
 if [ "$DISABLE_SW_UPDATE" = "1" ]; then
     echo "=== [4/9] Tắt popup Software Updater ==="
     mkdir -p "$HOME/.config/autostart"
@@ -237,19 +257,6 @@ else
     echo "=== [4/9] Bỏ qua (không chọn) ==="
 fi
 
-# ─────────────────────────────────────────────────────────────
-_get_real_exec() {
-    local app="$1"
-    local resolved
-    if [ "${app:0:1}" = "/" ]; then
-        resolved="$(readlink -f "$app" 2>/dev/null || echo "$app")"
-    else
-        local found; found="$(command -v "$app" 2>/dev/null || true)"
-        if [ -z "$found" ]; then echo "$app"; return 0; fi
-        resolved="$(readlink -f "$found" 2>/dev/null || echo "$found")"
-    fi
-    echo "$resolved"
-}
 
 echo "=== [5/9] Autostart app iPGS + unclutter khi vào desktop (Autostart=$ENABLE_AUTOSTART, Watchdog=$ENABLE_WATCHDOG) ==="
 mkdir -p "$HOME/.config/autostart"
@@ -296,6 +303,7 @@ done
 echo "  → Đã chmod +x mọi icon .desktop trên $HOME/Desktop (pcmanfm-qt không cần cờ trusted riêng)."
 
 # ─────────────────────────────────────────────────────────────
+fi # [DEPLOY_SCOPE != machine]
 # [6/9] F09-tương-đương — Khoá phím tắt thoát kiosk trong Openbox rc.xml.
 #
 # KHÁC BIỆT QUAN TRỌNG SO VỚI BẢN GNOME: dconf có cơ chế LOCK cấp hệ thống (user
@@ -304,6 +312,7 @@ echo "  → Đã chmod +x mọi icon .desktop trên $HOME/Desktop (pcmanfm-qt kh
 # Giảm nhẹ bằng cách set file thành 444 + chattr +i (immutable, cần root để gỡ) sau khi
 # sửa — không tuyệt đối bằng dconf lock nhưng đủ chặn thao tác vô tình/qua GUI.
 if [ -f "$OB_RC" ]; then
+if [ "$DEPLOY_SCOPE" != "software" ]; then
     if [ "$LOCKDOWN_SHELL" = "1" ]; then
         echo "=== [6/9] Khoá phím tắt thoát kiosk (Openbox rc.xml) ==="
         _sudo chattr -i "$OB_RC" 2>/dev/null || true
@@ -459,6 +468,7 @@ PYEOF
     else
         echo "CẢNH BÁO: không có python3 — bỏ qua khoá phím tắt lxqt-globalkeyshortcuts (Ctrl+Alt+T/Meta+E/Meta+R/Super_L vẫn mở được, đây là lối thoát kiosk thật nguy hiểm nhất)." >&2
     fi
+fi # [DEPLOY_SCOPE != software]
 else
     echo "CẢNH BÁO: không tìm thấy $GKS_CONF hoặc mẫu hệ thống — bỏ qua bước khoá phím tắt thật. Đăng nhập vào LXQt 1 lần rồi chạy lại." >&2
 fi
@@ -467,6 +477,7 @@ fi
 # [7/9] Watchdog systemd USER service — CƠ CHẾ Y HỆT bản GNOME (systemd --user không
 # phụ thuộc desktop environment, tái sử dụng nguyên logic).
 WATCHDOG_UNIT_NAME="ipgs-kiosk-app.service"
+if [ "$DEPLOY_SCOPE" != "machine" ]; then
 WATCHDOG_UNIT="$HOME/.config/systemd/user/$WATCHDOG_UNIT_NAME"
 
 if [ "$ENABLE_WATCHDOG" = "1" ]; then
@@ -523,10 +534,12 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
+fi # [DEPLOY_SCOPE != machine]
 # [8/9] Tường lửa ufw. LUÔN allow OpenSSH TRƯỚC khi enable — nếu quên bước này, bật
 # ufw trên máy chỉ có SSH sẽ tự khoá luôn quyền truy cập từ xa (không có GUI để mở lại
 # nếu kỹ thuật viên đang thao tác qua SSH).
 if [ "$ENABLE_FIREWALL" = "1" ]; then
+if [ "$DEPLOY_SCOPE" != "software" ]; then
     echo "=== [8/9] Bật tường lửa ufw ==="
     if ! command -v ufw >/dev/null 2>&1; then
         _sudo apt-get install -y -qq ufw 2>&1 || true
@@ -545,6 +558,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
+fi # [DEPLOY_SCOPE != software]
 echo ""
 echo "✓ HOÀN THÀNH. Cần LOG OUT / RESTART để áp dụng đầy đủ (đặc biệt autologin SDDM/LightDM + autostart)."
 echo "  Kiểm tra sau khi restart:"

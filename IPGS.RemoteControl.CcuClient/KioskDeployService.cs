@@ -17,8 +17,16 @@ namespace IPGS.RemoteControl.CcuClient
         bool ExistsOnSystem    // true nếu binary tìm thấy trên PATH hoặc đường dẫn tuyệt đối
     );
 
+    public enum DeployScope
+    {
+        All,
+        MachineOnly,
+        SoftwareOnly
+    }
+
     public class KioskDeployOptions
     {
+        public DeployScope Scope { get; set; } = DeployScope.All;
         public string Host { get; set; } = string.Empty;
         public int SshPort { get; set; } = 22;
         public string Username { get; set; } = string.Empty;
@@ -296,7 +304,13 @@ namespace IPGS.RemoteControl.CcuClient
                 // Không cần shell để parse — env exec trực tiếp.
                 // F16: GEXT_OFFLINE_DIR trỏ 1-install-software.sh tới thư mục zip extension
                 // offline vừa upload ở trên (nếu có) — script tự bỏ qua nếu thư mục rỗng/không tồn tại.
-                string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS={ShellQuote.Quote(options.SudoPassword)} GEXT_OFFLINE_DIR=$HOME/gnome-ext-offline KIOSK_DEB_OFFLINE_DIR=$HOME/kiosk-deb-offline";
+                string scopeStr = options.Scope switch
+                {
+                    DeployScope.MachineOnly => "machine",
+                    DeployScope.SoftwareOnly => "software",
+                    _ => "all"
+                };
+                string envCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus KIOSK_SUDO_PASS={ShellQuote.Quote(options.SudoPassword)} DEPLOY_SCOPE={scopeStr} GEXT_OFFLINE_DIR=$HOME/gnome-ext-offline KIOSK_DEB_OFFLINE_DIR=$HOME/kiosk-deb-offline";
 
                 if (options.RunInstallSoftware)
                 {
@@ -314,7 +328,7 @@ namespace IPGS.RemoteControl.CcuClient
 
                 if (options.RunConfigureSystem)
                 {
-                    Log("🔄 Đang chạy 2-configure-system.sh (Config máy tính — phần hệ thống + Config phần mềm — update/autostart)...");
+                    Log($"🔄 Đang chạy 2-configure-system.sh (Scope: {scopeStr})...");
                     string kioskUser = string.IsNullOrEmpty(options.KioskUser) ? options.Username : options.KioskUser;
 
                     // Không còn default hardcoded: AppExec rỗng → 2-configure-system.sh sẽ
@@ -328,7 +342,7 @@ namespace IPGS.RemoteControl.CcuClient
                     // nút "Deploy Config máy tính" (F21, không bắt buộc App exec ở tầng UI)
                     // vẫn bị chặn ở đây vì check này độc lập, không biết Autostart/Watchdog
                     // có bật hay không.
-                    if (string.IsNullOrWhiteSpace(options.AppExec) && (options.EnableAutostart || options.EnableWatchdog))
+                    if (options.Scope != DeployScope.MachineOnly && string.IsNullOrWhiteSpace(options.AppExec) && (options.EnableAutostart || options.EnableWatchdog))
                         throw new Exception(
                             "Chưa chọn lệnh autostart app (App exec) — cần thiết vì Autostart hoặc Watchdog đang bật. " +
                             "Bấm '🔄 Nạp DS' để nạp danh sách ứng dụng thật từ máy ZCU rồi chọn, hoặc nhập tay lệnh.");
@@ -598,16 +612,6 @@ for name, exec_cmd in r:
         /// </summary>
         private string? ResolveKioskScriptsDir(string subDirName = "linux-kiosk")
         {
-            // F16: ưu tiên scripts đã nhúng sẵn trong output CcuUI — không cần source repo
-            // đi kèm khi build ra máy khác.
-            string? embedded = ResolveResourceDir(Path.Combine("scripts", subDirName));
-            if (!string.IsNullOrEmpty(embedded) &&
-                File.Exists(Path.Combine(embedded, "1-install-software.sh")) &&
-                File.Exists(Path.Combine(embedded, "2-configure-system.sh")))
-            {
-                return embedded;
-            }
-
             var searchRoots = new System.Collections.Generic.List<string>();
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             if (!string.IsNullOrEmpty(baseDir)) searchRoots.Add(baseDir);
@@ -616,6 +620,7 @@ for name, exec_cmd in r:
             if (!string.IsNullOrEmpty(currentDir) && !searchRoots.Contains(currentDir))
                 searchRoots.Add(currentDir);
 
+            // 1. Ưu tiên tìm source repo scripts/ nếu đang chạy từ source repo (luôn có bản mới nhất)
             foreach (var root in searchRoots)
             {
                 string? dir = root;
@@ -630,6 +635,15 @@ for name, exec_cmd in r:
                     }
                     dir = Directory.GetParent(dir)?.FullName;
                 }
+            }
+
+            // 2. Fallback: resource nhúng sẵn trong output CcuUI (khi deploy độc lập không có repo)
+            string? embedded = ResolveResourceDir(Path.Combine("scripts", subDirName));
+            if (!string.IsNullOrEmpty(embedded) &&
+                File.Exists(Path.Combine(embedded, "1-install-software.sh")) &&
+                File.Exists(Path.Combine(embedded, "2-configure-system.sh")))
+            {
+                return embedded;
             }
 
             return null;

@@ -70,11 +70,15 @@ namespace IPGS.RemoteControl.CcuClient
 
                 if (ext == ".deb")
                 {
-                    RunSudoCommand(ssh, $"sudo -S -p '' dpkg -i \"$HOME/{fileName}\"", options.SudoPassword, Log);
+                    int rc = RunSudoCommand(ssh, $"sudo -S -p '' dpkg -i \"$HOME/{fileName}\"", options.SudoPassword, Log);
+                    if (rc != 0)
+                        throw new InvalidOperationException($"Cài đặt thất bại: dpkg -i trả mã lỗi {rc} (xem nhật ký phía trên).");
                 }
                 else if (ext == ".sh" || ext == ".run")
                 {
-                    RunSudoCommand(ssh, $"chmod +x \"$HOME/{fileName}\" && sudo -S -p '' \"$HOME/{fileName}\"", options.SudoPassword, Log);
+                    int rc = RunSudoCommand(ssh, $"chmod +x \"$HOME/{fileName}\" && sudo -S -p '' \"$HOME/{fileName}\"", options.SudoPassword, Log);
+                    if (rc != 0)
+                        throw new InvalidOperationException($"Cài đặt thất bại: script trả mã lỗi {rc} (xem nhật ký phía trên).");
                 }
                 else
                 {
@@ -108,8 +112,23 @@ namespace IPGS.RemoteControl.CcuClient
                 if (!ssh.IsConnected)
                     throw new Exception("Không thể mở kết nối SSH tới máy đích.");
 
+                // Package chưa cài → báo lỗi rõ ràng, KHÔNG chạy bước dọn dẹp (rm -rf) bên dưới.
+                int installedRc = RunSudoCommand(ssh,
+                    $"dpkg-query -W -f='${{db:Status-Abbrev}}\\n' {packageName} 2>/dev/null | grep -qE '^(ii|rc|hi|iU|iF)'",
+                    options.SudoPassword, null, silent: true);
+                if (installedRc != 0)
+                {
+                    ssh.Disconnect();
+                    throw new InvalidOperationException($"Package '{packageName}' chưa được cài trên máy đích — không có gì để gỡ.");
+                }
+
                 Log($"🔄 Đang chạy lệnh gỡ cài đặt (Purge) dpkg -P {packageName}...");
-                RunSudoCommand(ssh, $"sudo -S -p '' dpkg -P {packageName}", options.SudoPassword, Log);
+                int purgeRc = RunSudoCommand(ssh, $"sudo -S -p '' dpkg -P {packageName}", options.SudoPassword, Log);
+                if (purgeRc != 0)
+                {
+                    ssh.Disconnect();
+                    throw new InvalidOperationException($"Gỡ thất bại: dpkg -P trả mã lỗi {purgeRc} (xem nhật ký phía trên).");
+                }
 
                 Log($"🧹 Đang dọn dẹp các shortcut (.desktop) còn sót lại...");
                 string cleanupCmd = $"sudo -S -p '' find /usr/share/applications /etc/xdg/autostart ~/.local/share/applications ~/Desktop -iname \"*{packageName}*.desktop\" -delete 2>/dev/null || true";
@@ -123,9 +142,13 @@ namespace IPGS.RemoteControl.CcuClient
                     RunSudoCommand(ssh, cleanupCmd2, options.SudoPassword, null, silent: true);
                 }
 
-                Log($"🧹 Đang dọn dẹp thư mục rác /opt/kztek/{baseName} (nếu có)...");
-                string rmFolderCmd = $"sudo -S -p '' rm -rf /opt/kztek/{baseName} /opt/kztek/{packageName} 2>/dev/null || true";
-                RunSudoCommand(ssh, rmFolderCmd, options.SudoPassword, null, silent: true);
+                // Guard: baseName rỗng hoặc bắt đầu bằng '.' sẽ làm rm -rf trúng cả /opt/kztek hoặc thư mục cha.
+                if (!string.IsNullOrEmpty(baseName) && !baseName.StartsWith('.') && !packageName.StartsWith('.'))
+                {
+                    Log($"🧹 Đang dọn dẹp thư mục rác /opt/kztek/{baseName} (nếu có)...");
+                    string rmFolderCmd = $"sudo -S -p '' rm -rf /opt/kztek/{baseName} /opt/kztek/{packageName} 2>/dev/null || true";
+                    RunSudoCommand(ssh, rmFolderCmd, options.SudoPassword, null, silent: true);
+                }
 
                 RunSudoCommand(ssh, "update-desktop-database ~/.local/share/applications 2>/dev/null || true", options.SudoPassword, null, silent: true);
                 RunSudoCommand(ssh, "sudo -S -p '' update-desktop-database /usr/share/applications 2>/dev/null || true", options.SudoPassword, null, silent: true);
@@ -160,7 +183,7 @@ namespace IPGS.RemoteControl.CcuClient
             log($"✅ Đã tải xong {fileName}.");
         }
 
-        private static void RunSudoCommand(SshClient ssh, string commandText, string sudoPassword, Action<string>? log, bool silent = false)
+        private static int RunSudoCommand(SshClient ssh, string commandText, string sudoPassword, Action<string>? log, bool silent = false)
         {
             // S2: Bảo mật sudo — không truyền password qua env hay cmdline. Mật khẩu được ghi vào STDIN channel.
             string envPrefix = "env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus";
@@ -208,6 +231,7 @@ namespace IPGS.RemoteControl.CcuClient
             }
             cmd.EndExecute(async);
             Drain();
+            return cmd.ExitStatus ?? -1;
         }
     }
 }

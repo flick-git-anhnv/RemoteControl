@@ -288,23 +288,24 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             bool needsAppExec = autostart || watchdog;
 
-            if (string.IsNullOrWhiteSpace(appExec) && needsAppExec)
+            if (isMachineTab)
             {
-                if (isMachineTab)
-                {
-                    // F21: Tab "Config máy tính" không bắt buộc App exec — tự tắt
-                    // autostart/watchdog cho lần deploy này thay vì chặn toàn bộ.
-                    autostart = false;
-                    watchdog = false;
-                    tabStatusMsg.Foreground = Brushes.DarkOrange;
-                    tabStatusMsg.Text = "ℹ️ Chưa chọn App exec — bỏ qua Autostart/Watchdog cho lần deploy này (chỉ áp dụng cấu hình máy).";
-                }
-                else
+                autostart = false;
+                watchdog = false;
+                swUpdate = false;
+                needsAppExec = false;
+                appExec = "";
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(appExec) && needsAppExec)
                 {
                     tabStatusMsg.Foreground = Brushes.Red;
                     tabStatusMsg.Text = _loadedApps == null
                         ? "Chưa chọn App exec — bấm '🔄 Nạp DS' để nạp danh sách ứng dụng từ máy ZCU, hoặc nhập tay lệnh."
                         : "Chưa chọn App exec — chọn một mục trong danh sách vừa nạp, hoặc nhập tay lệnh.";
+                    PART_StatusMsg.Foreground = Brushes.Red;
+                    PART_StatusMsg.Text = tabStatusMsg.Text;
                     return;
                 }
             }
@@ -366,6 +367,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             var options = new KioskDeployOptions
             {
+                Scope                 = isMachineTab ? DeployScope.MachineOnly : DeployScope.SoftwareOnly,
                 Host                  = _sshHost,
                 SshPort               = _sshPort,
                 Username              = _sshUser,
@@ -401,12 +403,18 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 await _deployService.DeployAsync(options, Log);
 
                 tabStatusMsg.Foreground = Brushes.Green;
-                tabStatusMsg.Text = "🎉 Deploy hoàn tất! Nhớ RESTART máy kiosk để áp dụng autologin + autostart.";
+                tabStatusMsg.Text = isMachineTab
+                    ? "🎉 Deploy Config máy tính hoàn tất! Đã nạp lại giao diện, khởi động lại máy để áp dụng autologin."
+                    : "🎉 Deploy Config phần mềm hoàn tất! Đã áp dụng cấu hình autostart / watchdog phần mềm.";
+                PART_StatusMsg.Foreground = Brushes.Green;
+                PART_StatusMsg.Text = tabStatusMsg.Text;
             }
             catch (Exception ex)
             {
                 tabStatusMsg.Foreground = Brushes.Red;
                 tabStatusMsg.Text = "❌ Deploy thất bại: " + ex.Message;
+                PART_StatusMsg.Foreground = Brushes.Red;
+                PART_StatusMsg.Text = tabStatusMsg.Text;
                 Log("❌ LỖI: " + ex.Message);
             }
             finally
