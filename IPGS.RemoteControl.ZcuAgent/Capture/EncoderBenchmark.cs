@@ -28,7 +28,7 @@ internal static class EncoderBenchmark
     {
         var options  = services.GetRequiredService<IOptions<AgentOptions>>().Value;
         var capturer = services.GetRequiredService<IScreenCapturer>();
-        var encoder  = services.GetRequiredService<IFrameEncoder>();
+        var encoder  = services.GetRequiredService<JpegEncoder>();
         var quality  = Math.Clamp(options.JpegQuality, 1, 100);
 
         Console.WriteLine("=== ZcuAgent --bench ===");
@@ -125,7 +125,7 @@ internal static class EncoderBenchmark
         else
         {
             Console.WriteLine($"Nén libturbojpeg  : bỏ qua — {turboError}");
-            Console.WriteLine("                    (cài bằng: sudo apt install -y libturbojpeg0)");
+            Console.WriteLine("                    (cài bằng: sudo apt install -y libturbojpeg   — Ubuntu 22.04; Ubuntu 20.04 dùng libturbojpeg0)");
         }
 
         // ── Ước lượng ───────────────────────────────────────────────────

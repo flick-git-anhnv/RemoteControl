@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>IPGS.RemoteControl.WinAgent</RootNamespace>
+    <AssemblyName>IPGS.RemoteControl.WinAgent</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <!--
+    Dùng chung mã với ZcuAgent bằng cách link file nguồn (cùng cách ZcuAgent link Protocol từ CcuClient):
+    giao thức, xác thực/IP whitelist, TLS, vòng chụp-nén-gửi, truyền file, điều tiết FPS.
+    Phần phụ thuộc hệ điều hành nằm sau các interface trong Interfaces.cs (IScreenCapturer, IMouseInjector,
+    IKeyboardInjector, IClipboardService, IMonitorProvider, IDesktopPlatformService) và được cài đặt riêng
+    trong project này bằng Win32 (GDI / SendInput / clipboard). KHÔNG link file X11 / xclip / xrandr của ZcuAgent.
+  -->
+  <ItemGroup>
+    <Compile Include="..\IPGS.RemoteControl.CcuClient\Protocol\ProtocolException.cs" Link="Protocol\ProtocolException.cs" />
+    <Compile Include="..\IPGS.RemoteControl.CcuClient\Protocol\MessageTypes.cs"      Link="Protocol\MessageTypes.cs" />
+    <Compile Include="..\IPGS.RemoteControl.CcuClient\Protocol\MessageCodec.cs"      Link="Protocol\MessageCodec.cs" />
+
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\AgentOptions.cs"                Link="Shared\AgentOptions.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Interfaces.cs"                  Link="Shared\Interfaces.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\RemoteControlHostedService.cs"  Link="Shared\RemoteControlHostedService.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Auth\AuthManager.cs"            Link="Shared\Auth\AuthManager.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Net\TcpServer.cs"               Link="Shared\Net\TcpServer.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Net\ClientSession.cs"           Link="Shared\Net\ClientSession.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Net\FileTransferHandler.cs"     Link="Shared\Net\FileTransferHandler.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Net\TlsCertificateProvider.cs"  Link="Shared\Net\TlsCertificateProvider.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Net\AdaptiveRateController.cs"  Link="Shared\Net\AdaptiveRateController.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Net\AdaptiveFpsController.cs"   Link="Shared\Net\AdaptiveFpsController.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Net\StreamStats.cs"             Link="Shared\Net\StreamStats.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Capture\MonitorInfo.cs"         Link="Shared\Capture\MonitorInfo.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Capture\FrameChangeDetector.cs" Link="Shared\Capture\FrameChangeDetector.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Capture\JpegEncoder.cs"         Link="Shared\Capture\JpegEncoder.cs" />
+    <!-- RemoteControlHostedService tham chiếu kiểu này; trên Windows luôn tắt (AutoHeadlessResolution=false trong Program.cs) nên xrandr không bao giờ chạy. -->
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Capture\HeadlessResolutionAdapter.cs" Link="Shared\Capture\HeadlessResolutionAdapter.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SkiaSharp nén JPEG; NativeAssets.Win32 cung cấp libSkiaSharp.dll khi publish. -->
+    <PackageReference Include="SkiaSharp"                    Version="2.88.9" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="2.88.9" />
+
+    <PackageReference Include="Microsoft.Extensions.Hosting"            Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

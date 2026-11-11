@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Sockets;
 using IPGS.RemoteControl.ZcuAgent.Auth;
 using IPGS.RemoteControl.ZcuAgent.Capture;
-using IPGS.RemoteControl.ZcuAgent.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -21,6 +20,9 @@ internal sealed class TcpServer : IDisposable
     private readonly IFrameEncoder               _encoder;
     private readonly IMouseInjector              _injector;
     private readonly IKeyboardInjector           _keyboard;
+    private readonly IClipboardService           _clipboard;
+    private readonly IMonitorProvider            _monitorProvider;
+    private readonly IDesktopPlatformService     _platform;
     private readonly AuthManager                 _auth;
     private readonly IOptions<AgentOptions>      _optionsWrapper;
 
@@ -33,6 +35,9 @@ internal sealed class TcpServer : IDisposable
         IFrameEncoder            encoder,
         IMouseInjector           injector,
         IKeyboardInjector        keyboard,
+        IClipboardService        clipboard,
+        IMonitorProvider         monitorProvider,
+        IDesktopPlatformService  platform,
         AuthManager              auth,
         ILogger<TcpServer>       logger)
     {
@@ -42,6 +47,9 @@ internal sealed class TcpServer : IDisposable
         _encoder        = encoder;
         _injector       = injector;
         _keyboard       = keyboard;
+        _clipboard      = clipboard;
+        _monitorProvider = monitorProvider;
+        _platform       = platform;
         _auth           = auth;
         _logger         = logger;
     }
@@ -103,6 +111,7 @@ internal sealed class TcpServer : IDisposable
                 var session = new ClientSession(
                     client, remoteIp,
                     _capturer, _encoder, _injector, _keyboard,
+                    _clipboard, _monitorProvider, _platform,
                     _auth, _optionsWrapper, _logger);
 
                 try

@@ -1,4 +1,5 @@
 using IPGS.RemoteControl.Protocol;
+using IPGS.RemoteControl.ZcuAgent.Capture;
 
 namespace IPGS.RemoteControl.ZcuAgent;
 
@@ -93,4 +94,57 @@ internal interface IKeyboardInjector : IDisposable
     /// to avoid "stuck keys" on the ZCU desktop. TDD §17.4.
     /// </summary>
     void ReleaseAllKeys();
+}
+
+// ── Cầu nối nền tảng (Linux/X11 ↔ Windows) ───────────────────────────────
+// Phần dùng chung (ClientSession, FileTransferHandler, TcpServer…) chỉ biết các interface dưới đây;
+// ZcuAgent (Linux) và WinAgent (Windows) mỗi bên cài đặt riêng.
+
+/// <summary>Số liệu tải máy tại một lần lấy mẫu. Giá trị &lt; 0 = không đo được (bộ điều khiển FPS bỏ qua).</summary>
+internal readonly record struct MachineLoad(double XLatencyMs, double CpuPressureAvg10, long TimestampMs);
+
+/// <summary>Lấy mẫu tải máy ở nền (~500ms/mẫu) để <see cref="Net.AdaptiveFpsController"/> điều tiết FPS.</summary>
+internal interface IMachineLoadSampler : IDisposable
+{
+    MachineLoad Current { get; }
+    void Start(CancellationToken ct);
+}
+
+/// <summary>Clipboard của máy đích: chữ và danh sách file (Copy trong trình quản lý file).</summary>
+internal interface IClipboardService
+{
+    /// <summary>Text hiện có trong clipboard; null nếu rỗng / không phải text / lỗi.</summary>
+    Task<string?> GetTextAsync(CancellationToken ct);
+
+    Task SetTextAsync(string text, CancellationToken ct);
+
+    /// <summary>Đường dẫn tuyệt đối các file/thư mục người dùng vừa Copy trong trình quản lý file; null nếu clipboard không chứa file.</summary>
+    Task<List<string>?> GetFilePathsAsync(CancellationToken ct);
+
+    /// <summary>Đặt các đường dẫn lên clipboard như vừa "Copy" trong trình quản lý file. false nếu thất bại.</summary>
+    bool SetFiles(IReadOnlyList<string> absolutePaths);
+
+    /// <summary>Nhả quyền sở hữu clipboard đã đặt bằng <see cref="SetFiles"/> (gọi khi session kết thúc).</summary>
+    void ReleaseFiles();
+}
+
+/// <summary>Liệt kê màn hình. Toạ độ trả về tính từ góc trên-trái của khung hình mà <see cref="IScreenCapturer"/> chụp (không âm).</summary>
+internal interface IMonitorProvider
+{
+    Task<List<MonitorInfo>> ListAsync(CancellationToken ct);
+}
+
+/// <summary>Các tác vụ gắn với hệ điều hành máy đích mà phiên làm việc cần.</summary>
+internal interface IDesktopPlatformService
+{
+    /// <summary>Tên agent báo trong HELLO_ACK, dạng "ZcuAgent" / "WinAgent" (phiên bản do ClientSession nối thêm).</summary>
+    string AgentName { get; }
+
+    IMachineLoadSampler CreateLoadSampler();
+
+    /// <summary>Hiện tin nhắn chat từ CCU trên màn hình máy đích.</summary>
+    Task ShowChatNotificationAsync(string message, CancellationToken ct);
+
+    /// <summary>JSON {cpu, memory, os, arch} trả về cho SysInfoResp.</summary>
+    string GatherSystemInfoJson();
 }

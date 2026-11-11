@@ -4,8 +4,8 @@ namespace IPGS.RemoteControl.ZcuAgent.Interop;
 
 /// <summary>
 /// P/Invoke tối thiểu tới TurboJPEG API (gói Ubuntu/Debian <c>libturbojpeg0</c>, file
-/// <c>libturbojpeg.so.0</c>). Hiện CHỈ dùng cho chế độ <c>--bench</c> để so sánh với bộ nén
-/// Skia đang dùng.
+/// <c>libturbojpeg.so.0</c>). Dùng bởi <see cref="Capture.TurboJpegEncoder"/> (bộ nén chính khi
+/// máy có thư viện) và chế độ <c>--bench</c> để so sánh với Skia.
 /// <para>
 /// GOTCHA: libjpeg-turbo bên trong <c>libSkiaSharp.so</c> 2.88 được build KHÔNG có SIMD x86
 /// (không có chuỗi JSIMD_FORCE* trong binary), còn bản libturbojpeg của hệ điều hành có
@@ -48,6 +48,12 @@ internal static class TurboJpeg
     [DllImport(Lib)]
     public static extern int tjCompress2(
         IntPtr handle, byte[] srcBuf, int width, int pitch, int height, int pixelFormat,
+        ref IntPtr jpegBuf, ref nuint jpegSize, int jpegSubsamp, int jpegQual, int flags);
+
+    /// <summary>Cùng hàm <c>tjCompress2</c>, nhận con trỏ pixel (MIT-SHM) thay vì byte[].</summary>
+    [DllImport(Lib, EntryPoint = "tjCompress2")]
+    public static extern int tjCompress2(
+        IntPtr handle, IntPtr srcBuf, int width, int pitch, int height, int pixelFormat,
         ref IntPtr jpegBuf, ref nuint jpegSize, int jpegSubsamp, int jpegQual, int flags);
 
     [DllImport(Lib)]

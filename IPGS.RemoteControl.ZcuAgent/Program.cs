@@ -3,6 +3,7 @@ using IPGS.RemoteControl.ZcuAgent.Auth;
 using IPGS.RemoteControl.ZcuAgent.Capture;
 using IPGS.RemoteControl.ZcuAgent.Input;
 using IPGS.RemoteControl.ZcuAgent.Net;
+using IPGS.RemoteControl.ZcuAgent.Platform;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -45,9 +46,25 @@ var host = Host.CreateDefaultBuilder(hostArgs)
         // Internal services
         services.AddSingleton<AuthManager>();
         services.AddSingleton<IScreenCapturer,   X11ScreenCapturer>();
-        services.AddSingleton<IFrameEncoder,     JpegEncoder>();
+        services.AddSingleton<JpegEncoder>(); // Skia: dự phòng khi thiếu libturbojpeg + chuẩn so sánh của --bench
+        services.AddSingleton<IFrameEncoder>(sp =>
+        {
+            var log   = sp.GetRequiredService<ILoggerFactory>().CreateLogger("Encoder");
+            var turbo = TurboJpegEncoder.TryCreate(sp.GetRequiredService<ILogger<TurboJpegEncoder>>(), out var error);
+            if (turbo is not null)
+            {
+                log.LogInformation("Bộ nén JPEG: libturbojpeg (SIMD)");
+                return turbo;
+            }
+            log.LogWarning("Bộ nén JPEG: Skia (không dùng được libturbojpeg: {Reason}). " +
+                           "Cài libturbojpeg (Ubuntu 22.04) / libturbojpeg0 (Ubuntu 20.04) để nén nhanh hơn ~3 lần.", error);
+            return sp.GetRequiredService<JpegEncoder>();
+        });
         services.AddSingleton<IMouseInjector,    MouseInjector>();
         services.AddSingleton<IKeyboardInjector, KeyboardInjector>();
+        services.AddSingleton<IClipboardService,      LinuxClipboardService>();
+        services.AddSingleton<IMonitorProvider,       XrandrMonitorProvider>();
+        services.AddSingleton<IDesktopPlatformService, LinuxDesktopPlatformService>();
         services.AddSingleton<TcpServer>();
 
         // Hosted service orchestrates everything

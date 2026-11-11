@@ -29,17 +29,18 @@ internal sealed class FileTransferHandler : IDisposable
     private readonly Dictionary<byte, Upload> _uploads = new();
     private readonly string _dir;
     private readonly HashSet<string> _advertised = new();
-    private Interop.X11ClipboardOwner? _owner;
+    private readonly IClipboardService _clipboard;
     private byte _nextDownloadId = 0x80; // id do agent cấp cho luồng S→C (tách khỏi id client cấp)
 
-    public FileTransferHandler(AgentOptions options, ILogger logger,
+    public FileTransferHandler(AgentOptions options, ILogger logger, IClipboardService clipboard,
         Func<MessageType, ReadOnlyMemory<byte>, CancellationToken, Task> send)
     {
-        _options = options;
-        _logger  = logger;
-        _send    = send;
+        _options   = options;
+        _logger    = logger;
+        _clipboard = clipboard;
+        _send      = send;
 
-        var home = Environment.GetEnvironmentVariable("HOME");
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         _dir = !string.IsNullOrWhiteSpace(options.TransferDir)
             ? options.TransferDir
             : Path.Combine(string.IsNullOrEmpty(home) ? Path.GetTempPath() : home, "RemoteTransfer");
@@ -255,8 +256,7 @@ internal sealed class FileTransferHandler : IDisposable
                              .Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (paths.Count == 0) return null;
 
-            _owner ??= new Interop.X11ClipboardOwner(_logger);
-            if (!_owner.SetFiles(paths)) return null;
+            if (!_clipboard.SetFiles(paths)) return null;
             _logger.LogInformation("Clipboard ZCU: đặt {Count} file để dán", paths.Count);
             // "Khoá" nhận diện nội dung clipboard: các đường dẫn nối bằng LF — trùng cách ClientSession tính khi poll.
             return string.Join("\n", paths.Select(p => new Uri(p).LocalPath));
@@ -346,6 +346,6 @@ internal sealed class FileTransferHandler : IDisposable
     public void Dispose()
     {
         foreach (var id in _uploads.Keys.ToArray()) Abort(id);
-        _owner?.Dispose();
+        _clipboard.ReleaseFiles();
     }
 }
