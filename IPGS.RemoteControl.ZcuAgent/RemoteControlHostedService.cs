@@ -1,4 +1,4 @@
-using IPGS.RemoteControl.ZcuAgent.Input;
+using IPGS.RemoteControl.ZcuAgent.Capture;
 using IPGS.RemoteControl.ZcuAgent.Net;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -60,6 +60,15 @@ internal sealed class RemoteControlHostedService : BackgroundService
             _injector.Initialize();
             _keyboard.Initialize();
 
+            if (_options.AutoHeadlessResolution)
+            {
+                await HeadlessResolutionAdapter.CheckAndAdaptAsync(
+                    msg => _logger.LogInformation("[ResolutionAdapter] {Msg}", msg),
+                    msg => _logger.LogWarning("[ResolutionAdapter] {Msg}", msg),
+                    stoppingToken);
+                _ = RunHeadlessWatchLoopAsync(stoppingToken);
+            }
+
             _logger.LogInformation("RemoteControlHostedService: X11 initialized — starting TCP server");
             await _tcpServer.RunAsync(stoppingToken);
         }
@@ -75,6 +84,25 @@ internal sealed class RemoteControlHostedService : BackgroundService
         finally
         {
             _logger.LogInformation("RemoteControlHostedService: stopped");
+        }
+    }
+
+    private async Task RunHeadlessWatchLoopAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+            {
+                await HeadlessResolutionAdapter.CheckAndAdaptAsync(
+                    msg => _logger.LogInformation("[ResolutionAdapter] {Msg}", msg),
+                    msg => _logger.LogWarning("[ResolutionAdapter] {Msg}", msg),
+                    stoppingToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown
         }
     }
 

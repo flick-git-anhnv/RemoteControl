@@ -74,11 +74,99 @@ public partial class RemoteScreenWindow : Window
         RemoteScreen.PasteStatus += s => Dispatcher.UIThread.Post(() => SetStatusTitle(s));
         _vm.Client.FrameReceived += OnFrameReceived;
         _vm.Client.StateChanged += OnClientStateChanged;
+        _vm.RemoteResolutionChanged += OnRemoteResolutionChanged;
         _vm.Client.TlsCertificateValidated += (sender, hash) =>
         {
             // TOFU (audit F-NEW-2): tự động lưu vân tay chứng chỉ vào profile nếu chưa lưu
             ComputerProfileStore.Instance.UpdateTlsFingerprint(_host, _port, hash);
         };
+
+        InitAutoHideBars();
+    }
+
+    // ── Auto-hide: thanh trạng thái (trên) + thanh chat/clipboard (dưới) ─────
+    // Bình thường ẩn để xem full màn hình remote; rê chuột vào mép trên/dưới cửa sổ thì hiện.
+
+    private const double EdgeZonePx = 8;
+    private static readonly TimeSpan BarHideDelay = TimeSpan.FromMilliseconds(600);
+
+    private sealed class EdgeBar
+    {
+        public Border? Control;
+        public bool Shown;
+        public DateTime WantedAt;
+    }
+
+    private readonly EdgeBar _topBar = new();
+    private readonly EdgeBar _bottomBar = new();
+    private readonly DispatcherTimer _barHideTimer = new() { Interval = TimeSpan.FromMilliseconds(200) };
+    private bool _pointerInside;
+    private bool _buttonDown;
+    private Avalonia.Point _pointer;
+
+    private void InitAutoHideBars()
+    {
+        _topBar.Control    = this.FindControl<Border>("TopBar");
+        _bottomBar.Control = this.FindControl<Border>("BottomBar");
+
+        // Tunnel + handledEventsToo: nhận mọi di chuyển chuột (kể cả trên màn hình remote) mà không
+        // chặn việc RemoteScreenControl chuyển tiếp chuột sang máy đích.
+        AddHandler(PointerMovedEvent, OnBarsPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
+        PointerExited += (_, _) => { _pointerInside = false; UpdateBars(); };
+        _barHideTimer.Tick += (_, _) => UpdateBars();
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RemoteScreenViewModel.IsStreaming))
+                Dispatcher.UIThread.Post(UpdateBars);
+        };
+        UpdateBars();
+    }
+
+    private void OnBarsPointerMoved(object? sender, Avalonia.Input.PointerEventArgs e)
+    {
+        _pointerInside = true;
+        _pointer = e.GetPosition(this);
+        var props = e.GetCurrentPoint(this).Properties;
+        _buttonDown = props.IsLeftButtonPressed || props.IsRightButtonPressed || props.IsMiddleButtonPressed;
+        UpdateBars();
+    }
+
+    private void UpdateBars()
+    {
+        double h = Bounds.Height;
+
+        // Thanh trên: luôn hiện khi chưa streaming (đang kết nối / lỗi → cần thấy trạng thái),
+        // hoặc đang mở dropdown chọn màn hình, hoặc chuột ở mép trên (đã hiện → giữ cả chiều cao thanh).
+        bool wantTop = !_vm.IsStreaming
+            || (this.FindControl<ComboBox>("CmbMonitor")?.IsDropDownOpen ?? false)
+            || WantEdge(_topBar, _pointer.Y <= (_topBar.Shown ? BarHeight(_topBar) + EdgeZonePx : EdgeZonePx));
+
+        // Thanh dưới: giữ hiện khi đang gõ chat (ô nhập có focus), hoặc chuột ở mép dưới.
+        bool wantBottom = (this.FindControl<TextBox>("PART_ChatInput")?.IsKeyboardFocusWithin ?? false)
+            || WantEdge(_bottomBar, _pointer.Y >= h - (_bottomBar.Shown ? BarHeight(_bottomBar) + EdgeZonePx : EdgeZonePx));
+
+        bool pending = ApplyBar(_topBar, wantTop) | ApplyBar(_bottomBar, wantBottom);
+        if (pending) _barHideTimer.Start(); else _barHideTimer.Stop();
+    }
+
+    // Không BẬT thanh mới khi đang giữ nút chuột (kéo/chọn trong màn remote chạm mép cửa sổ).
+    private bool WantEdge(EdgeBar bar, bool inZone) => _pointerInside && inZone && (bar.Shown || !_buttonDown);
+
+    private static double BarHeight(EdgeBar bar) => bar.Control?.Bounds.Height ?? 0;
+
+    /// <returns>true = thanh đang hiện nhưng không còn được "muốn" — chờ hết độ trễ để ẩn.</returns>
+    private static bool ApplyBar(EdgeBar bar, bool want)
+    {
+        if (bar.Control == null) return false;
+        var now = DateTime.UtcNow;
+        if (want) bar.WantedAt = now;
+        bool show = want || (bar.Shown && now - bar.WantedAt < BarHideDelay);
+        if (show != bar.Shown)
+        {
+            bar.Shown = show;
+            if (show) bar.Control.Classes.Add("shown"); else bar.Control.Classes.Remove("shown");
+        }
+        return bar.Shown && !want;
     }
 
     // ── Window lifecycle ─────────────────────────────────────────────────────
@@ -104,7 +192,9 @@ public partial class RemoteScreenWindow : Window
         _vm.Client.MonitorListReceived -= OnMonitorListReceived;
         _vm.Client.ClipboardFileListReceived -= OnClipboardFileListReceived;
         _vm.Client.StateChanged  -= OnClientStateChanged;
+        _vm.RemoteResolutionChanged -= OnRemoteResolutionChanged;
         _sysInfoTimeoutCts?.Cancel();
+        _barHideTimer.Stop();
         _fileWindow?.Close();
 
         // Gracefully disconnect before the window is destroyed.
@@ -113,6 +203,52 @@ public partial class RemoteScreenWindow : Window
         _recorder?.Dispose();
         _recorder = null;
         _vm.Dispose();
+    }
+
+    // ── Auto-fit Window Aspect Ratio & Display Mode ──────────────────────────
+
+    private void OnRemoteResolutionChanged(object? sender, (int Width, int Height) res)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            Title = $"Remote Control — {_host}:{_port} ({res.Width}×{res.Height})";
+            if (_vm.DisplayMode == RemoteDisplayMode.AutoFit)
+            {
+                ApplyAutoFitWindow(res.Width, res.Height);
+            }
+        });
+    }
+
+    private void OnDisplayModeClick(object? sender, RoutedEventArgs e)
+    {
+        var newMode = _vm.CycleDisplayMode();
+        if (newMode == RemoteDisplayMode.AutoFit && _vm.ScreenWidth > 0 && _vm.ScreenHeight > 0)
+        {
+            ApplyAutoFitWindow(_vm.ScreenWidth, _vm.ScreenHeight);
+        }
+    }
+
+    private void ApplyAutoFitWindow(int remoteW, int remoteH)
+    {
+        if (remoteW <= 0 || remoteH <= 0) return;
+        if (WindowState != WindowState.Normal) return;
+
+        double maxW = 1600, maxH = 900;
+        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
+        if (screen is not null)
+        {
+            double scale = screen.Scaling > 0 ? screen.Scaling : 1.0;
+            double workW = screen.WorkingArea.Width / scale;
+            double workH = screen.WorkingArea.Height / scale;
+            maxW = workW * 0.88;
+            maxH = workH * 0.85;
+        }
+
+        var (targetW, targetH) = RemoteScreenViewModel.CalculateAutoFitWindowSize(
+            remoteW, remoteH, maxW, maxH, MinWidth, MinHeight);
+
+        Width  = targetW;
+        Height = targetH;
     }
 
     // ── Phase 6 Handlers ──────────────────────────────────────────────────
@@ -136,9 +272,9 @@ public partial class RemoteScreenWindow : Window
                 if (this.FindControl<ToggleButton>("BtnRecord") is { } btn)
                 {
                     btn.IsChecked = false;
-                    btn.Content = "🔴 Record";
+                    btn.Content = "Ghi hình";
                 }
-                Title = $"Remote Control — {_host}:{_port} (⏹ Đã dừng ghi hình: độ phân giải ZCU thay đổi)";
+                Title = $"Remote Control — {_host}:{_port} (Đã dừng ghi hình: độ phân giải ZCU thay đổi)";
             });
             return;
         }
@@ -164,21 +300,45 @@ public partial class RemoteScreenWindow : Window
 
     private string _titleBase => $"Remote Control — {_host}:{_port}";
     private void SetStatusTitle(string? status)
-        => Title = string.IsNullOrEmpty(status) ? _titleBase : $"{_titleBase}  |  {status}";
+    {
+        Title = string.IsNullOrEmpty(status) ? _titleBase : $"{_titleBase}  |  {status}";
+
+        // Banner nổi trên màn hình remote để người dùng thấy copy/dán file đang chạy.
+        // Thanh chạy chỉ hiện khi đang truyền ("Đang …"); kết quả "Đã …" / "⚠ …" chỉ giữ chữ.
+        TransferBanner.IsVisible  = !string.IsNullOrEmpty(status);
+        TransferText.Text         = status;
+        TransferProgress.IsVisible = status is not null && status.StartsWith("Đang", StringComparison.Ordinal);
+    }
 
     private string? _lastClipFileJson;
+    private long _lastClipFileTick;
     private int _clipFilesBusy;
+
+    /// <summary>Agent gửi cùng một danh sách 2 lần (poll 2s + ClipboardGet sau Ctrl+C) — bỏ lần trùng trong khoảng này.</summary>
+    private const int DuplicateListWindowMs = 5_000;
+    /// <summary>Quá khoảng này không nhận thêm byte nào khi tải file từ ZCU thì huỷ (agent cũ/kẹt).</summary>
+    private const int DownloadIdleTimeoutMs = 30_000;
 
     /// <summary>
     /// Người dùng vừa Copy file trong trình quản lý file của ZCU → tải các file về thư mục tạm rồi đặt vào
     /// clipboard Windows, để Ctrl+V trong Explorer dán ra được. Mỗi danh sách chỉ tải một lần.
     /// </summary>
-    /// <summary>Giới hạn tổng dung lượng tự tải khi Copy trên ZCU — vượt thì bỏ qua (dùng nút 📁 File / nén .zip).</summary>
+    /// <summary>Giới hạn tổng dung lượng tự tải khi Copy trên ZCU — vượt thì bỏ qua (dùng nút File / nén .zip).</summary>
     private const long AutoCopyLimitBytes = 200L * 1024 * 1024;
 
-    private async void OnClipboardFileListReceived(object? sender, string json)
+    /// <summary>
+    /// Sự kiện này bắn từ THREAD NHẬN TCP của CcuClient, không phải UI thread. Title, Clipboard, StorageProvider và
+    /// Progress đều cần UI thread — đụng từ thread khác ném InvalidOperationException (trong async void / callback
+    /// thread-pool nên sập cả app). Vì vậy chỉ chuyển việc sang UI thread; mọi lỗi được bắt trong Task bên dưới.
+    /// </summary>
+    private void OnClipboardFileListReceived(object? sender, string json)
+        => Dispatcher.UIThread.Post(() => _ = HandleClipboardFileListAsync(json));
+
+    private async Task HandleClipboardFileListAsync(string json)
     {
-        if (json == _lastClipFileJson) return;
+        // Chỉ bỏ danh sách trùng trong cửa sổ ngắn: Ctrl+C lại cùng file sau đó vẫn phải chép lại vào clipboard
+        // (clipboard Windows có thể đã bị nội dung khác thay).
+        if (json == _lastClipFileJson && Environment.TickCount64 - _lastClipFileTick < DuplicateListWindowMs) return;
         if (Interlocked.CompareExchange(ref _clipFilesBusy, 1, 0) != 0) return;
 
         try
@@ -192,11 +352,12 @@ public partial class RemoteScreenWindow : Window
                 .ToList();
             if (items.Count == 0) return;
             _lastClipFileJson = json;
+            _lastClipFileTick = Environment.TickCount64;
 
             var total = items.Where(i => !i.IsDir).Sum(i => i.Size);
             if (total > AutoCopyLimitBytes)
             {
-                SetStatusTitle($"Mục vừa Copy trên máy đích quá lớn ({total / 1024 / 1024} MB > {AutoCopyLimitBytes / 1024 / 1024} MB) — không tự chép vào clipboard. Hãy dùng nút “📁 File” hoặc nén .zip");
+                SetStatusTitle($"Mục vừa Copy trên máy đích quá lớn ({total / 1024 / 1024} MB > {AutoCopyLimitBytes / 1024 / 1024} MB) — không tự chép vào clipboard. Hãy dùng nút “File” hoặc nén .zip");
                 return;
             }
 
@@ -222,9 +383,17 @@ public partial class RemoteScreenWindow : Window
 
                 Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
                 var n = ++done;
-                var progress = new Progress<(long Done, long Total)>(p => SetStatusTitle(
-                    $"Đang tải {segs[^1]} từ máy đích ({n}/{files.Count}) — {(p.Total <= 0 ? 0 : p.Done * 100 / p.Total)}%"));
-                await _vm.Client.DownloadRemotePathAsync(item.Path, dest, progress);
+                // Không có byte mới trong DownloadIdleTimeoutMs thì huỷ — nếu không, _clipFilesBusy và ô tải duy nhất
+                // của client kẹt vĩnh viễn, mọi lần Copy sau đều bị bỏ qua.
+                var idle = new CancellationTokenSource(DownloadIdleTimeoutMs);
+                var progress = new Progress<(long Done, long Total)>(p =>
+                {
+                    try { idle.CancelAfter(DownloadIdleTimeoutMs); } catch (ObjectDisposedException) { /* tải xong rồi */ }
+                    SetStatusTitle(
+                        $"Đang tải {segs[^1]} từ máy đích ({n}/{files.Count}) — {(p.Total <= 0 ? 0 : p.Done * 100 / p.Total)}%");
+                });
+                try { await _vm.Client.DownloadRemotePathAsync(item.Path, dest, progress, idle.Token); }
+                finally { idle.Dispose(); }
             }
 
             var top = TopLevel.GetTopLevel(this);
@@ -243,9 +412,15 @@ public partial class RemoteScreenWindow : Window
                 SetStatusTitle($"Đã chép {storage.Count} mục từ máy đích vào clipboard — dán (Ctrl+V) trong Explorer");
             }
         }
+        catch (OperationCanceledException)
+        {
+            _lastClipFileJson = null; // cho phép Copy lại ngay
+            SetStatusTitle($"Máy đích không gửi file (quá {DownloadIdleTimeoutMs / 1000}s không có dữ liệu) — kiểm tra phiên bản agent rồi Copy lại");
+        }
         catch (Exception ex)
         {
-            SetStatusTitle("⚠ Không lấy được file từ máy đích: " + ex.Message);
+            _lastClipFileJson = null; // cho phép Copy lại ngay
+            SetStatusTitle("Không lấy được file từ máy đích: " + ex.Message);
         }
         finally
         {
@@ -290,9 +465,9 @@ public partial class RemoteScreenWindow : Window
             cmb.Items.Clear();
             if (monitors.Count >= 2)
             {
-                cmb.Items.Add(new ComboBoxItem { Content = "🖥 Tất cả màn hình", Tag = (byte)0xFF });
+                cmb.Items.Add(new ComboBoxItem { Content = "Tất cả màn hình", Tag = (byte)0xFF });
                 foreach (var m in monitors)
-                    cmb.Items.Add(new ComboBoxItem { Content = $"🖥 {m.Index + 1}: {m.Name} ({m.W}×{m.H})", Tag = (byte)m.Index });
+                    cmb.Items.Add(new ComboBoxItem { Content = $"Màn hình {m.Index + 1}: {m.Name} ({m.W}×{m.H})", Tag = (byte)m.Index });
                 cmb.SelectedIndex = 0;
             }
             cmb.IsVisible = monitors.Count >= 2;
@@ -325,7 +500,7 @@ public partial class RemoteScreenWindow : Window
             $"ZcuAgent/{MinAgentVersion} mà client này cần.\n\n" +
             "Các tính năng SysInfo / Privacy / Chat / Sync Clipboard sẽ KHÔNG hoạt động " +
             "(agent cũ bỏ qua yêu cầu mà không báo lỗi).\n\n" +
-            "Khuyến nghị: cập nhật Remote Agent qua nút \"⚡ Cài remote\" của máy này."));
+            "Khuyến nghị: cập nhật Remote Agent qua nút \"Cài remote\" của máy này."));
     }
 
     /// <summary>"ZcuAgent/1.1" → 1.1; không parse được (agent lạ/quá cũ) → coi là outdated.</summary>
@@ -410,7 +585,7 @@ public partial class RemoteScreenWindow : Window
         if (IsAgentOlderThan(_vm.Client.ServerName, new Version(1, 2)))
         {
             ShowInfoDialog("Agent chưa hỗ trợ",
-                "Truyền file cần ZcuAgent 1.2 trở lên. Cập nhật agent qua nút \"⚡ Cài remote\" của máy này.");
+                "Truyền file cần ZcuAgent 1.2 trở lên. Cập nhật agent qua nút \"Cài remote\" của máy này.");
             return;
         }
         if (_fileWindow is { IsVisible: true }) { _fileWindow.Activate(); return; }
@@ -429,7 +604,7 @@ public partial class RemoteScreenWindow : Window
         {
             btn.IsChecked = false;
             ShowInfoDialog("Agent chưa hỗ trợ",
-                "Chế độ phím vật lý cần ZcuAgent 1.2 trở lên. Cập nhật agent qua nút \"⚡ Cài remote\" của máy này.");
+                "Chế độ phím vật lý cần ZcuAgent 1.2 trở lên. Cập nhật agent qua nút \"Cài remote\" của máy này.");
             return;
         }
 
@@ -475,7 +650,7 @@ public partial class RemoteScreenWindow : Window
             "Không nhận được phản hồi SysInfo",
             $"Đã gửi yêu cầu SysInfo nhưng không nhận được phản hồi sau {SysInfoTimeoutMs / 1000} giây.\n\n" +
             "Nguyên nhân thường gặp:\n" +
-            "  • Agent trên máy đích là phiên bản cũ chưa hỗ trợ SysInfo — cập nhật qua \"⚡ Cài remote\".\n" +
+            "  • Agent trên máy đích là phiên bản cũ chưa hỗ trợ SysInfo — cập nhật qua \"Cài remote\".\n" +
             "  • Agent đang quá tải hoặc kết nối không ổn định — thử lại sau.");
     }
 
@@ -509,7 +684,7 @@ public partial class RemoteScreenWindow : Window
                             return;
                         }
                         _recorder = new SessionRecorder(path, sw, sh, 15);
-                        btn.Content = "⏹️ Stop";
+                        btn.Content = "Dừng ghi";
                         return;
                     }
                 }
@@ -524,7 +699,7 @@ public partial class RemoteScreenWindow : Window
                 var rec = _recorder;
                 _recorder = null;
                 rec?.Dispose();
-                btn.Content = "🔴 Record";
+                btn.Content = "Ghi hình";
             }
         }
     }

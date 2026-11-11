@@ -10,6 +10,19 @@ using SkiaSharp;
 namespace IPGS.RemoteControl.CcuUI.ViewModels;
 
 /// <summary>
+/// Chế độ co giãn hiển thị màn hình máy đích trên cửa sổ CCU.
+/// </summary>
+public enum RemoteDisplayMode
+{
+    /// <summary>Tự động điều chỉnh kích thước cửa sổ CCU khớp tỷ lệ màn hình máy đích (không viền đen, không méo hình).</summary>
+    AutoFit,
+    /// <summary>Giữ nguyên tỷ lệ gốc của máy đích (có viền đen nếu khung cửa sổ lệch tỷ lệ).</summary>
+    Uniform,
+    /// <summary>Kéo giãn lấp đầy toàn bộ khung cửa sổ hiện tại.</summary>
+    Fill
+}
+
+/// <summary>
 /// ViewModel for the remote screen window.
 /// Manages CcuClient lifecycle, decodes incoming JPEG frames into Avalonia
 /// WriteableBitmaps (on background thread), and exposes status / error info for binding.
@@ -34,11 +47,21 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     [ObservableProperty] private bool     _isTlsVerified;
     [ObservableProperty] private string   _networkHudText = "⚡ -- FPS  |  📶 -- ms  |  📊 -- KB/s";
     [ObservableProperty] private bool     _isHudVisible;
+    [ObservableProperty] private RemoteDisplayMode _displayMode = RemoteDisplayMode.AutoFit;
+    [ObservableProperty] private Stretch  _imageStretch   = Stretch.Uniform;
+    [ObservableProperty] private string   _displayModeText = "Tỷ lệ: Tự động";
+    [ObservableProperty] private string   _displayModeTooltip = "Chế độ hiển thị: Tự động khớp tỷ lệ cửa sổ theo máy đích (không viền đen, không méo hình). Nhấn để đổi chế độ.";
 
     // ── ZCU screen dimensions — written by background thread, read on UI thread
     // (volatile gives memory-ordering guarantee for single-reader/single-writer int).
     private volatile int _screenWidth;
     private volatile int _screenHeight;
+
+    public int ScreenWidth => _screenWidth;
+    public int ScreenHeight => _screenHeight;
+
+    /// <summary>Phát sinh khi nhận khung hình đầu tiên hoặc khi máy đích thay đổi độ phân giải.</summary>
+    public event EventHandler<(int Width, int Height)>? RemoteResolutionChanged;
 
     // ── Disposal flag — set on UI thread in Dispose(), read inside queued
     // Dispatcher.UIThread.Post lambdas and on the frame-decode thread (L5 fix).
@@ -156,7 +179,7 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         _lastMouseX = cx;
         _lastMouseY = cy;
 
-        MapToZcuCoords(controlX, controlY, controlW, controlH, sw, sh,
+        MapToZcuCoords(controlX, controlY, controlW, controlH, sw, sh, DisplayMode,
                        out int zx, out int zy);
 
         _ = _client.SendMouseMoveAsync(zx, zy);
@@ -188,7 +211,7 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
 
         if (button is null) return;
 
-        MapToZcuCoords(controlX, controlY, controlW, controlH, sw, sh,
+        MapToZcuCoords(controlX, controlY, controlW, controlH, sw, sh, DisplayMode,
                        out int zx, out int zy);
 
         _ = _client.SendMouseButtonAsync(button.Value, isDown, zx, zy);
@@ -208,7 +231,7 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         int sw = _screenWidth, sh = _screenHeight;
         if (sw <= 0 || sh <= 0 || controlW <= 0 || controlH <= 0) return;
 
-        MapToZcuCoords(controlX, controlY, controlW, controlH, sw, sh, out int zx, out int zy);
+        MapToZcuCoords(controlX, controlY, controlW, controlH, sw, sh, DisplayMode, out int zx, out int zy);
 
         SendWheel(deltaY, MouseButton.WheelUp,    MouseButton.WheelDown,  zx, zy);
         SendWheel(deltaX, MouseButton.WheelRight, MouseButton.WheelLeft,  zx, zy);
@@ -310,19 +333,110 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
             _ = _client.SendKeyEventAsync(keysym, isDown: false);
     }
 
-    // ── Private helpers ──────────────────────────────────────────────────────
+    // ── Display Mode & Aspect Ratio Adaptation ───────────────────────────────
+
+    partial void OnDisplayModeChanged(RemoteDisplayMode value)
+    {
+        ImageStretch = value == RemoteDisplayMode.Fill ? Stretch.Fill : Stretch.Uniform;
+        DisplayModeText = value switch
+        {
+            RemoteDisplayMode.AutoFit => "Tỷ lệ: Tự động",
+            RemoteDisplayMode.Uniform => "Tỷ lệ: Giữ chuẩn",
+            RemoteDisplayMode.Fill    => "Tỷ lệ: Lấp đầy",
+            _                         => "Tỷ lệ: Tự động"
+        };
+        DisplayModeTooltip = value switch
+        {
+            RemoteDisplayMode.AutoFit => "Chế độ: Tự động co giãn cửa sổ khớp tỷ lệ máy đích (không viền đen, không méo hình). Nhấn để chuyển sang Lấp đầy.",
+            RemoteDisplayMode.Fill    => "Chế độ: Kéo giãn lấp đầy 100% khung cửa sổ. Nhấn để chuyển sang Giữ tỷ lệ chuẩn.",
+            RemoteDisplayMode.Uniform => "Chế độ: Giữ nguyên tỷ lệ gốc (có viền đệm nếu cửa sổ lệch tỷ lệ). Nhấn để chuyển về Tự động.",
+            _                         => string.Empty
+        };
+    }
+
+    /// <summary>
+    /// Chuyển đổi luân phiên giữa 3 chế độ hiển thị: AutoFit → Fill → Uniform → AutoFit.
+    /// </summary>
+    public RemoteDisplayMode CycleDisplayMode()
+    {
+        DisplayMode = DisplayMode switch
+        {
+            RemoteDisplayMode.AutoFit => RemoteDisplayMode.Fill,
+            RemoteDisplayMode.Fill    => RemoteDisplayMode.Uniform,
+            _                         => RemoteDisplayMode.AutoFit
+        };
+        return DisplayMode;
+    }
+
+    /// <summary>
+    /// Tính toán kích thước cửa sổ CCU tối ưu khớp chính xác tỷ lệ khung hình máy đích (Auto-fit),
+    /// loại bỏ hoàn toàn viền đen thừa mà không làm biến dạng hình ảnh.
+    /// </summary>
+    public static (double Width, double Height) CalculateAutoFitWindowSize(
+        int remoteW, int remoteH,
+        double maxW, double maxH,
+        double minW = 640, double minH = 480)
+    {
+        if (remoteW <= 0 || remoteH <= 0 || maxW <= 0 || maxH <= 0)
+            return (1280, 800);
+
+        double aspect = (double)remoteW / remoteH;
+        double effectiveMinW = aspect < 1.0 ? Math.Min(minW, 420) : minW;
+        double effectiveMinH = aspect > 1.0 ? Math.Min(minH, 360) : minH;
+
+        double targetH = maxH;
+        double targetW = targetH * aspect;
+
+        if (targetW > maxW)
+        {
+            targetW = maxW;
+            targetH = targetW / aspect;
+        }
+
+        if (targetW < effectiveMinW && effectiveMinW / aspect <= maxH)
+        {
+            targetW = effectiveMinW;
+            targetH = targetW / aspect;
+        }
+        if (targetH < effectiveMinH && effectiveMinH * aspect <= maxW)
+        {
+            targetH = effectiveMinH;
+            targetW = targetH * aspect;
+        }
+
+        return (Math.Round(targetW), Math.Round(targetH));
+    }
+
+    // ── Private / Testable helpers ───────────────────────────────────────────
 
     /// <summary>
     /// Maps control-space coordinates to ZCU screen space, accounting for
-    /// Stretch.Uniform letterboxing so clicks outside the image area are clamped.
+    /// the active <see cref="RemoteDisplayMode"/> (Uniform letterboxing vs Fill scaling).
     /// </summary>
-    private static void MapToZcuCoords(
+    public static void MapToZcuCoords(
         double controlX, double controlY,
         double controlW,  double controlH,
         int screenW,      int screenH,
+        RemoteDisplayMode displayMode,
         out int zx,       out int zy)
     {
-        // Compute rendered image dimensions inside control (Stretch.Uniform)
+        if (controlW <= 0 || controlH <= 0 || screenW <= 0 || screenH <= 0)
+        {
+            zx = 0;
+            zy = 0;
+            return;
+        }
+
+        if (displayMode == RemoteDisplayMode.Fill)
+        {
+            double fillX = Math.Clamp(controlX, 0, Math.Max(0, controlW - 1));
+            double fillY = Math.Clamp(controlY, 0, Math.Max(0, controlH - 1));
+            zx = Math.Clamp((int)(fillX / controlW * screenW), 0, screenW - 1);
+            zy = Math.Clamp((int)(fillY / controlH * screenH), 0, screenH - 1);
+            return;
+        }
+
+        // Compute rendered image dimensions inside control (Stretch.Uniform / AutoFit)
         double controlAspect = controlW / controlH;
         double imageAspect   = (double)screenW / screenH;
 
@@ -342,11 +456,11 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
         double offsetY = (controlH - imageH) / 2.0;
 
         // Map into image space; clamp to valid range
-        double relX = Math.Clamp(controlX - offsetX, 0, imageW - 1);
-        double relY = Math.Clamp(controlY - offsetY, 0, imageH - 1);
+        double relX = Math.Clamp(controlX - offsetX, 0, Math.Max(0, imageW - 1));
+        double relY = Math.Clamp(controlY - offsetY, 0, Math.Max(0, imageH - 1));
 
-        zx = (int)(relX / imageW * screenW);
-        zy = (int)(relY / imageH * screenH);
+        zx = Math.Clamp((int)(relX / imageW * screenW), 0, screenW - 1);
+        zy = Math.Clamp((int)(relY / imageH * screenH), 0, screenH - 1);
     }
 
     // ── CcuClient event handlers ─────────────────────────────────────────────
@@ -394,8 +508,17 @@ public sealed partial class RemoteScreenViewModel : ObservableObject, IDisposabl
     private void OnFrameReceived(object? sender, FrameReceivedEventArgs e)
     {
         // Capture screen dimensions from every frame (set by ZcuAgent in FRAME_JPEG payload)
-        _screenWidth  = e.Width;
-        _screenHeight = e.Height;
+        int prevW = _screenWidth;
+        int prevH = _screenHeight;
+        if (e.Width > 0 && e.Height > 0)
+        {
+            _screenWidth  = e.Width;
+            _screenHeight = e.Height;
+            if (e.Width != prevW || e.Height != prevH)
+            {
+                RemoteResolutionChanged?.Invoke(this, (e.Width, e.Height));
+            }
+        }
 
         // Q19: session ở tab ẩn (MultiRemoteWindow) không cần render — bỏ qua decode
         // để tiết kiệm CPU/RAM; kích thước màn hình phía trên vẫn được cập nhật.

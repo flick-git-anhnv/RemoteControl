@@ -3,95 +3,180 @@
         xmlns:vm="using:IPGS.RemoteControl.CcuUI.ViewModels"
         xmlns:views="using:IPGS.RemoteControl.CcuUI.Views"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        xmlns:controls="clr-namespace:IPGS.RemoteControl.CcuUI.Controls"
         x:Class="IPGS.RemoteControl.CcuUI.Views.RemoteScreenWindow"
         x:DataType="vm:RemoteScreenViewModel"
         Title="Remote Control — Máy khách"
         Width="1280" Height="800"
-        MinWidth="640" MinHeight="480"
-        Background="#1A1A2E">
+        MinWidth="420" MinHeight="360"
+        Background="{DynamicResource kz.brush.ink}">
+
+  <Window.Styles>
+    <!-- Thanh trên/dưới tự ẩn: mặc định trong suốt + không bắt chuột (chuột xuyên xuống màn hình remote);
+         code-behind (InitAutoHideBars) thêm class "shown" khi rê chuột vào mép cửa sổ. -->
+    <Style Selector="Border.autohide">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.autohide.shown">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="IsHitTestVisible" Value="True" />
+    </Style>
+  </Window.Styles>
 
   <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
 
-    <!-- ─── Row 0: Status / control bar ─────────────────────────────── -->
-    <Border Grid.Row="0"
-            Background="#251C53"
-            Padding="12,6">
+    <!-- ─── Row 0: Status / control bar (khung tối, icon Lucide) ──────── -->
+    <Border Name="TopBar" Classes="autohide" ZIndex="10" Grid.Row="0"
+            Background="{DynamicResource kz.brush.navy.950}"
+            BorderBrush="#0FFFFFFF"
+            BorderThickness="0,0,0,1"
+            Padding="16,8,12,8">
+      <Border.Styles>
+        <Style Selector="Button.tb, ToggleButton.tb, kz|KzButton.tb">
+          <Setter Property="Background" Value="Transparent" />
+          <Setter Property="Foreground" Value="{DynamicResource kz.brush.ink.text}" />
+          <Setter Property="BorderThickness" Value="0" />
+          <Setter Property="Height" Value="34" />
+          <Setter Property="MinHeight" Value="34" />
+          <Setter Property="Padding" Value="10,0" />
+          <Setter Property="CornerRadius" Value="7" />
+          <Setter Property="FontSize" Value="12" />
+          <Setter Property="FontWeight" Value="Medium" />
+          <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.tb:pointerover /template/ ContentPresenter, ToggleButton.tb:pointerover /template/ ContentPresenter">
+          <Setter Property="Background" Value="#14FFFFFF" />
+          <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="kz|KzButton.tb:pointerover /template/ Border#PART_Border">
+          <Setter Property="Background" Value="#14FFFFFF" />
+          <Setter Property="BoxShadow" Value="0 0 0 0 #00000000" />
+        </Style>
+        <Style Selector="ToggleButton.tb:checked /template/ ContentPresenter">
+          <Setter Property="Background" Value="#33F05922" />
+          <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Border.chip">
+          <Setter Property="Background" Value="#0FFFFFFF" />
+          <Setter Property="CornerRadius" Value="6" />
+          <Setter Property="Padding" Value="8,3" />
+          <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Rectangle.sep">
+          <Setter Property="Width" Value="1" />
+          <Setter Property="Height" Value="22" />
+          <Setter Property="Fill" Value="#1FFFFFFF" />
+          <Setter Property="Margin" Value="4,0" />
+          <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+      </Border.Styles>
       <Grid ColumnDefinitions="*,Auto">
 
-        <!-- Status dot + status text -->
+        <!-- Trạng thái + TLS + HUD -->
         <StackPanel Orientation="Horizontal"
                     VerticalAlignment="Center"
-                    Spacing="8">
+                    Spacing="10">
 
-          <Ellipse Width="10" Height="10"
+          <Ellipse Width="8" Height="8"
                    VerticalAlignment="Center"
                    Fill="{Binding StatusBrush}" />
 
           <TextBlock Text="{Binding StatusText}"
                      Foreground="White"
                      FontSize="13"
+                     FontWeight="SemiBold"
                      VerticalAlignment="Center" />
 
           <!-- TLS Security Badge (audit F-NEW-7) -->
-          <Border IsVisible="{Binding IsTlsEncrypted}"
-                  Background="#1E293B"
-                  BorderBrush="#38BDF8"
-                  BorderThickness="1"
-                  CornerRadius="4"
-                  Padding="6,2"
-                  VerticalAlignment="Center"
+          <Border Classes="chip"
+                  IsVisible="{Binding IsTlsEncrypted}"
                   ToolTip.Tip="{Binding TlsFingerprint, StringFormat='SHA-256: {0}'}">
-            <TextBlock Text="🔒 TLS"
-                       FontSize="11"
-                       Foreground="#38BDF8"
-                       FontWeight="SemiBold"
-                       VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <controls:LucideIcon Data="{StaticResource ic.shield-check}" Foreground="#4ADE80" Width="13" Height="13" />
+              <TextBlock Text="TLS" Classes="mono" FontSize="11" Foreground="{DynamicResource kz.brush.ink.text}" VerticalAlignment="Center" />
+            </StackPanel>
           </Border>
 
           <!-- Network Performance HUD Badge (audit F-ROUND4-1) -->
-          <Border IsVisible="{Binding IsHudVisible}"
-                  Background="#0F172A"
-                  BorderBrush="#334155"
-                  BorderThickness="1"
-                  CornerRadius="4"
-                  Padding="6,2"
-                  VerticalAlignment="Center"
+          <Border Classes="chip"
+                  IsVisible="{Binding IsHudVisible}"
                   ToolTip.Tip="Chỉ số hiệu năng mạng thời gian thực: FPS, Độ trễ (RTT) và Băng thông tải">
             <TextBlock Text="{Binding NetworkHudText}"
+                       Classes="mono"
                        FontSize="11"
-                       Foreground="#94A3B8"
-                       FontWeight="Medium"
+                       Foreground="{DynamicResource kz.brush.ink.text}"
                        VerticalAlignment="Center" />
           </Border>
         </StackPanel>
 
-        <!-- Tools - enabled only while streaming -->
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-            <ComboBox Name="CmbMonitor" IsVisible="False" MinWidth="160" VerticalAlignment="Center" IsEnabled="{Binding IsStreaming}" SelectionChanged="OnMonitorChanged" ToolTip.Tip="Chọn màn hình của máy đích" />
-            <kz:KzButton Name="BtnFiles" Content="📁 File" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnFilesClick" ToolTip.Tip="Gửi/nhận file với máy đích (cần agent 1.2+)" />
-            <kz:KzButton Name="BtnCad" Content="⌨ Ctrl+Alt+Del" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnCtrlAltDelClick" ToolTip.Tip="Gửi Ctrl+Alt+Del tới máy đích (không bị hệ điều hành máy này chặn)" />
-            <ToggleButton Name="BtnScan" Content="⌨ Phím vật lý" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnScanModeClick" ToolTip.Tip="Gửi vị trí phím thay vì ký tự — gõ đúng khi layout hai máy khác nhau (cần agent 1.2+)" />
-            <ToggleButton Name="BtnPrivacy" Content="🕶️ Privacy" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnPrivacyClick" ToolTip.Tip="Blank remote screen" />
-            <kz:KzButton Name="BtnSysInfo" Content="📊 SysInfo" Background="#0284C7" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnSysInfoClick" ToolTip.Tip="System Inventory" />
-            <ToggleButton Name="BtnRecord" Content="🔴 Record" Background="#475569" Foreground="White" IsEnabled="{Binding IsStreaming}" Click="OnRecordClick" ToolTip.Tip="Record Session" />
+        <!-- Công cụ — chỉ bật khi đang stream -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+            <ComboBox Name="CmbMonitor" IsVisible="False" MinWidth="160" VerticalAlignment="Center" Margin="0,0,6,0" IsEnabled="{Binding IsStreaming}" SelectionChanged="OnMonitorChanged" ToolTip.Tip="Chọn màn hình của máy đích" />
+            <kz:KzButton Name="BtnDisplayMode" Classes="tb" IsEnabled="{Binding IsStreaming}" Click="OnDisplayModeClick" ToolTip.Tip="{Binding DisplayModeTooltip}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <controls:LucideIcon Data="{StaticResource ic.maximize}" />
+                <TextBlock Text="{Binding DisplayModeText}" VerticalAlignment="Center" />
+              </StackPanel>
+            </kz:KzButton>
+            <kz:KzButton Name="BtnFiles" Classes="tb" IsEnabled="{Binding IsStreaming}" Click="OnFilesClick" ToolTip.Tip="Gửi/nhận file với máy đích (cần agent 1.2+)">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <controls:LucideIcon Data="{StaticResource ic.folder}" />
+                <TextBlock Text="File" VerticalAlignment="Center" />
+              </StackPanel>
+            </kz:KzButton>
+            <kz:KzButton Name="BtnCad" Classes="tb" IsEnabled="{Binding IsStreaming}" Click="OnCtrlAltDelClick" ToolTip.Tip="Gửi Ctrl+Alt+Del tới máy đích (không bị hệ điều hành máy này chặn)">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <controls:LucideIcon Data="{StaticResource ic.keyboard}" />
+                <TextBlock Text="Ctrl+Alt+Del" VerticalAlignment="Center" />
+              </StackPanel>
+            </kz:KzButton>
+            <ToggleButton Name="BtnScan" Classes="tb" IsEnabled="{Binding IsStreaming}" Click="OnScanModeClick" ToolTip.Tip="Gửi vị trí phím thay vì ký tự — gõ đúng khi layout hai máy khác nhau (cần agent 1.2+)">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <controls:LucideIcon Data="{StaticResource ic.keyboard}" />
+                <TextBlock Text="Phím vật lý" VerticalAlignment="Center" />
+              </StackPanel>
+            </ToggleButton>
+            <Rectangle Classes="sep" />
+            <ToggleButton Name="BtnPrivacy" Classes="tb" IsEnabled="{Binding IsStreaming}" Click="OnPrivacyClick" ToolTip.Tip="Riêng tư — che màn hình máy đích" AutomationProperties.Name="Riêng tư">
+              <controls:LucideIcon Data="{StaticResource ic.eye-off}" />
+            </ToggleButton>
+            <kz:KzButton Name="BtnSysInfo" Classes="tb" IsEnabled="{Binding IsStreaming}" Click="OnSysInfoClick" ToolTip.Tip="Thông tin phần cứng / hệ thống" AutomationProperties.Name="Thông tin hệ thống">
+              <controls:LucideIcon Data="{StaticResource ic.cpu}" />
+            </kz:KzButton>
+            <ToggleButton Name="BtnRecord" Classes="tb" Content="Ghi hình" IsEnabled="{Binding IsStreaming}" Click="OnRecordClick" ToolTip.Tip="Ghi hình phiên điều khiển" />
+            <Rectangle Classes="sep" />
             <kz:KzButton Name="BtnDisconnect"
-                         Content="Ngắt kết nối"
-                         Background="#DC2626" Foreground="White"
+                         Classes="tb"
+                         Background="#1FEF4444"
+                         BorderBrush="#80F87171"
+                         BorderThickness="1"
+                         Foreground="#FCA5A5"
                          IsEnabled="{Binding IsStreaming}"
-                         Click="OnDisconnectClick" />
+                         Click="OnDisconnectClick">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <controls:LucideIcon Data="{StaticResource ic.power}" />
+                <TextBlock Text="Ngắt kết nối" FontWeight="SemiBold" VerticalAlignment="Center" />
+              </StackPanel>
+            </kz:KzButton>
         </StackPanel>
       </Grid>
     </Border>
 
     <!-- ─── Row 1: SSH Installation Guide ────────────────────────────── -->
-    <Border Grid.Row="1"
+    <Border Grid.Row="1" ZIndex="10"
             Background="#F0F9FF"
             BorderBrush="#BAE6FD"
             BorderThickness="0,0,0,1"
             Padding="12,8"
             IsVisible="{Binding ShowSshHelp}">
       <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-        <TextBlock Text="💡 Cài SSH (nếu máy chưa có):"
+        <TextBlock Text="Cài SSH (nếu máy chưa có):"
                    Foreground="#0369A1"
                    FontWeight="SemiBold"
                    VerticalAlignment="Center" />
@@ -101,25 +186,24 @@
         <TextBox Text="sudo apt update &amp;&amp; sudo apt install openssh-server -y"
                  IsReadOnly="True"
                  Background="#FFFFFF"
-                 Foreground="#0F172A"
+                 Foreground="{DynamicResource kz.brush.text}"
                  BorderBrush="#BAE6FD"
                  BorderThickness="1"
                  CornerRadius="4"
                  Padding="8,4"
-                 FontFamily="Consolas, Cascadia Code, Monospace"
+                 FontFamily="{DynamicResource app.font.mono}"
                  VerticalAlignment="Center" />
       </StackPanel>
     </Border>
 
     <!-- ─── Row 2: Error banner — visible when Faulted ───────────────── -->
-    <Border Grid.Row="2"
+    <Border Grid.Row="2" ZIndex="10"
             Background="#C0390B"
             Padding="12,8"
             IsVisible="{Binding IsFaulted}">
       <StackPanel Orientation="Horizontal" Spacing="8">
-        <TextBlock Text="⚠"
+        <controls:LucideIcon Data="{StaticResource ic.info}"
                    Foreground="White"
-                   FontSize="14"
                    VerticalAlignment="Center" />
         <TextBlock Text="{Binding ErrorMessage}"
                    Foreground="White"
@@ -129,23 +213,44 @@
       </StackPanel>
     </Border>
 
-    <!-- ─── Row 3: Remote screen (fills remaining space) ─────────────── -->
+    <!-- ─── Remote screen: phủ TOÀN BỘ cửa sổ (RowSpan=5); thanh trên/dưới nổi lên trên khi rê chuột vào mép ─── -->
     <!--
       DataContext is inherited from the Window (RemoteScreenViewModel),
       so RemoteScreenControl receives the same ViewModel automatically.
     -->
-    <views:RemoteScreenControl Name="RemoteScreen" Grid.Row="3"
+    <views:RemoteScreenControl Name="RemoteScreen" Grid.Row="0" Grid.RowSpan="5"
                                HorizontalAlignment="Stretch"
                                VerticalAlignment="Stretch" />
 
+    <!-- Banner tiến độ copy/dán file: nổi trên màn hình remote, không chặn chuột (điều khiển bởi SetStatusTitle). -->
+    <Border Name="TransferBanner" Grid.Row="3" IsVisible="False" IsHitTestVisible="False"
+            HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0"
+            Padding="16,10" MaxWidth="560" CornerRadius="8"
+            Background="#EE1E293B" BorderBrush="#6366F1" BorderThickness="1">
+      <StackPanel Spacing="6">
+        <TextBlock Name="TransferText" Foreground="White" FontSize="13" TextWrapping="Wrap" />
+        <ProgressBar Name="TransferProgress" IsIndeterminate="True" Height="4" MinWidth="320" />
+      </StackPanel>
+    </Border>
+
     <!-- ── Row 4: Chat & Clipboard ─────────────── -->
-    <Border Grid.Row="4" Background="#1E293B" Padding="12,8">
+    <Border Name="BottomBar" Classes="autohide" ZIndex="10" Grid.Row="4" Background="{DynamicResource kz.brush.navy.950}" BorderBrush="#0FFFFFFF" BorderThickness="0,1,0,0" Padding="12,8">
         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-            <TextBlock Text="💬 Chat:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <TextBox Grid.Column="1" Name="PART_ChatInput" PlaceholderText="Type message..." KeyDown="OnChatKeyDown" />
-            <kz:KzButton Grid.Column="2" Content="Send" Click="OnChatSendClick" Margin="8,0" />
-            
-            <kz:KzButton Grid.Column="3" Content="📋 Sync Clipboard" Click="OnClipboardSyncClick" />
+            <controls:LucideIcon Grid.Column="0" Data="{StaticResource ic.message-square}" Foreground="{DynamicResource kz.brush.ink.muted}" Margin="4,0,10,0" />
+            <TextBox Grid.Column="1" Name="PART_ChatInput" PlaceholderText="Nhắn tin tới người dùng máy đích… (Enter để gửi)" KeyDown="OnChatKeyDown"
+                     Background="#0FFFFFFF" Foreground="White" BorderBrush="#1FFFFFFF" />
+            <kz:KzButton Grid.Column="2" Classes="kz-accent" Click="OnChatSendClick" Margin="8,0">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <controls:LucideIcon Data="{StaticResource ic.send}" />
+                <TextBlock Text="Gửi" VerticalAlignment="Center" />
+              </StackPanel>
+            </kz:KzButton>
+            <kz:KzButton Grid.Column="3" Classes="on-dark" Click="OnClipboardSyncClick" ToolTip.Tip="Đồng bộ clipboard giữa hai máy">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <controls:LucideIcon Data="{StaticResource ic.clipboard}" />
+                <TextBlock Text="Đồng bộ clipboard" VerticalAlignment="Center" />
+              </StackPanel>
+            </kz:KzButton>
         </Grid>
     </Border>
 

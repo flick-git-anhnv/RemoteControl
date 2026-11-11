@@ -3,9 +3,6 @@ using System.Text.RegularExpressions;
 
 namespace IPGS.RemoteControl.ZcuAgent.Capture;
 
-/// <summary>Một màn hình vật lý trong desktop ảo X11 (toạ độ so với góc trên-trái của root window).</summary>
-internal sealed record MonitorInfo(int Index, string Name, int X, int Y, int W, int H);
-
 /// <summary>
 /// Liệt kê màn hình bằng <c>xrandr --listmonitors</c> (không cần P/Invoke thêm libXrandr).
 /// Không có xrandr / lỗi → danh sách rỗng (client coi như 1 màn hình, chụp toàn desktop).

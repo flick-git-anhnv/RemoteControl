@@ -166,16 +166,22 @@ public partial class RemoteScreenControl : UserControl
                 // Việc đồng bộ/gửi file có thể mất vài giây — lúc đó người dùng thường đã nhả Ctrl (Shift) và lệnh
                 // nhả đã tới ZCU, khiến phím V bị hiểu là gõ chữ "v" (Nautilus mở ô tìm kiếm). Nếu Ctrl/Shift không
                 // còn giữ, bấm bù chúng quanh phím V rồi nhả ngay.
-                var needCtrl  = !vm.IsCtrlHeld;
-                var needShift = mods.HasFlag(KeyModifiers.Shift) && !vm.IsShiftHeld;
-                if (needCtrl)  await vm.Client.SendKeyEventAsync(0xFFE3, true);
-                if (needShift) await vm.Client.SendKeyEventAsync(0xFFE1, true);
+                // Luôn giữ Ctrl (và Shift nếu có) với độ trễ tối thiểu để Xorg / Qt / GTK kịp cập nhật
+                // modifier state mask trước khi nhận phím V, tránh gửi dồn trong cùng 1 micro-giây làm mất Ctrl.
+                await vm.Client.SendKeyEventAsync(0xFFE3, true);
+                if (mods.HasFlag(KeyModifiers.Shift))
+                    await vm.Client.SendKeyEventAsync(0xFFE1, true);
+
+                await Task.Delay(100);
 
                 vm.HandleKeyDown(key, symbol, mods, physical);
+                await Task.Delay(100);
                 vm.HandleKeyUp(key, symbol, mods, physical);
 
-                if (needShift) await vm.Client.SendKeyEventAsync(0xFFE1, false);
-                if (needCtrl)  await vm.Client.SendKeyEventAsync(0xFFE3, false);
+                await Task.Delay(100);
+
+                if (!vm.IsShiftHeld) await vm.Client.SendKeyEventAsync(0xFFE1, false);
+                if (!vm.IsCtrlHeld)  await vm.Client.SendKeyEventAsync(0xFFE3, false);
             }
         }
     }
@@ -202,7 +208,7 @@ public partial class RemoteScreenControl : UserControl
 
         if (vm.Client.ServerName is { } sn && !AgentSupportsFiles(sn))
         {
-            PasteStatus?.Invoke("⚠ Agent cũ (<1.2) chưa hỗ trợ dán file — cập nhật qua “⚡ Cài remote”");
+            PasteStatus?.Invoke("Agent cũ (<1.2) chưa hỗ trợ dán file — cập nhật qua “Cài remote”");
             return false;
         }
 
@@ -238,7 +244,7 @@ public partial class RemoteScreenControl : UserControl
                     var rel = Path.GetRelativePath(root.FullName, fsi.FullName).Replace('\\', '/');
                     ops.Add(new PasteOp(fsi.FullName, $"{topRemote}/{rel}", fsi is DirectoryInfo));
                     if (ops.Count > MaxPasteEntries)
-                        throw new InvalidOperationException($"Quá nhiều mục (> {MaxPasteEntries}) — hãy nén thành .zip rồi gửi bằng nút 📁 File");
+                        throw new InvalidOperationException($"Quá nhiều mục (> {MaxPasteEntries}) — hãy nén thành .zip rồi gửi bằng nút File");
                 }
             }
             if (tops.Count == 0) return null;
@@ -266,7 +272,7 @@ public partial class RemoteScreenControl : UserControl
         }
         catch (Exception ex)
         {
-            PasteStatus?.Invoke("⚠ Dán file lỗi: " + ex.Message);
+            PasteStatus?.Invoke("Dán file lỗi: " + ex.Message);
             return false; // lỗi — PasteAsync sẽ không gửi phím V
         }
         finally
