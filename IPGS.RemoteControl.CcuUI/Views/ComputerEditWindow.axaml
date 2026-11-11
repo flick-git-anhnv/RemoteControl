@@ -3,14 +3,15 @@
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         x:Class="IPGS.RemoteControl.CcuUI.Views.ComputerEditWindow"
         Title="Thông tin máy tính"
-        Width="480" Height="640"
+        Width="560" Height="560"
+        MinWidth="520" MinHeight="500"
         WindowStartupLocation="CenterOwner"
-        CanResize="False">
+        CanResize="True">
 
   <Grid RowDefinitions="Auto,*,Auto">
 
     <!-- ── Header bar ─────────────────────────────────────────────── -->
-    <Border Grid.Row="0" Background="#251C53" Padding="20,14">
+    <Border Grid.Row="0" Background="{DynamicResource kz.brush.navy.900}" Padding="20,12">
       <TextBlock x:Name="PART_TitleText"
                  Text="Thông tin máy tính"
                  Foreground="White"
@@ -19,94 +20,97 @@
     </Border>
 
     <!-- ── Input fields ───────────────────────────────────────────── -->
-    <ScrollViewer Grid.Row="1">
-      <StackPanel Margin="24,16,24,8" Spacing="14">
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="20,14,20,10" Spacing="12">
 
-        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
-              ColumnDefinitions="130,*"
-              RowSpacing="10">
-
-          <TextBlock Grid.Row="0" Grid.Column="0"
-                     Text="Tên máy tính:"
-                     VerticalAlignment="Center" />
-          <kz:KzTextBox Grid.Row="0" Grid.Column="1"
-                        x:Name="PART_Name"
-                        PlaceholderText="Ví dụ: Máy khách Trạm P01" />
-
-          <TextBlock Grid.Row="1" Grid.Column="0"
-                     Text="Địa chỉ IP Máy khách:"
-                     VerticalAlignment="Center" />
-          <kz:KzTextBox Grid.Row="1" Grid.Column="1"
-                        x:Name="PART_Host"
-                        PlaceholderText="192.168.x.x" />
-
-          <TextBlock Grid.Row="2" Grid.Column="0"
-                     Text="Cổng TCP:"
-                     VerticalAlignment="Center" />
-          <kz:KzTextBox Grid.Row="2" Grid.Column="1"
-                        x:Name="PART_Port"
-                        Text="17600" />
-
-          <TextBlock Grid.Row="3" Grid.Column="0"
-                     Text="Token:"
-                     VerticalAlignment="Center" />
-          <kz:KzTextBox Grid.Row="3" Grid.Column="1"
-                        x:Name="PART_Token"
-                        PlaceholderText="Shared-secret token" />
-
-          <TextBlock Grid.Row="4" Grid.Column="0"
-                     Text="Ghi chú:"
-                     VerticalAlignment="Center" />
-          <kz:KzTextBox Grid.Row="4" Grid.Column="1"
-                        x:Name="PART_Notes"
-                        PlaceholderText="Ghi chú vị trí, mô tả..." />
-
-          <TextBlock Grid.Row="5" Grid.Column="0"
-                     Text="Địa chỉ MAC:"
-                     VerticalAlignment="Center" />
-          <TextBox Grid.Row="5" Grid.Column="1"
-                   x:Name="PART_MacAddress"
-                   PlaceholderText="Bỏ trống hoặc XX:XX:XX:XX:XX:XX (dùng cho WoL)"
-                   Height="36" VerticalContentAlignment="Center" />
-        </Grid>
-
-        <!-- ── SSH info (tùy chọn) — dùng cho Deploy Kiosk / Cài ZCU từ xa ── -->
-        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14">
+        <!-- ── KHỐI 1: Thông tin máy & Xác thực SSH (Đưa lên trước để lấy Token) ── -->
+        <Border Background="{DynamicResource kz.brush.surface.app}" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="1" CornerRadius="8" Padding="14,12">
           <StackPanel Spacing="10">
-            <TextBlock Text="🔐 Thông tin SSH (tùy chọn — dùng cho Deploy Kiosk / Cài Máy khách từ xa)"
-                       FontWeight="SemiBold" FontSize="12" Foreground="#251C53" TextWrapping="Wrap" />
+            <TextBlock Text="Thông tin Máy tính &amp; SSH (Lấy Token tự động)"
+                       FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource kz.brush.navy.900}" />
 
-            <Grid RowDefinitions="Auto,Auto,Auto"
-                  ColumnDefinitions="130,*"
-                  RowSpacing="10">
-
-              <TextBlock Grid.Row="0" Grid.Column="0"
-                         Text="SSH user:"
-                         VerticalAlignment="Center" />
-              <kz:KzTextBox Grid.Row="0" Grid.Column="1"
-                            x:Name="PART_SshUser"
-                            PlaceholderText="kztek / ubuntu" />
-
-              <TextBlock Grid.Row="1" Grid.Column="0"
-                         Text="SSH password:"
-                         VerticalAlignment="Center" />
-              <kz:KzTextBox Grid.Row="1" Grid.Column="1"
-                        x:Name="PART_SshPassword"
-                        PasswordChar="•"
-                        PlaceholderText="Nhập mật khẩu SSH..." />
-
-              <TextBlock Grid.Row="2" Grid.Column="0"
-                         Text="Cổng SSH:"
-                         VerticalAlignment="Center" />
-              <kz:KzTextBox Grid.Row="2" Grid.Column="1"
-                            x:Name="PART_SshPort"
-                            Text="22" />
+            <!-- Row 1: Tên máy + Địa chỉ IP -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+              <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="Tên máy tính:" FontSize="12" Foreground="#475569" FontWeight="Medium"/>
+                <kz:KzTextBox x:Name="PART_Name"
+                              PlaceholderText="Ví dụ: Máy khách Trạm P01" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock Text="Địa chỉ IP Máy khách:" FontSize="12" Foreground="#475569" FontWeight="Medium"/>
+                <kz:KzTextBox x:Name="PART_Host"
+                              PlaceholderText="192.168.x.x" />
+              </StackPanel>
             </Grid>
 
-            <kz:KzButton x:Name="PART_BtnFetchToken" Content="🔑 Lấy lại Token từ máy (qua SSH)" KzSize="Sm"
-                         HorizontalAlignment="Left"
-                         ToolTip.Tip="Đọc Token/Cổng của Remote Agent đã cài từ file cấu hình trên máy đích (cần IP + SSH user/password)" />
-            <TextBlock x:Name="PART_FetchTokenMsg" FontSize="12" TextWrapping="Wrap" IsVisible="False" />
+            <!-- Row 2: SSH user + SSH password -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+              <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="SSH user:" FontSize="12" Foreground="#475569" FontWeight="Medium"/>
+                <kz:KzTextBox x:Name="PART_SshUser"
+                              PlaceholderText="kztek / ubuntu" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock Text="SSH password:" FontSize="12" Foreground="#475569" FontWeight="Medium"/>
+                <kz:KzTextBox x:Name="PART_SshPassword"
+                              PasswordChar="•"
+                              PlaceholderText="Nhập mật khẩu SSH..." />
+              </StackPanel>
+            </Grid>
+
+            <!-- Row 3: Cổng SSH + Nút lấy Token -->
+            <Grid ColumnDefinitions="110,*" ColumnSpacing="12">
+              <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="Cổng SSH:" FontSize="12" Foreground="#475569" FontWeight="Medium"/>
+                <kz:KzTextBox x:Name="PART_SshPort"
+                              Text="22" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
+                <kz:KzButton x:Name="PART_BtnFetchToken" Content="Lấy token của máy đích" KzSize="Sm"
+                             HorizontalAlignment="Left"
+                             ToolTip.Tip="Đọc Token/Cổng của Remote Agent đã cài từ file cấu hình trên máy đích (cần IP + SSH user/password)" />
+              </StackPanel>
+            </Grid>
+
+            <!-- Message trạng thái lấy token -->
+            <TextBlock x:Name="PART_FetchTokenMsg" FontSize="12" TextWrapping="Wrap" IsVisible="False" Margin="0,2,0,0" />
+          </StackPanel>
+        </Border>
+
+        <!-- ── KHỐI 2: Cấu hình Remote Agent & Thông tin bổ sung ── -->
+        <Border Background="White" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="1" CornerRadius="8" Padding="14,12">
+          <StackPanel Spacing="10">
+            <TextBlock Text="Thông số Remote Agent &amp; Cấu hình bổ sung"
+                       FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource kz.brush.navy.900}" />
+
+            <!-- Row 1: Token + Cổng TCP -->
+            <Grid ColumnDefinitions="*,110" ColumnSpacing="12">
+              <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="Token:" FontSize="12" Foreground="#475569" FontWeight="Medium"/>
+                <kz:KzTextBox x:Name="PART_Token"
+                              PlaceholderText="Shared-secret token (tự động điền qua SSH hoặc tự nhập)" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock Text="Cổng TCP:" FontSize="12" Foreground="#475569" FontWeight="Medium"/>
+                <kz:KzTextBox x:Name="PART_Port"
+                              Text="17600" />
+              </StackPanel>
+            </Grid>
+
+            <!-- Row 2: Địa chỉ MAC + Ghi chú -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+              <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="Địa chỉ MAC:" FontSize="12" Foreground="#475569" FontWeight="Medium"/>
+                <TextBox x:Name="PART_MacAddress"
+                         PlaceholderText="Bỏ trống hoặc XX:XX:XX:XX:XX:XX (dùng cho WoL)"
+                         Height="36" VerticalContentAlignment="Center" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock Text="Ghi chú:" FontSize="12" Foreground="#475569" FontWeight="Medium"/>
+                <kz:KzTextBox x:Name="PART_Notes"
+                              PlaceholderText="Ghi chú vị trí, mô tả..." />
+              </StackPanel>
+            </Grid>
           </StackPanel>
         </Border>
 
@@ -118,13 +122,10 @@
                 Orientation="Horizontal"
                 HorizontalAlignment="Right"
                 Spacing="8"
-                Margin="24,0,24,16">
+                Margin="20,6,20,14">
       <kz:KzButton x:Name="PART_BtnCancel" Content="Hủy bỏ" />
       <kz:KzButton x:Name="PART_BtnSave"   Content="Lưu" Classes="kz-primary" />
     </StackPanel>
 
   </Grid>
 </Window>
-
-
-

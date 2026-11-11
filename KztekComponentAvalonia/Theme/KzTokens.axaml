@@ -50,11 +50,21 @@
     <Color x:Key="kz.color.error">#DC2626</Color>
     <Color x:Key="kz.color.info">#2563EB</Color>
 
+    <!-- Redesign (ui-ux-pro-max): nút CTA cam đậm hơn để chữ trắng đạt 4.6:1 (#F05922 chỉ 3.4:1),
+         nền app, khung tối cho màn hình remote. -->
+    <Color x:Key="kz.color.cta">#CC4A1C</Color>
+    <Color x:Key="kz.color.cta.hover">#B53F16</Color>
+    <Color x:Key="kz.color.surface.app">#F6F6F9</Color>
+    <Color x:Key="kz.color.navy.950">#1C1838</Color>
+    <Color x:Key="kz.color.ink">#0E0C1D</Color>
+    <Color x:Key="kz.color.ink.muted">#A39FC0</Color>
+    <Color x:Key="kz.color.ink.text">#DCD8F0</Color>
+
     <Color x:Key="kz.color.bg">#FFFFFF</Color>
-    <Color x:Key="kz.color.border">#E5E5E5</Color>
-    <Color x:Key="kz.color.divider">#CBCBCB</Color>
-    <Color x:Key="kz.color.text">#1A1A1A</Color>
-    <Color x:Key="kz.color.text.muted">#6B7280</Color>
+    <Color x:Key="kz.color.border">#E4E3EC</Color>
+    <Color x:Key="kz.color.divider">#D6D3E4</Color>
+    <Color x:Key="kz.color.text">#1A1730</Color>
+    <Color x:Key="kz.color.text.muted">#5B5872</Color>
 
     <!-- ── Brushes ────────────────────────────────────────────────────────── -->
     <SolidColorBrush x:Key="kz.brush.navy.900" Color="{StaticResource kz.color.navy.900}" />
@@ -72,6 +82,14 @@
     <SolidColorBrush x:Key="kz.brush.warning" Color="{StaticResource kz.color.warning}" />
     <SolidColorBrush x:Key="kz.brush.error"   Color="{StaticResource kz.color.error}" />
     <SolidColorBrush x:Key="kz.brush.info"    Color="{StaticResource kz.color.info}" />
+
+    <SolidColorBrush x:Key="kz.brush.cta"          Color="{StaticResource kz.color.cta}" />
+    <SolidColorBrush x:Key="kz.brush.cta.hover"    Color="{StaticResource kz.color.cta.hover}" />
+    <SolidColorBrush x:Key="kz.brush.surface.app"  Color="{StaticResource kz.color.surface.app}" />
+    <SolidColorBrush x:Key="kz.brush.navy.950"     Color="{StaticResource kz.color.navy.950}" />
+    <SolidColorBrush x:Key="kz.brush.ink"          Color="{StaticResource kz.color.ink}" />
+    <SolidColorBrush x:Key="kz.brush.ink.muted"    Color="{StaticResource kz.color.ink.muted}" />
+    <SolidColorBrush x:Key="kz.brush.ink.text"     Color="{StaticResource kz.color.ink.text}" />
 
     <SolidColorBrush x:Key="kz.brush.bg"         Color="{StaticResource kz.color.bg}" />
     <SolidColorBrush x:Key="kz.brush.border"      Color="{StaticResource kz.color.border}" />
@@ -106,8 +124,8 @@
     <SolidColorBrush x:Key="kz.brush.info.text" Color="{StaticResource kz.color.info.text}" />
 
     <!-- Neutral tints -->
-    <Color x:Key="kz.color.neutral.bg">#F3F4F6</Color>
-    <Color x:Key="kz.color.neutral.text">#374151</Color>
+    <Color x:Key="kz.color.neutral.bg">#F6F6F9</Color>
+    <Color x:Key="kz.color.neutral.text">#3B3754</Color>
     <SolidColorBrush x:Key="kz.brush.neutral.bg"   Color="{StaticResource kz.color.neutral.bg}" />
     <SolidColorBrush x:Key="kz.brush.neutral.text" Color="{StaticResource kz.color.neutral.text}" />
 

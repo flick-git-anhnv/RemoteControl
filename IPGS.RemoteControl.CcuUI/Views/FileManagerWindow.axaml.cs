@@ -467,7 +467,7 @@ public partial class FileManagerWindow : Window
             if (failures.Count == 0)
                 SetStatus("Đã xóa xong.");
             else
-                SetStatus($"⚠️ Xóa xong nhưng {failures.Count}/{itemsToDelete.Count} mục bị lỗi: {failures[0]}" +
+                SetStatus($"Xóa xong nhưng {failures.Count}/{itemsToDelete.Count} mục bị lỗi: {failures[0]}" +
                           (failures.Count > 1 ? $" (+{failures.Count - 1} lỗi khác)" : ""));
 
             await LoadDirectoryAsync(currentPath);

@@ -1,10 +1,11 @@
 <Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:IPGS.RemoteControl.CcuUI.Controls"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         xmlns:ccu="clr-namespace:IPGS.RemoteControl.CcuClient;assembly=IPGS.RemoteControl.CcuClient"
         xmlns:views="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
         x:Class="IPGS.RemoteControl.CcuUI.Views.NetworkScanWindow"
-        Title="🔍 Quét mạng — Tìm máy đã cài Remote Agent"
+        Title="Quét mạng — Tìm máy đã cài Remote Agent"
         Width="620" Height="640"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
@@ -12,41 +13,41 @@
   <Grid RowDefinitions="Auto,Auto,*,Auto">
 
     <!-- ── Header ────────────────────────────────────────────────── -->
-    <Border Grid.Row="0" Background="#251C53" Padding="20,16">
+    <Border Grid.Row="0" Background="{DynamicResource kz.brush.navy.900}" Padding="20,16">
       <StackPanel Spacing="4">
-        <TextBlock Text="🔍 Quét mạng LAN — Tìm máy đã cài Remote Agent"
+        <TextBlock Text="Quét mạng LAN — Tìm máy đã cài Remote Agent"
                    Foreground="White" FontSize="16" FontWeight="Bold" />
         <TextBlock Text="Xác nhận bằng bắt tay giao thức thật (HELLO), không chỉ dò cổng mở"
-                   Foreground="#B8B3D6" FontSize="12" />
+                   Foreground="{DynamicResource app.brush.header.sub}" FontSize="12" />
       </StackPanel>
     </Border>
 
     <!-- ── Scan controls ─────────────────────────────────────────── -->
-    <Border Grid.Row="1" Background="White" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="20,14">
+    <Border Grid.Row="1" Background="White" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="0,0,0,1" Padding="20,14">
       <StackPanel Spacing="10">
         <Grid ColumnDefinitions="*,110,Auto" ColumnSpacing="10">
           <StackPanel Grid.Column="0" Spacing="4">
-            <TextBlock Text="Dải IP cần quét:" FontSize="12" Foreground="#64748B"/>
+            <TextBlock Text="Dải IP cần quét:" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
             <kz:KzTextBox x:Name="PART_SubnetBase" PlaceholderText="192.168.1." />
           </StackPanel>
 
           <StackPanel Grid.Column="1" Spacing="4">
-            <TextBlock Text="Cổng Agent:" FontSize="12" Foreground="#64748B"/>
+            <TextBlock Text="Cổng Agent:" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
             <kz:KzTextBox x:Name="PART_Port" Text="17600" />
           </StackPanel>
 
-          <kz:KzButton Grid.Column="2" x:Name="PART_BtnScan" Content="🔍 Bắt đầu quét"
+          <kz:KzButton Grid.Column="2" x:Name="PART_BtnScan" Content="Bắt đầu quét"
                        Classes="kz-primary" VerticalAlignment="Bottom" />
         </Grid>
 
         <TextBlock FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap">
-          💡 Chỉ nhập <Run FontFamily="Consolas, Monospace" Foreground="#475569" Text="3 số đầu của IP + dấu chấm cuối"/> — KHÔNG nhập nguyên IP của 1 máy. Hệ thống sẽ tự quét toàn bộ <Run FontFamily="Consolas, Monospace" Foreground="#475569" Text=".1"/> đến <Run FontFamily="Consolas, Monospace" Foreground="#475569" Text=".254"/> trong dải đó.
+          Chỉ nhập <Run FontFamily="{DynamicResource app.font.mono}" Foreground="#475569" Text="3 số đầu của IP + dấu chấm cuối"/> — KHÔNG nhập nguyên IP của 1 máy. Hệ thống sẽ tự quét toàn bộ <Run FontFamily="{DynamicResource app.font.mono}" Foreground="#475569" Text=".1"/> đến <Run FontFamily="{DynamicResource app.font.mono}" Foreground="#475569" Text=".254"/> trong dải đó.
           <LineBreak/>
-          Ví dụ: máy bạn đang dùng có IP <Run FontFamily="Consolas, Monospace" Foreground="#475569" Text="192.168.1.101"/> → nhập <Run FontFamily="Consolas, Monospace" Foreground="#475569" FontWeight="Bold" Text="192.168.1."/> (sẽ quét .1 → .254).
+          Ví dụ: máy bạn đang dùng có IP <Run FontFamily="{DynamicResource app.font.mono}" Foreground="#475569" Text="192.168.1.101"/> → nhập <Run FontFamily="{DynamicResource app.font.mono}" Foreground="#475569" FontWeight="Bold" Text="192.168.1."/> (sẽ quét .1 → .254).
         </TextBlock>
 
         <ProgressBar x:Name="PART_ProgressBar" Minimum="0" Maximum="254" Value="0" Height="6"/>
-        <TextBlock x:Name="PART_StatusText" Text="Sẵn sàng quét." FontSize="12" Foreground="#64748B"/>
+        <TextBlock x:Name="PART_StatusText" Text="Sẵn sàng quét." FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
       </StackPanel>
     </Border>
 
@@ -56,18 +57,18 @@
         <ItemsControl x:Name="PART_ListFound">
           <ItemsControl.ItemTemplate>
             <DataTemplate DataType="views:NetworkScanFoundItem">
-              <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1"
+              <Border Background="White" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="1"
                       CornerRadius="6" Padding="14,10" Margin="0,0,0,8">
                 <Grid ColumnDefinitions="Auto,*,Auto">
                   <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18"
                           Background="#EDE7F6" Margin="0,0,12,0" VerticalAlignment="Center">
-                    <TextBlock Text="💻" FontSize="17" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <controls:LucideIcon Data="{StaticResource ic.monitor}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                   </Border>
 
                   <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                    <TextBlock Text="{Binding ServerName}" FontWeight="Bold" FontSize="13" Foreground="#212121"/>
+                    <TextBlock Text="{Binding ServerName}" FontWeight="Bold" FontSize="13" Foreground="{DynamicResource kz.brush.text}"/>
                     <TextBlock Text="{Binding Host}" FontSize="12" Foreground="#3F51B5" FontWeight="SemiBold"/>
-                    <TextBlock FontSize="11" Foreground="#757575">
+                    <TextBlock FontSize="11" Foreground="{DynamicResource kz.brush.text.muted}">
                       <Run Text="Độ phân giải: "/>
                       <Run Text="{Binding ScreenWidth}"/>
                       <Run Text=" × "/>
@@ -86,13 +87,13 @@
         </ItemsControl>
 
         <TextBlock x:Name="PART_EmptyHint"
-                   Text="Chưa tìm thấy máy nào. Nhấn '🔍 Bắt đầu quét' để dò dải mạng."
+                   Text="Chưa tìm thấy máy nào. Nhấn 'Bắt đầu quét' để dò dải mạng."
                    FontSize="12" Foreground="#9E9E9E" HorizontalAlignment="Center" Margin="0,20,0,0"/>
       </StackPanel>
     </ScrollViewer>
 
     <!-- ── Footer ────────────────────────────────────────────────── -->
-    <Border Grid.Row="3" Background="#F8FAFC" Padding="20,12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+    <Border Grid.Row="3" Background="{DynamicResource kz.brush.surface.app}" Padding="20,12" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="0,1,0,0">
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
         <kz:KzButton x:Name="PART_BtnClose" Content="Đóng" />
       </StackPanel>

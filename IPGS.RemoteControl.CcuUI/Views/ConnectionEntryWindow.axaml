@@ -3,10 +3,13 @@
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         xmlns:ccu="clr-namespace:IPGS.RemoteControl.CcuClient;assembly=IPGS.RemoteControl.CcuClient"
         xmlns:conv="clr-namespace:IPGS.RemoteControl.CcuUI.Converters"
+        xmlns:controls="clr-namespace:IPGS.RemoteControl.CcuUI.Controls"
         x:Class="IPGS.RemoteControl.CcuUI.Views.ConnectionEntryWindow"
-        Title="Remote Control — Danh sách máy tính Máy khách"
-        Width="1200" Height="760"
+        Title="IPGS Remote Control — Danh sách máy"
+        Width="1280" Height="800"
+        MinWidth="1080" MinHeight="600"
         WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource kz.brush.surface.app}"
         CanResize="True">
 
   <Window.Resources>
@@ -16,286 +19,334 @@
   </Window.Resources>
 
   <Window.Styles>
-    <!-- Nút trên header navy: viền trắng trong suốt / CTA cam -->
-    <Style Selector="kz|KzButton.hdr">
+    <!-- Hàng máy: bỏ highlight xanh mặc định của ListBoxItem -->
+    <Style Selector="ListBox#PART_ComputerListBox ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0" />
+    </Style>
+    <Style Selector="ListBox#PART_ComputerListBox ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="White" />
+    </Style>
+    <Style Selector="ListBox#PART_ComputerListBox ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#FBFAFE" />
+    </Style>
+    <Style Selector="ListBox#PART_ComputerListBox ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#F5F3FA" />
+    </Style>
+    <!-- Bộ lọc dạng segmented: tab đang chọn được code-behind gắn class kz-primary -->
+    <Style Selector="Border.seg kz|KzButton">
+      <Setter Property="Height" Value="30" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="White" />
-      <Setter Property="BorderBrush" Value="#B8B3D6" />
-      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="{DynamicResource kz.brush.text.muted}" />
+      <Setter Property="CornerRadius" Value="6" />
     </Style>
-    <Style Selector="kz|KzButton.hdr-cta">
-      <Setter Property="Background" Value="#F05922" />
-      <Setter Property="Foreground" Value="White" />
-      <Setter Property="BorderBrush" Value="#F05922" />
+    <Style Selector="Border.seg kz|KzButton.kz-primary">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="Foreground" Value="{DynamicResource kz.brush.navy.900}" />
     </Style>
-    <!-- Nút bị vô hiệu: mờ rõ ràng nhưng vẫn đọc được -->
-    <Style Selector="kz|KzButton:disabled">
-      <Setter Property="Opacity" Value="0.45" />
+    <Style Selector="Border.seg kz|KzButton.kz-primary /template/ Border#PART_Border">
+      <Setter Property="BoxShadow" Value="0 1 2 0 #1F251C53" />
+    </Style>
+    <Style Selector="Border.seg kz|KzButton:pointerover /template/ Border#PART_Border">
+      <Setter Property="Background" Value="#80FFFFFF" />
+      <Setter Property="BoxShadow" Value="0 0 0 0 #00000000" />
+    </Style>
+    <Style Selector="Border.status-pill">
+      <Setter Property="Background" Value="#F1F0F6" />
+      <Setter Property="CornerRadius" Value="999" />
+      <Setter Property="Padding" Value="8,2" />
+    </Style>
+    <Style Selector="Border.metric">
+      <Setter Property="Background" Value="#F1F0F6" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="6,1" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.metric TextBlock">
+      <Setter Property="FontFamily" Value="{DynamicResource app.font.mono}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource kz.brush.neutral.text}" />
     </Style>
   </Window.Styles>
 
   <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
 
-    <!-- ── Header bar ─────────────────────────────────────────────── -->
-    <Border Grid.Row="0" Background="#251C53" Padding="20,14">
-      <Grid ColumnDefinitions="*,Auto">
-        <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="2">
-          <TextBlock Text="Remote Control"
-                     Foreground="White"
-                     FontSize="16"
-                     FontWeight="Bold" />
-          <TextBlock Text="Quản lý danh sách máy tính &amp; Kết nối điều khiển Máy khách"
-                     Foreground="#D1C4E9"
-                     FontSize="12" />
+    <!-- ── Header ─────────────────────────────────────────────── -->
+    <Border Grid.Row="0" Classes="app-header" Padding="24,12">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <Border Grid.Column="0" Width="34" Height="34" CornerRadius="8" Background="{DynamicResource kz.brush.orange.500}" Margin="0,0,12,0">
+          <controls:LucideIcon Data="{StaticResource ic.monitor}" Foreground="White" Width="18" Height="18" HorizontalAlignment="Center" />
+        </Border>
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+          <TextBlock Classes="h-title" Text="IPGS Remote Control" />
+          <TextBlock Classes="h-sub" Text="Quản lý &amp; điều khiển máy khách ZCU" />
         </StackPanel>
-        
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-          <kz:KzButton x:Name="PART_BtnScanNetwork" Content="🔍 Quét mạng..." Classes="hdr" />
-          <kz:KzButton x:Name="PART_BtnMultiRemote" Content="🚀 Remote nhiều máy (Grid View)..." Classes="hdr hdr-cta" />
-          <kz:KzButton x:Name="PART_BtnAddComputer" Content="+ Thêm máy tính" Classes="hdr" />
-        </StackPanel>
-      </Grid>
-    </Border>
-
-    <!-- ── Filter & Search Toolbar ────────────────────────────────── -->
-    <Border Grid.Row="1" Background="#F4F5F8" Padding="16,10" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
-      <Grid ColumnDefinitions="*,Auto">
-        <kz:KzTextBox Grid.Column="0"
-                      x:Name="PART_SearchBox"
-                      PlaceholderText="🔍 Tìm kiếm máy tính theo tên hoặc IP..."
-                      Margin="0,0,12,0" />
-        
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <CheckBox x:Name="PART_SelectAll" Content="Chọn tất cả" VerticalAlignment="Center" Margin="0,0,8,0"
-                    IsCheckedChanged="OnSelectAllChanged" />
-          <kz:KzButton x:Name="PART_BtnTabAll"   Content="Tất cả máy tính" KzSize="Sm" />
-          <kz:KzButton x:Name="PART_BtnTabRecent" Content="Lịch sử gần đây" KzSize="Sm" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <kz:KzButton x:Name="PART_BtnScanNetwork" Classes="on-dark" ToolTip.Tip="Quét mạng LAN để tìm máy ZCU">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <controls:LucideIcon Data="{StaticResource ic.scan-search}" />
+              <TextBlock Text="Quét mạng" VerticalAlignment="Center" />
+            </StackPanel>
+          </kz:KzButton>
+          <kz:KzButton x:Name="PART_BtnMultiRemote" Classes="on-dark" ToolTip.Tip="Xem/điều khiển nhiều máy cùng lúc (Grid View)">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <controls:LucideIcon Data="{StaticResource ic.layout-grid}" />
+              <TextBlock Text="Remote nhiều máy" VerticalAlignment="Center" />
+            </StackPanel>
+          </kz:KzButton>
+          <kz:KzButton x:Name="PART_BtnAddComputer" Classes="kz-accent">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <controls:LucideIcon Data="{StaticResource ic.plus}" />
+              <TextBlock Text="Thêm máy" VerticalAlignment="Center" />
+            </StackPanel>
+          </kz:KzButton>
         </StackPanel>
       </Grid>
     </Border>
 
-    <!-- ── SSH requirement hint (dùng chung cho nút Cài remote / Setup) ──── -->
-    <Border Grid.Row="2" Background="#FFFBEB" BorderBrush="#FDE68A" BorderThickness="0,0,0,1" Padding="16,8">
-      <TextBlock FontSize="11" Foreground="#92400E" TextWrapping="Wrap">
-        ⚠️ Yêu cầu: máy đích phải đã cài &amp; bật SSH server trước khi thao tác "⚡ Cài remote" / "🖥️ Setup" (nút tự bật khi phát hiện có SSH). Nếu chưa có, chạy trên máy đó: <Run FontFamily="Consolas, Monospace" Foreground="#78350F" Text="sudo apt update &amp;&amp; sudo apt install -y openssh-server &amp;&amp; sudo systemctl enable --now ssh"/>
-      </TextBlock>
-    </Border>
-
-    <!-- ── Computer List View ─────────────────────────────────────── -->
-    <Grid Grid.Row="3" Margin="16,12">
-      <!-- Main Computer ListBox -->
-      <ListBox x:Name="PART_ComputerListBox"
-               Background="Transparent"
-               BorderThickness="0">
-        <ListBox.ItemTemplate>
-          <DataTemplate DataType="ccu:ComputerProfile">
-            <Border Background="White"
-                    BorderBrush="#E0E0E0"
-                    BorderThickness="1"
-                    CornerRadius="6"
-                    Padding="14,10"
-                    Margin="0,0,0,8">
-              <Grid ColumnDefinitions="Auto,*,Auto">
-                
-                <!-- Computer Icon Badge & CheckBox -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,0,14,0" VerticalAlignment="Center">
-                  <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" IsCheckedChanged="OnSelectionChanged" />
-                  <Border Width="42" Height="42"
-                          CornerRadius="21"
-                          Background="#EDE7F6"
-                          VerticalAlignment="Center">
-                    <TextBlock Text="💻"
-                               FontSize="20"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
-                  </Border>
-                </StackPanel>
-
-                <!-- Info Details -->
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding DisplayName}"
-                               FontWeight="Bold"
-                               FontSize="14"
-                               Foreground="#212121"/>
-                  </StackPanel>
-
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Border Background="#E8EAF6" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Host}" FontSize="11" Foreground="#3F51B5" FontWeight="SemiBold"/>
-                    </Border>
-
-                    <!-- Icon trạng thái SSH -->
-                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
-                                ToolTip.Tip="{Binding SshStatusTooltip}">
-                      <Border Width="9" Height="9" CornerRadius="5"
-                              Background="{Binding SshReachable, Converter={StaticResource NullableBoolToStatusBrushConverter}}"/>
-                      <TextBlock Text="SSH" FontSize="10" Foreground="#757575" FontWeight="SemiBold"/>
-                    </StackPanel>
-
-                    <!-- Icon trạng thái Agent Remote Control (đã cài & đang chạy) -->
-                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
-                                ToolTip.Tip="{Binding AgentStatusTooltip}">
-                      <Border Width="9" Height="9" CornerRadius="5"
-                              Background="{Binding AgentReachable, Converter={StaticResource NullableBoolToStatusBrushConverter}}"/>
-                      <TextBlock Text="Remote" FontSize="10" Foreground="#757575" FontWeight="SemiBold"/>
-                    </StackPanel>
-                    
-                    <!-- Health Badges -->
-                    <Border Background="#F1F5F9" CornerRadius="4" Padding="6,1" VerticalAlignment="Center" IsVisible="{Binding CpuUsage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                      <TextBlock Text="{Binding CpuUsage}" FontSize="10" Foreground="#475569" FontWeight="SemiBold"/>
-                    </Border>
-                    <Border Background="#F1F5F9" CornerRadius="4" Padding="6,1" VerticalAlignment="Center" IsVisible="{Binding RamUsage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                      <TextBlock Text="{Binding RamUsage}" FontSize="10" Foreground="#475569" FontWeight="SemiBold"/>
-                    </Border>
-                    <Border Background="#F1F5F9" CornerRadius="4" Padding="6,1" VerticalAlignment="Center" IsVisible="{Binding DiskUsage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                      <TextBlock Text="{Binding DiskUsage}" FontSize="10" Foreground="#475569" FontWeight="SemiBold"/>
-                    </Border>
-                  </StackPanel>
-
-                  <StackPanel Orientation="Horizontal" Spacing="16">
-                    <TextBlock Text="{Binding Port, StringFormat='Cổng: {0}'}"
-                               FontSize="12"
-                               Foreground="#616161"/>
-                    <TextBlock Text="{Binding LastConnectedAt, StringFormat='Lần cuối: {0:dd/MM/yyyy HH:mm}'}"
-                               FontSize="12"
-                               Foreground="#757575"/>
-                  </StackPanel>
-
-                  <TextBlock Text="{Binding Notes}"
-                             FontSize="11"
-                             Foreground="#9E9E9E"
-                             IsVisible="{Binding Notes, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                </StackPanel>
-
-                <!-- Actions -->
-                <StackPanel Grid.Column="2" Orientation="Vertical" Spacing="6" VerticalAlignment="Center" MaxWidth="640">
-                  <!-- Row 1: Basic Operations -->
-                  <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemWakeUpClick"
-                                 Content="⚡ Bật nguồn"
-                                 Classes="kz-outline"
-                                 ToolTip.Tip="Bật máy bằng Wake-on-LAN (Magic Packet)"
-                                 KzSize="Sm" />
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemConnectClick"
-                                 Content="Kết nối"
-                                 Classes="kz-primary"
-                                 IsEnabled="{Binding AgentReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                                 ToolTip.Tip="{Binding AgentStatusTooltip}"
-                                 KzSize="Sm" />
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemSetupWizardClick"
-                                 Content="⚡ Cài remote"
-                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                                 ToolTip.Tip="{Binding SshStatusTooltip}"
-                                 KzSize="Sm" />
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemAppInstallClick"
-                                 Content="📦 Cài App"
-                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                                 ToolTip.Tip="{Binding SshStatusTooltip}"
-                                 KzSize="Sm" />
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemKioskDeployClick"
-                                 Content="🖥️ Setup"
-                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                                 ToolTip.Tip="{Binding SshStatusTooltip}"
-                                 KzSize="Sm" />
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemEditClick"
-                                 Content="Sửa"
-                                 KzSize="Sm" />
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemDeleteClick"
-                                 Content="Xóa"
-                                 KzSize="Sm" />
-                  </StackPanel>
-                  <!-- Row 2: Advanced Management -->
-                  <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemFileAndCommandClick"
-                                 Content="🛠️ File &amp; CMD"
-                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                                 ToolTip.Tip="Quản lý File (SFTP) &amp; Thực thi Lệnh từ xa (SSH)"
-                                 KzSize="Sm" />
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemHealthMonitorClick"
-                                 Content="📊 Giám sát"
-                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                                 ToolTip.Tip="{Binding SshStatusTooltip}"
-                                 KzSize="Sm" />
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemCronJobClick"
-                                 Content="⏰ Cron Jobs"
-                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                                 ToolTip.Tip="{Binding SshStatusTooltip}"
-                                 KzSize="Sm" />
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemMountFolderClick"
-                                 Content="📂 Mount"
-                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                                 ToolTip.Tip="Cài &amp; mount thư mục share (Windows/Ubuntu) lên máy này"
-                                 KzSize="Sm" />
-                    <kz:KzButton Tag="{Binding}"
-                                 Click="OnItemRestartAgentClick"
-                                 Content="🔁 Restart"
-                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
-                                 ToolTip.Tip="Khởi động lại ứng dụng Remote Agent trên máy này"
-                                 KzSize="Sm" />
-                  </StackPanel>
-                </StackPanel>
-
-              </Grid>
-            </Border>
-          </DataTemplate>
-        </ListBox.ItemTemplate>
-      </ListBox>
-
-      <!-- Empty state when no computer matches -->
-      <StackPanel x:Name="PART_EmptyState"
-                  HorizontalAlignment="Center"
-                  VerticalAlignment="Center"
-                  Spacing="10"
-                  IsVisible="False">
-        <TextBlock Text="🖥️" FontSize="48" HorizontalAlignment="Center"/>
-        <TextBlock Text="Chưa có máy tính nào trong danh sách"
-                   FontSize="15"
-                   FontWeight="SemiBold"
-                   Foreground="#757575"
-                   HorizontalAlignment="Center"/>
-        <TextBlock Text="Nhấn '+ Thêm máy tính' để lưu thông tin Máy khách mới."
-                   FontSize="12"
-                   Foreground="#9E9E9E"
-                   HorizontalAlignment="Center"/>
-      </StackPanel>
+    <!-- ── Toolbar: tìm kiếm + lọc ────────────────────────────── -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="24,16,24,12">
+      <kz:KzTextBox Grid.Column="0"
+                    x:Name="PART_SearchBox"
+                    PlaceholderText="Tìm theo tên hoặc IP…"
+                    Margin="0,0,12,0" />
+      <CheckBox Grid.Column="1" x:Name="PART_SelectAll" Content="Chọn tất cả" VerticalAlignment="Center" Margin="0,0,12,0"
+                IsCheckedChanged="OnSelectAllChanged" />
+      <Border Grid.Column="2" Classes="seg" Background="#ECEAF3" CornerRadius="8" Padding="3" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="2">
+          <kz:KzButton x:Name="PART_BtnTabAll" Content="Tất cả máy" KzSize="Sm" />
+          <kz:KzButton x:Name="PART_BtnTabRecent" Content="Gần đây" KzSize="Sm" />
+        </StackPanel>
+      </Border>
     </Grid>
 
-    <!-- ── Floating Bulk Action Bar (Bottom) ────────────────────── -->
-    <Border Grid.Row="4" x:Name="PART_BulkActionBar" Background="#1E293B" Padding="16,12" IsVisible="False">
-      <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Grid.Column="0" x:Name="PART_BulkActionText" Text="Đã chọn 0 máy tính" Foreground="White" VerticalAlignment="Center" FontWeight="SemiBold"/>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-          <kz:KzButton Content="🚀 Thao tác hàng loạt (lệnh / upload / cài App / cài &amp; restart Agent)" Classes="kz-primary" KzSize="Sm" Click="OnBulkActionClick" />
+    <!-- ── Gợi ý SSH ──────────────────────────────────────────── -->
+    <Border Grid.Row="2" Classes="hint" Margin="24,0,24,12">
+      <Grid ColumnDefinitions="Auto,*">
+        <controls:LucideIcon Grid.Column="0" Data="{StaticResource ic.info}" Foreground="#1E3A8A" Margin="0,0,10,0" />
+        <TextBlock Grid.Column="1" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center">
+          Nút <Bold>Cài remote</Bold> / <Bold>Setup</Bold> tự bật khi máy đích có SSH. Chưa có? Chạy trên máy đó: <Run FontFamily="{DynamicResource app.font.mono}" Text="sudo apt update &amp;&amp; sudo apt install -y openssh-server &amp;&amp; sudo systemctl enable --now ssh"/>
+        </TextBlock>
+      </Grid>
+    </Border>
+
+    <!-- ── Danh sách máy ──────────────────────────────────────── -->
+    <Border Grid.Row="3" Margin="24,0" Background="White" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
+      <Grid RowDefinitions="Auto,*">
+        <!-- Tiêu đề cột -->
+        <Border Grid.Row="0" Background="{DynamicResource app.brush.table.header}" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="0,0,0,1" Padding="16,0" Height="38">
+          <Grid ColumnDefinitions="36,2.2*,1.2*,1.5*,1.7*,Auto" VerticalAlignment="Center">
+            <TextBlock Grid.Column="1" Classes="th" Text="MÁY" />
+            <TextBlock Grid.Column="2" Classes="th" Text="ĐỊA CHỈ" />
+            <TextBlock Grid.Column="3" Classes="th" Text="KẾT NỐI" />
+            <TextBlock Grid.Column="4" Classes="th" Text="TÀI NGUYÊN" />
+            <TextBlock Grid.Column="5" Classes="th" Text="THAO TÁC" Width="236" TextAlignment="Right" />
+          </Grid>
+        </Border>
+
+        <ListBox Grid.Row="1"
+                 x:Name="PART_ComputerListBox"
+                 Background="Transparent"
+                 BorderThickness="0">
+          <ListBox.ItemTemplate>
+            <DataTemplate DataType="ccu:ComputerProfile">
+              <Border BorderBrush="{DynamicResource app.brush.row.divider}" BorderThickness="0,0,0,1" Padding="16,10" MinHeight="64">
+                <Grid ColumnDefinitions="36,2.2*,1.2*,1.5*,1.7*,Auto">
+
+                  <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" VerticalAlignment="Center" IsCheckedChanged="OnSelectionChanged" />
+
+                  <!-- Máy -->
+                  <Grid Grid.Column="1" ColumnDefinitions="Auto,*" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <Border Grid.Column="0" Width="36" Height="36" CornerRadius="8" Background="{DynamicResource kz.brush.navy.100}" Margin="0,0,12,0">
+                      <controls:LucideIcon Data="{StaticResource ic.monitor}" Foreground="{DynamicResource kz.brush.navy.700}" Width="18" Height="18" HorizontalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                      <TextBlock Text="{Binding DisplayName}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Notes}" Classes="muted" TextTrimming="CharacterEllipsis"
+                                 IsVisible="{Binding Notes, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+                  </Grid>
+
+                  <!-- Địa chỉ -->
+                  <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="1">
+                    <TextBlock Text="{Binding Host}" Classes="mono" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource kz.brush.navy.900}" />
+                    <TextBlock Text="{Binding Port, StringFormat='cổng {0}'}" Classes="mono muted" FontSize="11" />
+                  </StackPanel>
+
+                  <!-- Kết nối -->
+                  <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Border Classes="status-pill" ToolTip.Tip="{Binding SshStatusTooltip}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                          <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                   Fill="{Binding SshReachable, Converter={StaticResource NullableBoolToStatusBrushConverter}}" />
+                          <TextBlock Text="SSH" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource kz.brush.neutral.text}" />
+                        </StackPanel>
+                      </Border>
+                      <Border Classes="status-pill" ToolTip.Tip="{Binding AgentStatusTooltip}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                          <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                   Fill="{Binding AgentReachable, Converter={StaticResource NullableBoolToStatusBrushConverter}}" />
+                          <TextBlock Text="Remote" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource kz.brush.neutral.text}" />
+                        </StackPanel>
+                      </Border>
+                    </StackPanel>
+                    <TextBlock Text="{Binding LastConnectedAt, StringFormat='Lần cuối {0:dd/MM HH:mm}'}" Classes="muted" FontSize="11" />
+                  </StackPanel>
+
+                  <!-- Tài nguyên -->
+                  <WrapPanel Grid.Column="4" VerticalAlignment="Center" Orientation="Horizontal">
+                    <Border Classes="metric" Margin="0,2,6,2" IsVisible="{Binding CpuUsage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                      <TextBlock Text="{Binding CpuUsage}" />
+                    </Border>
+                    <Border Classes="metric" Margin="0,2,6,2" IsVisible="{Binding RamUsage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                      <TextBlock Text="{Binding RamUsage}" />
+                    </Border>
+                    <Border Classes="metric" Margin="0,2,6,2" IsVisible="{Binding DiskUsage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                      <TextBlock Text="{Binding DiskUsage}" />
+                    </Border>
+                  </WrapPanel>
+
+                  <!-- Thao tác: 1 nút chính + 2 icon + menu ⋯ -->
+                  <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Right" Width="236">
+                    <StackPanel.Styles>
+                      <Style Selector="StackPanel > kz|KzButton.main">
+                        <Setter Property="Width" Value="112" />
+                        <Setter Property="Height" Value="34" />
+                        <Setter Property="MinHeight" Value="34" />
+                        <Setter Property="Padding" Value="12,0" />
+                      </Style>
+                    </StackPanel.Styles>
+                    <kz:KzButton Tag="{Binding}"
+                                 Classes="kz-accent main"
+                                 Click="OnItemConnectClick"
+                                 IsVisible="{Binding AgentReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="{Binding AgentStatusTooltip}">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <controls:LucideIcon Data="{StaticResource ic.arrow-right}" />
+                        <TextBlock Text="Kết nối" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </kz:KzButton>
+                    <kz:KzButton Tag="{Binding}"
+                                 Classes="kz-outline main"
+                                 Click="OnItemSetupWizardClick"
+                                 IsVisible="{Binding AgentReachable, Converter={StaticResource NullableBoolIsTrueConverter}, ConverterParameter=not}"
+                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="{Binding SshStatusTooltip}">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <controls:LucideIcon Data="{StaticResource ic.download}" />
+                        <TextBlock Text="Cài remote" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </kz:KzButton>
+                    <kz:KzButton Tag="{Binding}"
+                                 Classes="icon"
+                                 Click="OnItemFileAndCommandClick"
+                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="File (SFTP) &amp; lệnh (SSH)"
+                                 AutomationProperties.Name="File và CMD">
+                      <controls:LucideIcon Data="{StaticResource ic.terminal}" />
+                    </kz:KzButton>
+                    <kz:KzButton Tag="{Binding}"
+                                 Classes="icon"
+                                 Click="OnItemHealthMonitorClick"
+                                 IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}"
+                                 ToolTip.Tip="Giám sát CPU / RAM / ổ đĩa"
+                                 AutomationProperties.Name="Giám sát">
+                      <controls:LucideIcon Data="{StaticResource ic.activity}" />
+                    </kz:KzButton>
+                    <kz:KzButton Classes="icon"
+                                 ToolTip.Tip="Thao tác khác"
+                                 AutomationProperties.Name="Thao tác khác">
+                      <controls:LucideIcon Data="{StaticResource ic.ellipsis}" />
+                      <kz:KzButton.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                          <MenuItem Header="Cài / gỡ app" Tag="{Binding}" Click="OnItemAppInstallClick"
+                                    IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}">
+                            <MenuItem.Icon><controls:LucideIcon Data="{StaticResource ic.package}" /></MenuItem.Icon>
+                          </MenuItem>
+                          <MenuItem Header="Setup" Tag="{Binding}" Click="OnItemKioskDeployClick"
+                                    IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}">
+                            <MenuItem.Icon><controls:LucideIcon Data="{StaticResource ic.sliders-horizontal}" /></MenuItem.Icon>
+                          </MenuItem>
+                          <MenuItem Header="Cài lại remote" Tag="{Binding}" Click="OnItemSetupWizardClick"
+                                    IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}">
+                            <MenuItem.Icon><controls:LucideIcon Data="{StaticResource ic.download}" /></MenuItem.Icon>
+                          </MenuItem>
+                          <MenuItem Header="Restart Remote Agent" Tag="{Binding}" Click="OnItemRestartAgentClick"
+                                    IsEnabled="{Binding SshReachable, Converter={StaticResource NullableBoolIsTrueConverter}}">
+                            <MenuItem.Icon><controls:LucideIcon Data="{StaticResource ic.rotate-ccw}" /></MenuItem.Icon>
+                          </MenuItem>
+                          <Separator />
+                          <MenuItem Header="Sửa thông tin" Tag="{Binding}" Click="OnItemEditClick">
+                            <MenuItem.Icon><controls:LucideIcon Data="{StaticResource ic.pencil}" /></MenuItem.Icon>
+                          </MenuItem>
+                          <MenuItem Header="Xóa máy" Tag="{Binding}" Click="OnItemDeleteClick">
+                            <MenuItem.Icon><controls:LucideIcon Data="{StaticResource ic.trash}" /></MenuItem.Icon>
+                          </MenuItem>
+                        </MenuFlyout>
+                      </kz:KzButton.Flyout>
+                    </kz:KzButton>
+                  </StackPanel>
+
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- Trạng thái rỗng -->
+        <StackPanel Grid.Row="1"
+                    x:Name="PART_EmptyState"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="10"
+                    IsVisible="False">
+          <Border Width="56" Height="56" CornerRadius="12" Background="{DynamicResource kz.brush.navy.100}" HorizontalAlignment="Center">
+            <controls:LucideIcon Data="{StaticResource ic.monitor}" Foreground="{DynamicResource kz.brush.navy.700}" Width="28" Height="28" HorizontalAlignment="Center" />
+          </Border>
+          <TextBlock Text="Chưa có máy nào trong danh sách"
+                     FontSize="15"
+                     FontWeight="SemiBold"
+                     HorizontalAlignment="Center"/>
+          <TextBlock Text="Bấm 'Thêm máy' hoặc 'Quét mạng' để thêm máy khách."
+                     Classes="muted"
+                     HorizontalAlignment="Center"/>
         </StackPanel>
       </Grid>
     </Border>
 
-    <!-- ── Quick Connection Drawer Bar (Bottom) ────────────────────── -->
-    <Border Grid.Row="5" Background="#F5F5F7" Padding="16,12" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0">
-      <Grid ColumnDefinitions="*,Auto,100,Auto,*,Auto" RowDefinitions="Auto">
-        <TextBlock Grid.Column="0" Text="Kết nối nhanh:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0"/>
-        <kz:KzTextBox Grid.Column="1" x:Name="PART_QuickHost" PlaceholderText="IP (192.168.x.x)" Width="150" Margin="0,0,6,0"/>
-        <kz:KzTextBox Grid.Column="2" x:Name="PART_QuickPort" Text="17600" Width="70" Margin="0,0,6,0"/>
-        <kz:KzTextBox Grid.Column="3" x:Name="PART_QuickToken" PlaceholderText="Token" Width="140" Margin="0,0,10,0"/>
-        <CheckBox Grid.Column="4" x:Name="PART_QuickSaveCheck" Content="Lưu danh sách" IsChecked="True" VerticalAlignment="Center"/>
-        <kz:KzButton Grid.Column="5" x:Name="PART_QuickConnectBtn" Content="Kết nối" Classes="kz-primary" KzSize="Sm"/>
+    <!-- ── Thanh thao tác hàng loạt ────────────────────────────── -->
+    <Border Grid.Row="4" x:Name="PART_BulkActionBar" Background="{DynamicResource kz.brush.navy.900}" CornerRadius="10" Margin="24,12,24,0" Padding="16,8,8,8" IsVisible="False">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" x:Name="PART_BulkActionText" Text="Đã chọn 0 máy tính" Foreground="White" VerticalAlignment="Center" FontWeight="SemiBold"/>
+        <kz:KzButton Grid.Column="1" Classes="kz-accent" Click="OnBulkActionClick"
+                     ToolTip.Tip="Chạy lệnh / upload / cài app / cài &amp; restart Agent cho các máy đã chọn">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <controls:LucideIcon Data="{StaticResource ic.layout-grid}" />
+            <TextBlock Text="Thao tác hàng loạt…" VerticalAlignment="Center" />
+          </StackPanel>
+        </kz:KzButton>
+      </Grid>
+    </Border>
+
+    <!-- ── Kết nối nhanh ───────────────────────────────────────── -->
+    <Border Grid.Row="5" Classes="footer" Margin="0,12,0,0">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+        <TextBlock Grid.Column="0" Text="Kết nối nhanh" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,12,0"/>
+        <kz:KzTextBox Grid.Column="1" x:Name="PART_QuickHost" PlaceholderText="IP (192.168.x.x)" Width="170" Margin="0,0,8,0"/>
+        <kz:KzTextBox Grid.Column="2" x:Name="PART_QuickPort" Text="17600" Width="80" Margin="0,0,8,0"/>
+        <kz:KzTextBox Grid.Column="3" x:Name="PART_QuickToken" PlaceholderText="Token" Width="200" Margin="0,0,12,0"/>
+        <CheckBox Grid.Column="4" x:Name="PART_QuickSaveCheck" Content="Lưu vào danh sách" IsChecked="True" VerticalAlignment="Center"/>
+        <kz:KzButton Grid.Column="5" x:Name="PART_QuickConnectBtn" Classes="kz-primary">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <controls:LucideIcon Data="{StaticResource ic.arrow-right}" />
+            <TextBlock Text="Kết nối" VerticalAlignment="Center" />
+          </StackPanel>
+        </kz:KzButton>
       </Grid>
     </Border>
 
   </Grid>
 </Window>
-
-
-

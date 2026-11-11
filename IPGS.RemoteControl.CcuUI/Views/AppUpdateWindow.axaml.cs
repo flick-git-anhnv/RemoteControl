@@ -47,7 +47,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
         private RemoteAppUpdateOptions BuildOptions(ComputerProfile p)
         {
             if (string.IsNullOrWhiteSpace(p.SshUsername))
-                throw new InvalidOperationException("Máy chưa cấu hình SSH user — bấm '✏️ Sửa' máy tính này để bổ sung rồi chạy lại.");
+                throw new InvalidOperationException("Máy chưa cấu hình SSH user — bấm 'Sửa' máy tính này để bổ sung rồi chạy lại.");
             return new RemoteAppUpdateOptions
             {
                 Host = p.Host,
@@ -205,7 +205,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             var text = this.FindControl<TextBlock>("PART_ProgressText");
 
             SetBusy(true);
-            foreach (var r in _results) { r.StatusText = "Đang chờ..."; r.StatusColor = "#94A3B8"; r.StatusIcon = "⏳"; r.Output = ""; }
+            foreach (var r in _results) { r.StatusText = "Đang chờ..."; r.StatusColor = "#94A3B8"; r.StatusIcon = ""; r.Output = ""; }
             if (panel != null) panel.IsVisible = true;
             if (pb != null) { pb.Value = 0; pb.Maximum = Math.Max(1, _results.Count); }
             if (text != null) text.Text = $"Đang xử lý: 0/{_results.Count}";

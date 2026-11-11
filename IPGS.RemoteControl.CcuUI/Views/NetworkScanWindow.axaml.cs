@@ -75,7 +75,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             _found.Clear();
             PART_ProgressBar.Value = 0;
             PART_StatusText.Text = "Đang quét...";
-            PART_BtnScan.Content = "⏹ Dừng quét";
+            PART_BtnScan.Content = "Dừng quét";
             PART_BtnScan.Classes.Set("kz-primary", false);
 
             _scanCts = new CancellationTokenSource();
@@ -104,21 +104,21 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     progress,
                     ct);
 
-                PART_StatusText.Text = $"✅ Hoàn tất — tìm thấy {_found.Count} máy đã cài ZcuAgent";
+                PART_StatusText.Text = $"Hoàn tất — tìm thấy {_found.Count} máy đã cài ZcuAgent";
             }
             catch (OperationCanceledException)
             {
-                PART_StatusText.Text = $"⏹ Đã dừng quét — tìm thấy {_found.Count} máy";
+                PART_StatusText.Text = $"Đã dừng quét — tìm thấy {_found.Count} máy";
             }
             catch (Exception ex)
             {
-                PART_StatusText.Text = $"❌ Lỗi khi quét: {ex.Message}";
+                PART_StatusText.Text = $"Lỗi khi quét: {ex.Message}";
             }
             finally
             {
                 _scanCts?.Dispose();
                 _scanCts = null;
-                PART_BtnScan.Content = "🔍 Bắt đầu quét";
+                PART_BtnScan.Content = "Bắt đầu quét";
                 PART_BtnScan.Classes.Set("kz-primary", true);
             }
         }
@@ -150,6 +150,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     SshPassword = existing.SshPassword,
                     LastAppInstallerPath = existing.LastAppInstallerPath,
                     LastUninstallPackage = existing.LastUninstallPackage,
+                    LastLaunchPackage = existing.LastLaunchPackage,
                     LastConnectedAt = existing.LastConnectedAt,
                     TlsCertFingerprint = existing.TlsCertFingerprint ?? found.TlsCertFingerprint,
                     CreatedAt = existing.CreatedAt

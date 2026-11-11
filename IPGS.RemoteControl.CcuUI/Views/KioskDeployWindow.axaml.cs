@@ -76,7 +76,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             {
                 PART_LoadAppsStatus.Foreground = Brushes.DarkOrange;
                 PART_LoadAppsStatus.Text =
-                    "Chưa có thông tin SSH — vào 'Sửa' máy tính để bổ sung, rồi bấm '🔄 Nạp DS'.";
+                    "Chưa có thông tin SSH — vào 'Sửa' máy tính để bổ sung, rồi bấm 'Nạp DS'.";
                 return;
             }
 
@@ -101,7 +101,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             PART_BtnLoadApps.IsEnabled = false;
             PART_LoadAppsStatus.Foreground = Brushes.SlateGray;
-            PART_LoadAppsStatus.Text = "⏳ Đang kết nối SSH và quét danh sách ứng dụng trên máy ZCU...";
+            PART_LoadAppsStatus.Text = "Đang kết nối SSH và quét danh sách ứng dụng trên máy ZCU...";
 
             try
             {
@@ -123,7 +123,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     string display;
                     if (a.IsRecommended)
                     {
-                        display = $"⭐ {a.ExecCommand}";
+                        display = $"★ {a.ExecCommand}";
                         if (!string.IsNullOrEmpty(a.Name))
                             display += $" ({a.Name})";
                         display += " — khuyến nghị";
@@ -135,7 +135,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
                     // Đánh dấu binary không tồn tại để user biết (F12 prevention)
                     if (!a.ExistsOnSystem)
-                        display += " ⚠️ chưa cài";
+                        display += " — chưa cài";
 
                     return new LoadedApp(display, a.ExecCommand, a.ExistsOnSystem, a.IsRecommended);
                 }).ToList();
@@ -155,8 +155,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 int notFound = _loadedApps.Count(a => !a.ExistsOnSystem);
                 PART_LoadAppsStatus.Foreground = Brushes.SeaGreen;
                 PART_LoadAppsStatus.Text =
-                    $"✅ Tìm thấy {apps.Count} ứng dụng" +
-                    (notFound > 0 ? $" ({notFound} chưa cài trên máy, đánh dấu ⚠️)" : "") +
+                    $"Tìm thấy {apps.Count} ứng dụng" +
+                    (notFound > 0 ? $" ({notFound} chưa cài trên máy, đánh dấu \"chưa cài\")" : "") +
                     ". Chọn từ danh sách hoặc nhập tay lệnh vào ô trên.";
             }
             catch (OperationCanceledException)
@@ -166,7 +166,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             catch (Exception ex)
             {
                 PART_LoadAppsStatus.Foreground = Brushes.Red;
-                PART_LoadAppsStatus.Text = $"❌ Lỗi khi nạp danh sách: {ex.Message}";
+                PART_LoadAppsStatus.Text = $"Lỗi khi nạp danh sách: {ex.Message}";
             }
             finally
             {
@@ -198,8 +198,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
         /// <summary>
         /// Toggle tất cả 14 checkbox trong Tab "Config máy tính".
-        /// Ghi chú: "Cài unclutter" là 1 chiều về mặt hiệu ứng trên máy (bỏ tick không gỡ cài),
-        /// nhưng checkbox vẫn bị đổi để tránh tái cài khi deploy lại.
+        /// Mọi ô đều 2 chiều: tick = áp dụng, bỏ tick = hoàn tác về mặc định. "Cài unclutter"
+        /// bỏ tick = tắt unclutter (xoá autostart + dừng tiến trình), không gỡ package.
         /// </summary>
         private void SetAllConfigMachineCheckboxes(bool value)
         {
@@ -235,20 +235,20 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             PART_BtnResetColor.IsEnabled = false;
             PART_ResetColorStatus.Foreground = Brushes.SlateGray;
-            PART_ResetColorStatus.Text = "⏳ Đang tắt Night Light + reset gamma/brightness qua SSH...";
+            PART_ResetColorStatus.Text = "Đang tắt Night Light + reset gamma/brightness qua SSH...";
 
             try
             {
                 string result = await _deployService.ResetDisplayColorAsync(_sshHost, _sshPort, _sshUser, _sshPassword);
                 PART_ResetColorStatus.Foreground = Brushes.SeaGreen;
                 PART_ResetColorStatus.Text = string.IsNullOrWhiteSpace(result)
-                    ? "✅ Đã tắt Night Light + reset gamma/brightness về mặc định."
-                    : $"✅ Xong: {result}";
+                    ? "Đã tắt Night Light + reset gamma/brightness về mặc định."
+                    : $"Xong: {result}";
             }
             catch (Exception ex)
             {
                 PART_ResetColorStatus.Foreground = Brushes.Red;
-                PART_ResetColorStatus.Text = $"❌ Lỗi: {ex.Message}";
+                PART_ResetColorStatus.Text = $"Lỗi: {ex.Message}";
             }
             finally
             {
@@ -302,7 +302,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 {
                     tabStatusMsg.Foreground = Brushes.Red;
                     tabStatusMsg.Text = _loadedApps == null
-                        ? "Chưa chọn App exec — bấm '🔄 Nạp DS' để nạp danh sách ứng dụng từ máy ZCU, hoặc nhập tay lệnh."
+                        ? "Chưa chọn App exec — bấm 'Nạp DS' để nạp danh sách ứng dụng từ máy ZCU, hoặc nhập tay lệnh."
                         : "Chưa chọn App exec — chọn một mục trong danh sách vừa nạp, hoặc nhập tay lệnh.";
                     PART_StatusMsg.Foreground = Brushes.Red;
                     PART_StatusMsg.Text = tabStatusMsg.Text;
@@ -316,9 +316,9 @@ namespace IPGS.RemoteControl.CcuUI.Views
             {
                 var loaded = _loadedApps.FirstOrDefault(a => a.ExecCommand == appExec);
                 if (loaded == null)
-                    execWarning = $"⚠️ Lệnh '{appExec}' chưa được kiểm chứng trên máy ZCU — bấm '🔄 Nạp DS' để kiểm tra trước khi deploy.";
+                    execWarning = $"Lệnh '{appExec}' chưa được kiểm chứng trên máy ZCU — bấm 'Nạp DS' để kiểm tra trước khi deploy.";
                 else if (!loaded.ExistsOnSystem)
-                    execWarning = $"⚠️ Lệnh '{appExec}' không tìm thấy trên máy ZCU — autostart sẽ đăng ký nhưng app sẽ không chạy được (binary chưa được cài, F12).";
+                    execWarning = $"Lệnh '{appExec}' không tìm thấy trên máy ZCU — autostart sẽ đăng ký nhưng app sẽ không chạy được (binary chưa được cài, F12).";
             }
 
             // Tab 1 — Config máy tính
@@ -404,18 +404,18 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
                 tabStatusMsg.Foreground = Brushes.Green;
                 tabStatusMsg.Text = isMachineTab
-                    ? "🎉 Deploy Config máy tính hoàn tất! Đã nạp lại giao diện, khởi động lại máy để áp dụng autologin."
-                    : "🎉 Deploy Config phần mềm hoàn tất! Đã áp dụng cấu hình autostart / watchdog phần mềm.";
+                    ? "Deploy Config máy tính hoàn tất! Đã nạp lại giao diện, khởi động lại máy để áp dụng autologin."
+                    : "Deploy Config phần mềm hoàn tất! Đã áp dụng cấu hình autostart / watchdog phần mềm.";
                 PART_StatusMsg.Foreground = Brushes.Green;
                 PART_StatusMsg.Text = tabStatusMsg.Text;
             }
             catch (Exception ex)
             {
                 tabStatusMsg.Foreground = Brushes.Red;
-                tabStatusMsg.Text = "❌ Deploy thất bại: " + ex.Message;
+                tabStatusMsg.Text = "Deploy thất bại: " + ex.Message;
                 PART_StatusMsg.Foreground = Brushes.Red;
                 PART_StatusMsg.Text = tabStatusMsg.Text;
-                Log("❌ LỖI: " + ex.Message);
+                Log("LỖI: " + ex.Message);
             }
             finally
             {

@@ -75,16 +75,16 @@ public partial class ComputerEditWindow : Window
             {
                 if (this.FindControl<KzTextBox>("PART_Token") is { } tokenTxt) tokenTxt.Text = cfg.Token;
                 if (this.FindControl<KzTextBox>("PART_Port") is { } portTxt) portTxt.Text = cfg.Port.ToString();
-                Show("✅ Đã lấy Token & Cổng. Bấm 'Lưu' để ghi lại.", true);
+                Show("Đã lấy Token & Cổng. Bấm 'Lưu' để ghi lại.", true);
             }
             else
             {
-                Show("Không tìm thấy cấu hình Agent trên máy (chưa cài remote?). Dùng '⚡ Cài remote' để cài/đặt token mới.", false);
+                Show("Không tìm thấy cấu hình Agent trên máy (chưa cài remote?). Dùng 'Cài remote' để cài/đặt token mới.", false);
             }
         }
         catch (Exception ex)
         {
-            Show("❌ Lỗi SSH: " + ex.Message, false);
+            Show("Lỗi SSH: " + ex.Message, false);
         }
         finally
         {

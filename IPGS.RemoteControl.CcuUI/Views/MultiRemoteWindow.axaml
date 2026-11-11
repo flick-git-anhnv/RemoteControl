@@ -1,5 +1,6 @@
 <Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:IPGS.RemoteControl.CcuUI.Controls"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         xmlns:views="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
         x:Class="IPGS.RemoteControl.CcuUI.Views.MultiRemoteWindow"
@@ -7,17 +8,17 @@
         Width="1280" Height="800"
         WindowStartupLocation="CenterScreen"
         CanResize="True"
-        Background="#1E1E2E">
+        Background="{DynamicResource kz.brush.navy.950}">
 
   <Grid RowDefinitions="Auto,*">
 
     <!-- ── Top Header Toolbar Bar ────────────────────────────────────────── -->
-    <Border Grid.Row="0" Background="#251C53" Padding="16,10" BorderBrush="#3B2D7B" BorderThickness="0,0,0,1">
+    <Border Grid.Row="0" Background="{DynamicResource kz.brush.navy.900}" Padding="16,10" BorderBrush="#3B2D7B" BorderThickness="0,0,0,1">
       <Grid ColumnDefinitions="Auto,*,Auto">
         
         <!-- Title & Subtitle -->
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-          <TextBlock Text="🖥️ Multi-Remote Dashboard"
+          <TextBlock Text="Multi-Remote Dashboard"
                      Foreground="White"
                      FontSize="16"
                      FontWeight="Bold"
@@ -33,7 +34,7 @@
 
         <!-- View Mode Switcher (Grid Presets, Custom R x C, Multi-Tab) -->
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-          <TextBlock Text="Chế độ xem:" Foreground="#D1C4E9" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0"/>
+          <TextBlock Text="Chế độ xem:" Foreground="{DynamicResource app.brush.header.sub}" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0"/>
           
           <kz:KzButton x:Name="PART_BtnGrid2x2" Content="Lưới 2x2" KzSize="Sm" Classes="kz-primary" />
           <kz:KzButton x:Name="PART_BtnGrid3x3" Content="Lưới 3x3" KzSize="Sm" />
@@ -55,7 +56,7 @@
         <!-- Action Controls -->
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
           <kz:KzButton x:Name="PART_BtnAddSession" Content="+ Thêm máy" KzSize="Sm" />
-          <kz:KzButton x:Name="PART_BtnCloseAll"    Content="❌ Ngắt tất cả" KzSize="Sm" />
+          <kz:KzButton x:Name="PART_BtnCloseAll"    Content="Ngắt tất cả" KzSize="Sm" />
         </StackPanel>
       </Grid>
     </Border>
@@ -75,7 +76,7 @@
 
       <!-- EMPTY STATE -->
       <StackPanel x:Name="PART_EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" IsVisible="False">
-        <TextBlock Text="💻" FontSize="56" HorizontalAlignment="Center"/>
+        <controls:LucideIcon Data="{StaticResource ic.monitor}" Width="50" Height="50" HorizontalAlignment="Center"/>
         <TextBlock Text="Chưa có máy tính nào trong phiên Remote Multi-Dashboard"
                    Foreground="#A6ADC8" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center"/>
         <TextBlock Text="Nhấn '+ Thêm máy' để chọn các máy Máy khách cần theo dõi song song."

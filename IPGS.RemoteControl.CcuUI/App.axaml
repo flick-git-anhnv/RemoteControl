@@ -16,6 +16,9 @@
         </ResourceDictionary>
       </Styles.Resources>
     </Styles>
+
+    <!-- Giao diện chung (redesign): font, nút, header, bảng — sau KzTokens -->
+    <StyleInclude Source="avares://IPGS.RemoteControl.CcuUI/Styles/AppTheme.axaml" />
   </Application.Styles>
 
   <Application.Resources>
@@ -23,6 +26,8 @@
       <ResourceDictionary.MergedDictionaries>
         <!-- ControlThemes: KzButton, KzTextBox, KzPasswordTextBox, ... -->
         <ResourceInclude Source="avares://KztekComponentAvalonia/Themes/Default.axaml" />
+        <!-- Icon Lucide: key "ic.<tên>" dùng với controls:LucideIcon -->
+        <ResourceInclude Source="avares://IPGS.RemoteControl.CcuUI/Styles/Icons.axaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>

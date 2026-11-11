@@ -1,99 +1,144 @@
 <Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        xmlns:controls="clr-namespace:IPGS.RemoteControl.CcuUI.Controls"
         x:Class="IPGS.RemoteControl.CcuUI.Views.RemoteAppInstallWindow"
-        Title="📦 Cài đặt phần mềm từ xa"
-        Width="640" Height="680"
+        Title="Quản lý ứng dụng từ xa"
+        Width="720" Height="760"
+        Background="White"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
+  <Window.Styles>
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource kz.brush.text}" />
+    </Style>
+  </Window.Styles>
 
   <Grid RowDefinitions="Auto,*,Auto">
     <!-- Header -->
-    <Border Grid.Row="0" Background="#251C53" Padding="20,16">
-      <StackPanel Spacing="4">
-        <TextBlock Text="📦 Cài đặt phần mềm từ xa (Upload &amp; Install)"
-                   Foreground="White" FontSize="16" FontWeight="Bold" />
-        <TextBlock Text="Upload file .deb / .sh / .run và tự động cài đặt trên máy đích."
-                   Foreground="#B8B3D6" FontSize="12" />
-      </StackPanel>
+    <Border Grid.Row="0" Classes="app-header">
+      <Grid ColumnDefinitions="Auto,*">
+        <controls:LucideIcon Grid.Column="0" Data="{StaticResource ic.package}" Foreground="{DynamicResource kz.brush.orange.500}" Width="20" Height="20" Margin="0,0,12,0" />
+        <StackPanel Grid.Column="1" Spacing="2">
+          <TextBlock Classes="h-title" Text="Quản lý ứng dụng" />
+          <TextBlock x:Name="PART_TargetHostText" Classes="h-sub mono" Text="Đang cài đặt cho: —" />
+        </StackPanel>
+      </Grid>
     </Border>
 
-    <!-- Content -->
+    <!-- Nội dung -->
     <ScrollViewer Grid.Row="1">
-      <StackPanel Spacing="16" Margin="24,18">
-        
-        <!-- Target Info -->
-        <Border Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" CornerRadius="8" Padding="14">
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <TextBlock Text="🎯" FontSize="16"/>
-            <StackPanel Spacing="2">
-              <TextBlock x:Name="PART_TargetHostText" Text="Đang cài đặt cho: —" FontWeight="Bold" FontSize="13" Foreground="#3730A3"/>
+      <StackPanel Spacing="16" Margin="24,20">
+
+        <StackPanel Spacing="6">
+          <TextBlock Classes="field-label" Text="Mật khẩu sudo" />
+          <TextBox x:Name="PART_SudoPassword" PasswordChar="•" PlaceholderText="Để trống nếu giống mật khẩu SSH" />
+        </StackPanel>
+
+        <TabControl Padding="0,12,0,0">
+          <!-- Cài đặt -->
+          <TabItem Header="Cài đặt">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="field-label" Text="File cài đặt (.deb, .sh, .run, .msi, .exe)" />
+              <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBox x:Name="PART_AppInstallerPath" PlaceholderText="Chưa chọn file…" Grid.Column="0" IsReadOnly="True" Margin="0,0,8,0" Classes="mono" />
+                <kz:KzButton x:Name="PART_BtnBrowseApp" Grid.Column="1" Classes="kz-outline" Margin="0,0,8,0" ToolTip.Tip="Chọn file trên máy của bạn (sẽ upload lên máy đích)">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <controls:LucideIcon Data="{StaticResource ic.upload}" />
+                    <TextBlock Text="Từ máy này…" VerticalAlignment="Center" />
+                  </StackPanel>
+                </kz:KzButton>
+                <kz:KzButton x:Name="PART_BtnBrowseRemote" Grid.Column="2" Classes="kz-outline" ToolTip.Tip="Chọn file đã có sẵn trên máy đích (không cần upload)">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <controls:LucideIcon Data="{StaticResource ic.folder-open}" />
+                    <TextBlock Text="Từ máy đích…" VerticalAlignment="Center" />
+                  </StackPanel>
+                </kz:KzButton>
+              </Grid>
+              <TextBlock Classes="muted" Text="Bấm 'Bắt đầu cài đặt' ở cuối cửa sổ để chạy." />
             </StackPanel>
-          </StackPanel>
-        </Border>
+          </TabItem>
 
-        <StackPanel Spacing="4">
-          <TextBlock Text="Sudo password (nếu cần cấp quyền cài đặt, để trống nếu giống SSH password):" FontSize="12" Foreground="#64748B"/>
-          <TextBox x:Name="PART_SudoPassword" PasswordChar="•" Height="36" VerticalContentAlignment="Center"/>
-        </StackPanel>
-        <!-- Install -->
-        <StackPanel Spacing="4">
-          <TextBlock Text="Cài đặt (chọn file .deb, .sh, .run):" FontSize="12" Foreground="#64748B"/>
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBox x:Name="PART_AppInstallerPath" PlaceholderText="Đường dẫn file..." Grid.Column="0" IsReadOnly="True" Margin="0,0,8,0" Height="36" VerticalContentAlignment="Center" />
-            <Button x:Name="PART_BtnBrowseApp" Content="Duyệt File..." Grid.Column="1" Padding="16,8" />
-          </Grid>
+          <!-- Gỡ cài đặt -->
+          <TabItem Header="Gỡ cài đặt">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="field-label" Text="Ứng dụng cần gỡ" />
+              <Grid ColumnDefinitions="*,Auto,Auto">
+                <AutoCompleteBox x:Name="PART_UninstallPackageName" MinimumPrefixLength="0" PlaceholderText="Gõ để tìm, hoặc bấm mũi tên để xem tất cả…" Grid.Column="0" Margin="0,0,6,0" FilterMode="Contains" />
+                <kz:KzButton x:Name="PART_BtnShowAll" Grid.Column="1" Classes="icon" Margin="0,0,8,0" ToolTip.Tip="Hiện tất cả app trên máy đích" AutomationProperties.Name="Hiện tất cả app">
+                  <controls:LucideIcon Data="{StaticResource ic.chevron-down}" />
+                </kz:KzButton>
+                <kz:KzButton x:Name="PART_BtnUninstall" Grid.Column="2" Classes="kz-danger">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <controls:LucideIcon Data="{StaticResource ic.trash}" />
+                    <TextBlock Text="Gỡ ứng dụng" VerticalAlignment="Center" />
+                  </StackPanel>
+                </kz:KzButton>
+              </Grid>
+              <TextBlock Classes="muted" Text="Danh sách gồm app có shortcut và các gói kztek / ipgs / kiosk." />
+            </StackPanel>
+          </TabItem>
+
+          <!-- Khởi động -->
+          <TabItem Header="Khởi động app">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="field-label" Text="Ứng dụng cần khởi động" />
+              <Grid ColumnDefinitions="*,Auto,Auto">
+                <AutoCompleteBox x:Name="PART_LaunchPackageName" MinimumPrefixLength="0" PlaceholderText="Gõ để tìm, hoặc bấm mũi tên để xem tất cả…" Grid.Column="0" Margin="0,0,6,0" FilterMode="Contains" />
+                <kz:KzButton x:Name="PART_BtnShowAllLaunch" Grid.Column="1" Classes="icon" Margin="0,0,8,0" ToolTip.Tip="Hiện tất cả app trên máy đích" AutomationProperties.Name="Hiện tất cả app">
+                  <controls:LucideIcon Data="{StaticResource ic.chevron-down}" />
+                </kz:KzButton>
+                <kz:KzButton x:Name="PART_BtnLaunch" Grid.Column="2" Classes="kz-primary">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <controls:LucideIcon Data="{StaticResource ic.play}" />
+                    <TextBlock Text="Khởi động" VerticalAlignment="Center" />
+                  </StackPanel>
+                </kz:KzButton>
+              </Grid>
+            </StackPanel>
+          </TabItem>
+        </TabControl>
+
+        <!-- Tiến độ -->
+        <StackPanel x:Name="PART_ProgressPanel" Spacing="6" IsVisible="False">
+          <TextBlock x:Name="PART_ProgressText" FontSize="12" Foreground="{DynamicResource kz.brush.navy.900}" FontWeight="SemiBold"/>
+          <ProgressBar x:Name="PART_Progress" Minimum="0" Maximum="100" Height="6" MinHeight="6" CornerRadius="3" Foreground="{DynamicResource kz.brush.orange.500}" Background="#ECEAF3"/>
         </StackPanel>
 
-        <!-- Uninstall -->
-        <StackPanel Spacing="4">
-          <TextBlock Text="Gỡ cài đặt (nhập tên package, VD: kztek-app):" FontSize="12" Foreground="#64748B"/>
-          <Grid ColumnDefinitions="*,Auto,Auto">
-            <AutoCompleteBox x:Name="PART_UninstallPackageName" MinimumPrefixLength="0" PlaceholderText="Tên package cần gỡ (gõ để tìm)..." Grid.Column="0" Margin="0,0,4,0" Height="36" FilterMode="Contains" />
-            <Button x:Name="PART_BtnShowAll" Content="▼" Grid.Column="1" Margin="0,0,8,0" Height="36" Width="36" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" />
-            <Button x:Name="PART_BtnUninstall" Content="🗑️ Gỡ ứng dụng" Grid.Column="2" Padding="16,8" Foreground="White" Background="#EF4444" />
-          </Grid>
+        <!-- Nhật ký -->
+        <StackPanel Spacing="6">
+          <TextBlock Classes="field-label" Text="Nhật ký" />
+          <TextBox x:Name="PART_LogConsole"
+                   Height="220"
+                   Padding="14,12"
+                   IsReadOnly="True"
+                   AcceptsReturn="True"
+                   TextWrapping="Wrap"
+                   Background="#14112A"
+                   Foreground="#DCD8F0"
+                   FontFamily="{DynamicResource app.font.mono}"
+                   FontSize="12"
+                   BorderThickness="0"
+                   CornerRadius="8"/>
         </StackPanel>
-
-        <!-- Progress -->
-        <StackPanel x:Name="PART_ProgressPanel" Spacing="4" IsVisible="False">
-          <TextBlock x:Name="PART_ProgressText" FontSize="12" Foreground="#251C53" FontWeight="SemiBold"/>
-          <ProgressBar x:Name="PART_Progress" Minimum="0" Maximum="100" Height="10" Foreground="#F05922" Background="#B8B3D6"/>
-        </StackPanel>
-
-        <!-- Console Log -->
-        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,8,0,0">
-          <StackPanel Spacing="8">
-            <TextBlock Text="💻 Nhật ký cài đặt (Console Output):" Foreground="#475569" FontSize="13" FontWeight="SemiBold"/>
-            <TextBox x:Name="PART_LogConsole"
-                     Height="180"
-                     Padding="12,12,12,32"
-                     IsReadOnly="True"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     Background="#FFFFFF"
-                     Foreground="#334155"
-                     FontFamily="Consolas, Cascadia Code, Monospace"
-                     FontSize="13"
-                     BorderThickness="1"
-                     BorderBrush="#CBD5E1"
-                     CornerRadius="6"/>
-          </StackPanel>
-        </Border>
 
       </StackPanel>
     </ScrollViewer>
 
     <!-- Footer -->
-    <Border Grid.Row="2" Background="#F8FAFC" Padding="20,12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+    <Border Grid.Row="2" Classes="footer">
       <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Grid.Column="0" x:Name="PART_StatusMsg" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12"/>
-        <kz:KzButton Grid.Column="1" x:Name="PART_BtnDeploy" Content="🚀 Bắt đầu Cài đặt" Classes="kz-primary"/>
+        <TextBlock Grid.Column="0" x:Name="PART_StatusMsg" Text="" Foreground="{DynamicResource kz.brush.accent.text}" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"/>
+        <kz:KzButton Grid.Column="1" x:Name="PART_BtnDeploy" Classes="kz-accent">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <controls:LucideIcon Data="{StaticResource ic.download}" />
+            <TextBlock Text="Bắt đầu cài đặt" VerticalAlignment="Center" />
+          </StackPanel>
+        </kz:KzButton>
       </Grid>
     </Border>
 
   </Grid>
 </Window>
-
-
-

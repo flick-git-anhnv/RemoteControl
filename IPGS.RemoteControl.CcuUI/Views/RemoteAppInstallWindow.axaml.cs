@@ -16,6 +16,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
         private readonly string _sshUser;
         private readonly string _sshPassword;
         private readonly ComputerProfile _profile;
+        // Khác rỗng khi file cài đặt được chọn TRÊN máy đích (không upload).
+        private string _remoteInstallerPath = "";
 
         public RemoteAppInstallWindow() : this(new ComputerProfile())
         {
@@ -49,7 +51,15 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 }
             }
 
+            if (!string.IsNullOrEmpty(_profile.LastLaunchPackage))
+            {
+                PART_LaunchPackageName.Text = _profile.LastLaunchPackage;
+            }
+
             PART_BtnBrowseApp.Click += OnBrowseAppClick;
+            PART_BtnBrowseRemote.Click += OnBrowseRemoteClick;
+            PART_BtnLaunch.Click += OnLaunchClick;
+            PART_BtnShowAllLaunch.Click += (s, e) => ShowAppListFlyout(PART_BtnShowAllLaunch, PART_LaunchPackageName);
             PART_BtnDeploy.Click += OnDeployClick;
             if (this.FindControl<Button>("PART_BtnUninstall") is { } btnUninstall)
             {
@@ -59,57 +69,98 @@ namespace IPGS.RemoteControl.CcuUI.Views
             {
                 btnShowAll.Click += (s, e) =>
                 {
-                    var autoComplete = this.FindControl<AutoCompleteBox>("PART_UninstallPackageName");
-                    if (autoComplete != null)
-                    {
-                        autoComplete.IsDropDownOpen = true;
-                        autoComplete.Focus();
-                    }
+                    if (this.FindControl<AutoCompleteBox>("PART_UninstallPackageName") is { } autoComplete)
+                        ShowAppListFlyout(btnShowAll, autoComplete);
                 };
             }
 
             LoadInstalledPackagesAsync();
         }
 
-        private async void LoadInstalledPackagesAsync()
-        {
-            if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser)) return;
+        // Danh sách app trên máy đích: null = chưa tải xong; rỗng = tải lỗi/không có.
+        private string[]? _installedApps;
+        private Task? _loadAppsTask;
 
+        // App = gói có shortcut .desktop (app giao diện) + gói kztek/ipgs/kiosk (app riêng có thể không có shortcut).
+        private const string ListAppsCommand =
+            "{ dpkg -S /usr/share/applications/*.desktop /usr/local/share/applications/*.desktop 2>/dev/null " +
+            "| grep -v '^diversion' | cut -d: -f1 | tr ',' '\\n'; " +
+            "dpkg-query -W -f='${binary:Package}\\n' | grep -iE 'kztek|ipgs|kiosk'; } " +
+            "| sed 's/^ *//; s/ *$//; s/:.*$//' | grep -v '^$' | sort -u";
+
+        private void LoadInstalledPackagesAsync() => _loadAppsTask = LoadInstalledAppsAsync();
+
+        private async Task LoadInstalledAppsAsync()
+        {
+            if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser)) { _installedApps = []; return; }
+
+            string[] apps = [];
             try
             {
-                using var ssh = new SshClient(_sshHost, _sshPort, _sshUser, _sshPassword);
-                await Task.Run(() => ssh.Connect());
-                if (ssh.IsConnected)
+                apps = await Task.Run(() =>
                 {
-                    var cmd = ssh.CreateCommand("dpkg-query -W -f='${binary:Package}\n'");
-                    var result = await Task.Run(() => cmd.Execute());
-                    var allPackages = result.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-                    var packages = System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Where(allPackages, p => 
-                        p.Contains("kztek", StringComparison.OrdinalIgnoreCase) || 
-                        p.Contains("remote", StringComparison.OrdinalIgnoreCase) || 
-                        p.Contains("agent", StringComparison.OrdinalIgnoreCase) || 
-                        p.Contains("kiosk", StringComparison.OrdinalIgnoreCase)));
-
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                    {
-                        if (this.FindControl<AutoCompleteBox>("PART_UninstallPackageName") is { } autoComplete)
-                        {
-                            autoComplete.ItemsSource = packages;
-                        }
-                    });
-                }
+                    using var ssh = new SshClient(_sshHost, _sshPort, _sshUser, _sshPassword);
+                    ssh.Connect();
+                    var result = ssh.CreateCommand(ListAppsCommand).Execute();
+                    return result.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                });
             }
             catch
             {
-                // Ignore background errors
+                // Lỗi SSH → danh sách rỗng; nút ▼ sẽ báo không lấy được.
             }
+
+            _installedApps = apps;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (this.FindControl<AutoCompleteBox>("PART_UninstallPackageName") is { } autoComplete)
+                    autoComplete.ItemsSource = apps;
+                PART_LaunchPackageName.ItemsSource = apps;
+            });
+        }
+
+        /// <summary>
+        /// Nút ▼: hiện toàn bộ app máy đích trong flyout (AutoCompleteBox chỉ lọc khi gõ chữ nên
+        /// IsDropDownOpen=true không hiện gì). Chọn 1 dòng → điền vào ô tên package.
+        /// </summary>
+        private async void ShowAppListFlyout(Control anchor, AutoCompleteBox target)
+        {
+            if (_installedApps is null && _loadAppsTask is not null)
+            {
+                try { await _loadAppsTask; } catch { }
+            }
+            var apps = _installedApps ?? [];
+
+            var flyout = new Flyout { Placement = PlacementMode.BottomEdgeAlignedRight };
+            if (apps.Length == 0)
+            {
+                flyout.Content = new TextBlock
+                {
+                    Text = "Không lấy được danh sách app từ máy đích (kiểm tra SSH).",
+                    Margin = new Avalonia.Thickness(8)
+                };
+            }
+            else
+            {
+                var list = new ListBox { ItemsSource = apps, MaxHeight = 320, MinWidth = 360 };
+                list.SelectionChanged += (_, _) =>
+                {
+                    if (list.SelectedItem is string pkg)
+                    {
+                        target.Text = pkg;
+                        flyout.Hide();
+                    }
+                };
+                flyout.Content = list;
+            }
+            flyout.ShowAt(anchor);
         }
 
         private async void OnBrowseAppClick(object? sender, RoutedEventArgs e)
         {
             var options = new Avalonia.Platform.Storage.FilePickerOpenOptions
             {
-                Title = "Chọn file ứng dụng (.deb, .sh, .run)",
+                Title = "Chọn file ứng dụng (.deb, .sh, .run, .msi, .exe)",
                 AllowMultiple = false
             };
 
@@ -117,6 +168,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             if (files.Count >= 1)
             {
                 PART_AppInstallerPath.Text = files[0].Path.LocalPath;
+                _remoteInstallerPath = "";
                 // F04: người dùng vừa khắc phục nguyên nhân lỗi validation ("Vui lòng chọn
                 // file cài đặt...") — xóa status đỏ cũ ngay, không chờ tới lần bấm Deploy sau.
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.SlateGray;
@@ -124,10 +176,82 @@ namespace IPGS.RemoteControl.CcuUI.Views
             }
         }
 
+        private async void OnBrowseRemoteClick(object? sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser))
+            {
+                PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
+                PART_StatusMsg.Text = "Thiếu thông tin kết nối SSH.";
+                return;
+            }
+
+            var picker = new RemoteFilePickerWindow(_sshHost, _sshPort, _sshUser, _sshPassword);
+            var path = await picker.ShowDialog<string?>(this);
+            if (string.IsNullOrEmpty(path)) return;
+
+            _remoteInstallerPath = path;
+            PART_AppInstallerPath.Text = "[Máy đích] " + path;
+            PART_StatusMsg.Foreground = Avalonia.Media.Brushes.SlateGray;
+            PART_StatusMsg.Text = "";
+        }
+
+        private async void OnLaunchClick(object? sender, RoutedEventArgs e)
+        {
+            string packageName = PART_LaunchPackageName.Text?.Trim() ?? "";
+
+            if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser))
+            {
+                PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
+                PART_StatusMsg.Text = "Thiếu thông tin kết nối SSH.";
+                return;
+            }
+            if (string.IsNullOrEmpty(packageName))
+            {
+                PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
+                PART_StatusMsg.Text = "Vui lòng nhập tên package cần khởi động (Ví dụ: kztek-ipgsv4).";
+                return;
+            }
+
+            PART_BtnLaunch.IsEnabled = false;
+            PART_LogConsole.Text = "";
+            PART_StatusMsg.Foreground = Avalonia.Media.Brushes.SlateGray;
+            PART_StatusMsg.Text = "Đang gửi lệnh khởi động...";
+
+            var options = new RemoteAppInstallOptions
+            {
+                Host = _sshHost,
+                SshPort = _sshPort,
+                Username = _sshUser,
+                Password = _sshPassword,
+                PackageName = packageName
+            };
+
+            try
+            {
+                await _installService.LaunchAsync(options, Log);
+                PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Green;
+                PART_StatusMsg.Text = "▶ Đã gửi lệnh khởi động.";
+
+                _profile.LastLaunchPackage = packageName;
+                ComputerProfileStore.Instance.Save(_profile);
+            }
+            catch (Exception ex)
+            {
+                PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
+                PART_StatusMsg.Text = "Lỗi: " + ex.Message;
+                Log("LỖI: " + ex.Message);
+            }
+            finally
+            {
+                PART_BtnLaunch.IsEnabled = true;
+            }
+        }
+
         private async void OnDeployClick(object? sender, RoutedEventArgs e)
         {
             string sudoPass = string.IsNullOrEmpty(PART_SudoPassword.Text) ? _sshPassword : PART_SudoPassword.Text;
-            string installerPath = PART_AppInstallerPath.Text?.Trim() ?? "";
+            bool isRemote = !string.IsNullOrEmpty(_remoteInstallerPath);
+            string installerPath = isRemote ? _remoteInstallerPath : (PART_AppInstallerPath.Text?.Trim() ?? "");
 
             if (string.IsNullOrEmpty(_sshHost) || string.IsNullOrEmpty(_sshUser))
             {
@@ -145,6 +269,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             PART_BtnDeploy.IsEnabled = false;
             PART_BtnBrowseApp.IsEnabled = false;
+            PART_BtnBrowseRemote.IsEnabled = false;
             PART_LogConsole.Text = "";
             PART_StatusMsg.Foreground = Avalonia.Media.Brushes.SlateGray;
             PART_StatusMsg.Text = "Đang kết nối và cài đặt...";
@@ -156,7 +281,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 Username = _sshUser,
                 Password = _sshPassword,
                 SudoPassword = sudoPass,
-                AppInstallerFile = installerPath
+                AppInstallerFile = isRemote ? "" : installerPath,
+                RemoteInstallerPath = isRemote ? installerPath : ""
             };
 
             try
@@ -167,7 +293,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 ReportProgress(new InstallProgress(100, "Hoàn tất 100%"));
 
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Green;
-                PART_StatusMsg.Text = "🎉 Đã tải lên và cài đặt thành công!";
+                PART_StatusMsg.Text = "Đã tải lên và cài đặt thành công!";
 
                 // Lưu lại lựa chọn
                 _profile.LastAppInstallerPath = installerPath;
@@ -176,13 +302,14 @@ namespace IPGS.RemoteControl.CcuUI.Views
             catch (Exception ex)
             {
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
-                PART_StatusMsg.Text = "❌ Lỗi: " + ex.Message;
-                Log("❌ LỖI: " + ex.Message);
+                PART_StatusMsg.Text = "Lỗi: " + ex.Message;
+                Log("LỖI: " + ex.Message);
             }
             finally
             {
                 PART_BtnDeploy.IsEnabled = true;
                 PART_BtnBrowseApp.IsEnabled = true;
+                PART_BtnBrowseRemote.IsEnabled = true;
                 if (this.FindControl<Button>("PART_BtnUninstall") is { } btnUninstall) btnUninstall.IsEnabled = true;
             }
         }
@@ -230,7 +357,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 await _installService.UninstallAsync(options, Log);
 
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Green;
-                PART_StatusMsg.Text = "🎉 Đã gỡ cài đặt thành công!";
+                PART_StatusMsg.Text = "Đã gỡ cài đặt thành công!";
                 if (txtPackageName != null) txtPackageName.Text = "";
 
                 // Lưu lại lựa chọn
@@ -240,8 +367,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
             catch (Exception ex)
             {
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
-                PART_StatusMsg.Text = "❌ Lỗi: " + ex.Message;
-                Log("❌ LỖI: " + ex.Message);
+                PART_StatusMsg.Text = "Lỗi: " + ex.Message;
+                Log("LỖI: " + ex.Message);
             }
             finally
             {

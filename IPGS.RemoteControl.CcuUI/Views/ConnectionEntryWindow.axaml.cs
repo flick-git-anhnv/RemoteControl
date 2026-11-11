@@ -213,35 +213,6 @@ public partial class ConnectionEntryWindow : Window
         }
     }
 
-    public async void OnItemWakeUpClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Control { Tag: ComputerProfile profile })
-        {
-            if (string.IsNullOrWhiteSpace(profile.MacAddress))
-            {
-                var w1 = new Window { Title = "Lỗi Wake-on-LAN", Width = 400, Height = 150, WindowStartupLocation = WindowStartupLocation.CenterOwner };
-                w1.Content = new TextBlock { Text = "Máy tính này chưa được cấu hình địa chỉ MAC.\nVui lòng bấm 'Sửa' và điền địa chỉ MAC trước khi đánh thức.", Margin = new Avalonia.Thickness(20), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-                await w1.ShowDialog(this);
-                return;
-            }
-
-            try
-            {
-                await IPGS.RemoteControl.CcuClient.Services.WakeOnLanService.SendMagicPacketAsync(profile.MacAddress);
-                
-                var w2 = new Window { Title = "Thành công", Width = 400, Height = 150, WindowStartupLocation = WindowStartupLocation.CenterOwner };
-                w2.Content = new TextBlock { Text = $"Đã gửi tín hiệu bật nguồn (Magic Packet) đến địa chỉ MAC {profile.MacAddress}.\nVui lòng chờ vài phút để máy tính khởi động.", Margin = new Avalonia.Thickness(20), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-                await w2.ShowDialog(this);
-            }
-            catch (Exception ex)
-            {
-                var w3 = new Window { Title = "Lỗi gửi tín hiệu", Width = 400, Height = 150, WindowStartupLocation = WindowStartupLocation.CenterOwner };
-                w3.Content = new TextBlock { Text = $"Không thể gửi gói tin Wake-on-LAN:\n{ex.Message}", Margin = new Avalonia.Thickness(20), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-                await w3.ShowDialog(this);
-            }
-        }
-    }
-
     public async void OnItemSetupWizardClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Control { Tag: ComputerProfile profile }) return;
@@ -289,15 +260,6 @@ public partial class ConnectionEntryWindow : Window
         if (sender is Button { Tag: ComputerProfile profile })
         {
             var win = new HealthMonitorWindow(profile);
-            win.ShowDialog(this);
-        }
-    }
-
-    private void OnItemCronJobClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: ComputerProfile profile })
-        {
-            var win = new CronJobWindow(profile);
             win.ShowDialog(this);
         }
     }
@@ -384,12 +346,6 @@ public partial class ConnectionEntryWindow : Window
             foreach (var p in items) p.IsSelected = value;
         }
         OnSelectionChanged(null, e);
-    }
-
-    public void OnItemMountFolderClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Control { Tag: ComputerProfile profile }) return;
-        new MountFolderWindow(new List<ComputerProfile> { profile }).Show();
     }
 
     public async void OnItemRestartAgentClick(object? sender, RoutedEventArgs e)

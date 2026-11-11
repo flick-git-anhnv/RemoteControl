@@ -1,8 +1,9 @@
 <Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:IPGS.RemoteControl.CcuUI.Controls"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         x:Class="IPGS.RemoteControl.CcuUI.Views.KioskDeployWindow"
-        Title="🖥️ Kiosk Deploy &amp; OS Config"
+        Title="Kiosk Deploy &amp; OS Config"
         Width="1040" Height="860"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
@@ -10,12 +11,12 @@
   <Grid RowDefinitions="Auto,*,Auto">
 
     <!-- ── Header ────────────────────────────────────────────────── -->
-    <Border Grid.Row="0" Background="#251C53" Padding="20,16">
+    <Border Grid.Row="0" Background="{DynamicResource kz.brush.navy.900}" Padding="20,16">
       <StackPanel Spacing="4">
-        <TextBlock Text="🖥️ Deploy Kiosk Setup"
+        <TextBlock Text="Deploy Kiosk Setup"
                    Foreground="White" FontSize="16" FontWeight="Bold" />
         <TextBlock Text="Cấu hình TỪ XA qua SSH: ẩn Top Bar/Dock, autologin, autostart app kiosk — không cần cài PuTTY"
-                   Foreground="#B8B3D6" FontSize="12" />
+                   Foreground="{DynamicResource app.brush.header.sub}" FontSize="12" />
       </StackPanel>
     </Border>
 
@@ -26,7 +27,7 @@
         <!-- Target host -->
         <Border Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" CornerRadius="8" Padding="14">
           <StackPanel Orientation="Horizontal" Spacing="10">
-            <TextBlock Text="🎯" FontSize="16"/>
+            <controls:LucideIcon Data="{StaticResource ic.monitor}"/>
             <StackPanel Spacing="2">
               <TextBlock x:Name="PART_TargetHostText" Text="Đang deploy cho: —" FontWeight="Bold" FontSize="13" Foreground="#3730A3"/>
               <TextBlock Text="Thông tin SSH lấy từ hồ sơ máy tính đã lưu — vào 'Sửa' để thay đổi." FontSize="11" Foreground="#4338CA"/>
@@ -40,7 +41,7 @@
              lệnh gsettings/gnome-extensions trên máy Lubuntu không có GNOME → lỗi
              ngay từ bước đầu, exit 1). -->
         <StackPanel Spacing="4">
-          <TextBlock Text="Hệ điều hành máy đích:" FontSize="12" Foreground="#64748B"/>
+          <TextBlock Text="Hệ điều hành máy đích:" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
           <ComboBox x:Name="PART_CmbOsFamily" SelectedIndex="0" HorizontalAlignment="Left" MinWidth="260">
             <ComboBoxItem Content="Ubuntu Desktop (GNOME Shell)"/>
             <ComboBoxItem Content="Lubuntu (LXQt/Openbox)"/>
@@ -49,7 +50,7 @@
 
         <!-- Sudo password -->
         <StackPanel Spacing="4">
-          <TextBlock Text="Sudo password (để trống nếu giống SSH password):" FontSize="12" Foreground="#64748B"/>
+          <TextBlock Text="Sudo password (để trống nếu giống SSH password):" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
           <TextBox x:Name="PART_SudoPassword" PasswordChar="•" PlaceholderText="Để trống nếu dùng chung với SSH password" Height="36" VerticalContentAlignment="Center"/>
         </StackPanel>
 
@@ -57,7 +58,7 @@
         <Border Background="#F0F9FF" BorderBrush="#BAE6FD" BorderThickness="1" CornerRadius="8" Padding="14">
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel Grid.Column="0" Spacing="2">
-              <TextBlock Text="🎨 Reset màu màn hình (Night Light / Gamma)" FontWeight="Bold" FontSize="13" Foreground="#0369A1"/>
+              <TextBlock Text="Reset màu màn hình (Night Light / Gamma)" FontWeight="Bold" FontSize="13" Foreground="#0369A1"/>
               <TextBlock x:Name="PART_ResetColorStatus" Text="Dùng khi màn hình ZCU bị ám màu (VD xanh/tím) sau khi đổi session X11↔Wayland." FontSize="11" Foreground="#0284C7" TextWrapping="Wrap"/>
             </StackPanel>
             <kz:KzButton Grid.Column="1" x:Name="PART_BtnResetColor" Content="Reset màu" KzSize="Sm"/>
@@ -65,28 +66,28 @@
         </Border>
 
         <!-- TabControl -->
-        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="4">
+        <Border Background="White" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="1" CornerRadius="8" Padding="4">
           <TabControl>
 
             <!-- TAB 1: Config máy tính -->
-            <TabItem Header="🖥️ Config máy tính">
+            <TabItem Header="Config máy tính">
               <StackPanel Spacing="12" Margin="16,14,16,10">
 
                 <StackPanel Spacing="4" MaxWidth="320" HorizontalAlignment="Left">
-                  <TextBlock Text="Kiosk user (autologin):" FontSize="12" Foreground="#64748B"/>
+                  <TextBlock Text="Kiosk user (autologin):" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
                   <kz:KzTextBox x:Name="PART_KioskUser" Text="kztek" />
                 </StackPanel>
 
                 <!-- ── Nút Chọn tất cả / Bỏ chọn tất cả ── -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                  <kz:KzButton x:Name="PART_BtnSelectAll" Content="☑ Chọn tất cả" KzSize="Sm"
+                  <kz:KzButton x:Name="PART_BtnSelectAll" Content="Chọn tất cả" KzSize="Sm"
                                 ToolTip.Tip="Tick tất cả các ô cấu hình máy tính"/>
-                  <kz:KzButton x:Name="PART_BtnDeselectAll" Content="☐ Bỏ chọn tất cả" KzSize="Sm"
-                                ToolTip.Tip="Bỏ tick tất cả — bỏ tick = khôi phục mặc định hệ thống. Lưu ý: 'Cài unclutter' chỉ 1 chiều — bỏ tick không gỡ package đã cài."/>
+                  <kz:KzButton x:Name="PART_BtnDeselectAll" Content="Bỏ chọn tất cả" KzSize="Sm"
+                                ToolTip.Tip="Bỏ tick tất cả — bỏ tick = khôi phục mặc định hệ thống cho từng mục. 'Cài unclutter' bỏ tick = tắt ẩn con trỏ (giữ package đã cài)."/>
                 </StackPanel>
 
                 <TextBlock FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap" Margin="0,2,0,0">
-                  💡 Mỗi checkbox dưới đây là toggle 2 chiều: <Run FontWeight="Bold" Text="tick = ẩn/tắt"/>, <Run FontWeight="Bold" Text="bỏ tick = hiện lại/bật lại mặc định"/> (không phải "bỏ qua"). Riêng "Cài unclutter" chỉ 1 chiều — bỏ tick không tự gỡ package đã cài.
+                  Mỗi checkbox dưới đây là toggle 2 chiều: <Run FontWeight="Bold" Text="tick = ẩn/tắt"/>, <Run FontWeight="Bold" Text="bỏ tick = hiện lại/bật lại mặc định"/> (không phải "bỏ qua"). Riêng "Cài unclutter" chỉ 1 chiều — bỏ tick không tự gỡ package đã cài.
                 </TextBlock>
 
                 <!-- 2 cột: ① Ẩn giao diện GNOME | ② Hành vi máy/màn hình -->
@@ -96,37 +97,37 @@
                     <CheckBox x:Name="PART_ChkHideTopBar" IsChecked="True">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="Ẩn Top Bar (thanh trên cùng GNOME)" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Ẩn thanh menu ngang trên cùng của màn hình GNOME để phần mềm Kiosk tràn viền không bị vướng." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Ẩn thanh menu ngang trên cùng của màn hình GNOME để phần mềm Kiosk tràn viền không bị vướng." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                     <CheckBox x:Name="PART_ChkHideActivities" IsChecked="True">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="Ẩn nút Activities" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Ẩn nút Activities (hoặc chữ Activities) góc trên bên trái, tránh người dùng bấm vào thoát ra màn hình overview." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Ẩn nút Activities (hoặc chữ Activities) góc trên bên trái, tránh người dùng bấm vào thoát ra màn hình overview." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                     <CheckBox x:Name="PART_ChkHideWorkspace" IsChecked="True">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="Ẩn Workspace Switcher" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Ẩn thanh chuyển đổi không gian làm việc (Workspace) khi vào chế độ overview." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Ẩn thanh chuyển đổi không gian làm việc (Workspace) khi vào chế độ overview." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                     <CheckBox x:Name="PART_ChkHideDash" IsChecked="True">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="Ẩn Dash (icon ứng dụng trong Overview)" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Ẩn thanh dock chứa các ứng dụng khi mở menu, tránh người dùng mở app ngoài luồng." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Ẩn thanh dock chứa các ứng dụng khi mở menu, tránh người dùng mở app ngoài luồng." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                     <CheckBox x:Name="PART_ChkHideUbuntuDock" IsChecked="True">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="Tắt Ubuntu Dock (thanh icon bên cạnh)" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Tắt extension ubuntu-dock@ubuntu.com — thanh dock (taskbar) bên cạnh màn hình mặc định của Ubuntu." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Tắt extension ubuntu-dock@ubuntu.com — thanh dock (taskbar) bên cạnh màn hình mặc định của Ubuntu." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                     <CheckBox x:Name="PART_ChkHideDesktopIcons" IsChecked="False">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="Tắt Desktop Icons (icon trên desktop)" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Tắt extension Desktop Icons NG (ding@rastersoft.com) — ẩn mọi icon hiển thị trên màn hình nền. Bỏ tick (giữ bật) để icon shortcut app trên desktop click được (F14)." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Tắt extension Desktop Icons NG (ding@rastersoft.com) — ẩn mọi icon hiển thị trên màn hình nền. Bỏ tick (giữ bật) để icon shortcut app trên desktop click được (F14)." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                   </StackPanel>
@@ -135,45 +136,45 @@
                     <TextBlock Text="② Hành vi máy / màn hình:" FontSize="11" Foreground="#94A3B8" FontWeight="SemiBold"/>
                     <CheckBox x:Name="PART_ChkInstallUnclutter" IsChecked="True">
                       <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="Cài unclutter (tự ẩn con trỏ chuột khi không dùng)" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Cài đặt công cụ giúp tự động làm mờ/ẩn con trỏ chuột khi không di chuyển, giúp màn hình Kiosk gọn gàng." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <TextBlock Text="Cài + bật unclutter (tự ẩn con trỏ chuột khi không dùng)" VerticalAlignment="Center"/>
+                        <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Cài + bật công cụ tự ẩn con trỏ chuột khi không di chuyển, giúp màn hình Kiosk gọn gàng. Bỏ tick = tắt unclutter (con trỏ hiện lại), không gỡ package." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                     <CheckBox x:Name="PART_ChkHideKeyboard" IsChecked="True">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="Tắt bàn phím ảo GNOME (on-screen keyboard)" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Ngăn chặn bàn phím ảo mặc định tự bật lên khi chạm vào ô nhập liệu (hữu ích nếu Kiosk không cần nhập liệu hoặc có bàn phím riêng)." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Ngăn chặn bàn phím ảo mặc định tự bật lên khi chạm vào ô nhập liệu (hữu ích nếu Kiosk không cần nhập liệu hoặc có bàn phím riêng)." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                     <CheckBox x:Name="PART_ChkHotCorner" IsChecked="True">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="Tắt hot corner / notification banner / khóa màn hình" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Vô hiệu hóa tính năng di chuột góc màn hình để mở menu, tắt các popup thông báo và chặn tự động khóa màn hình." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Vô hiệu hóa tính năng di chuột góc màn hình để mở menu, tắt các popup thông báo và chặn tự động khóa màn hình." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                     <CheckBox x:Name="PART_ChkBlockSleep" IsChecked="True">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="Chặn suspend/sleep khi cắm điện" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Ngăn hệ thống tự động rơi vào chế độ ngủ (Sleep/Suspend) hoặc tắt màn hình, đảm bảo Kiosk luôn sáng 24/7." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Ngăn hệ thống tự động rơi vào chế độ ngủ (Sleep/Suspend) hoặc tắt màn hình, đảm bảo Kiosk luôn sáng 24/7." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                     <CheckBox x:Name="PART_ChkInitialSetup" IsChecked="True">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="Bỏ qua màn hình gnome-initial-setup" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Bỏ qua màn hình thiết lập ban đầu (chọn ngôn ngữ, wifi...) thường tự mở ra ở lần chạy đầu tiên." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Bỏ qua màn hình thiết lập ban đầu (chọn ngôn ngữ, wifi...) thường tự mở ra ở lần chạy đầu tiên." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                     <CheckBox x:Name="PART_ChkAutologin" IsChecked="True">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="Autologin GDM cho Kiosk user ở trên" VerticalAlignment="Center"/>
-                        <TextBlock Text="❓" ToolTip.Tip="Cấu hình hệ thống tự động đăng nhập vào tài khoản Kiosk ngay khi khởi động mà không cần gõ mật khẩu." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                        <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Cấu hình hệ thống tự động đăng nhập vào tài khoản Kiosk ngay khi khởi động mà không cần gõ mật khẩu." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                       </StackPanel>
                     </CheckBox>
                     <CheckBox x:Name="PART_ChkLockWorkspace" IsChecked="True">
                       <StackPanel Spacing="1">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                           <TextBlock Text="Khóa còn 1 workspace tĩnh" FontWeight="Normal" VerticalAlignment="Center"/>
-                          <TextBlock Text="❓" ToolTip.Tip="Ngăn chặn hệ điều hành tạo thêm workspace động, giữ cố định 1 workspace để Kiosk không bị chuyển qua trang trống." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                          <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Ngăn chặn hệ điều hành tạo thêm workspace động, giữ cố định 1 workspace để Kiosk không bị chuyển qua trang trống." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                         </StackPanel>
                         <TextBlock Text="Chặn gesture 2/3 ngón trên màn cảm ứng bị hiểu thành chuyển workspace, làm app fullscreen &quot;biến mất&quot;"
                                    FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap"/>
@@ -183,7 +184,7 @@
                       <StackPanel Spacing="1">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                           <TextBlock Text="Khoá lối thoát kiosk (dconf lock)" FontWeight="Normal" VerticalAlignment="Center"/>
-                          <TextBlock Text="❓" ToolTip.Tip="Vô hiệu phím Super (mở Activities/tìm kiếm), Alt+F2, Ctrl+Alt+T (Terminal), Alt+Tab, Alt+F4 và chặn đăng xuất/đổi user bằng dconf system-wide + lock — người dùng KHÔNG tự bật lại được. Bỏ tick = gỡ khoá để bảo trì." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                          <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Vô hiệu phím Super (mở Activities/tìm kiếm), Alt+F2, Ctrl+Alt+T (Terminal), Alt+Tab, Alt+F4 và chặn đăng xuất/đổi user bằng dconf system-wide + lock — người dùng KHÔNG tự bật lại được. Bỏ tick = gỡ khoá để bảo trì." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                         </StackPanel>
                         <TextBlock Text="Chặn người dùng mở Activities/tìm kiếm/Terminal, thoát app kiosk hoặc đăng xuất (F09). Bỏ tick khi cần bảo trì máy."
                                    FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap"/>
@@ -193,7 +194,7 @@
                       <StackPanel Spacing="1">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                           <TextBlock Text="Bật tường lửa (ufw)" FontWeight="Normal" VerticalAlignment="Center"/>
-                          <TextBlock Text="❓" ToolTip.Tip="Cài + bật ufw, LUÔN allow OpenSSH trước khi enable nên không tự khoá mất kết nối SSH đang dùng để deploy. Bỏ tick = ufw disable (giữ nguyên rule để bật lại nhanh)." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                          <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Cài + bật ufw, LUÔN allow OpenSSH trước khi enable nên không tự khoá mất kết nối SSH đang dùng để deploy. Bỏ tick = ufw disable (giữ nguyên rule để bật lại nhanh)." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                         </StackPanel>
                         <TextBlock Text="Chỉ mở port cần thiết (SSH + port ZcuAgent), chặn phần còn lại — giảm bề mặt tấn công máy kiosk."
                                    FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap"/>
@@ -205,57 +206,57 @@
                 <!-- Nút Deploy riêng cho tab này — F21: chỉ áp dụng cấu hình máy/UI,
                      KHÔNG bắt buộc chọn App exec (autostart/watchdog sẽ tự bỏ qua nếu
                      App exec đang trống, không chặn deploy). -->
-                <Border BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,12,0,0">
+                <Border BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,12,0,0">
                   <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" x:Name="PART_StatusMsgMachine" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"/>
-                    <kz:KzButton Grid.Column="1" x:Name="PART_BtnDeployMachine" Content="🚀 Deploy Config máy tính" Classes="kz-primary"/>
+                    <TextBlock Grid.Column="0" x:Name="PART_StatusMsgMachine" Text="" Foreground="{DynamicResource kz.brush.orange.500}" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"/>
+                    <kz:KzButton Grid.Column="1" x:Name="PART_BtnDeployMachine" Content="Deploy Config máy tính" Classes="kz-primary"/>
                   </Grid>
                 </Border>
               </StackPanel>
             </TabItem>
 
             <!-- TAB 2: Config phần mềm -->
-            <TabItem Header="⚙️ Config phần mềm">
+            <TabItem Header="Config phần mềm">
               <StackPanel Spacing="12" Margin="12,14,12,10">
 
                 <!-- App exec — editable ComboBox + nút nạp danh sách từ ZCU -->
                 <StackPanel Spacing="4">
-                  <TextBlock Text="App exec (lệnh autostart app):" FontSize="12" Foreground="#64748B"/>
+                  <TextBlock Text="App exec (lệnh autostart app):" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
                   <Grid ColumnDefinitions="*,8,Auto">
                     <kz:KzComboBox Grid.Column="0"
                                     x:Name="PART_AppExec"
                                     IsEditable="True"
-                                    PlaceholderText="Nhập lệnh hoặc bấm 🔄 để nạp danh sách từ máy ZCU..."
+                                    PlaceholderText="Nhập lệnh hoặc bấm để nạp danh sách từ máy ZCU..."
                                     HorizontalAlignment="Stretch"/>
                     <kz:KzButton Grid.Column="2"
                                   x:Name="PART_BtnLoadApps"
-                                  Content="🔄 Nạp DS"
+                                  Content="Nạp DS"
                                   KzSize="Sm"
                                   ToolTip.Tip="Kết nối SSH tới máy ZCU, quét danh sách ứng dụng có thể dùng làm kiosk app để chọn. Vẫn có thể nhập tay lệnh vào ô bên trái."/>
                   </Grid>
                   <!-- Trạng thái nạp danh sách (hiển thị khi đang load hoặc có lỗi) -->
                   <TextBlock x:Name="PART_LoadAppsStatus"
-                              Text="" FontSize="11" Foreground="#64748B"
+                              Text="" FontSize="11" Foreground="{DynamicResource kz.brush.text.muted}"
                               TextWrapping="Wrap"/>
                 </StackPanel>
 
                 <CheckBox x:Name="PART_ChkSwUpdate" IsChecked="True">
                   <StackPanel Orientation="Horizontal" Spacing="6">
                     <TextBlock Text="Tắt popup + auto-download Software Updater" VerticalAlignment="Center"/>
-                    <TextBlock Text="❓" ToolTip.Tip="Vô hiệu hóa trình cập nhật phần mềm tự động của hệ điều hành để tránh hiện thông báo che khuất giao diện Kiosk." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                    <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Vô hiệu hóa trình cập nhật phần mềm tự động của hệ điều hành để tránh hiện thông báo che khuất giao diện Kiosk. Bỏ tick = bật lại như mặc định." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                   </StackPanel>
                 </CheckBox>
                 <CheckBox x:Name="PART_ChkAutostart" IsChecked="True">
                   <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="Autostart app + unclutter khi vào desktop" VerticalAlignment="Center"/>
-                    <TextBlock Text="❓" ToolTip.Tip="Tự động mở phần mềm và công cụ ẩn con trỏ chuột (unclutter) ngay khi máy tính khởi động vào màn hình chính." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                    <TextBlock Text="Autostart app khi vào desktop" VerticalAlignment="Center"/>
+                    <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Tự động mở phần mềm ngay khi máy tính khởi động vào màn hình chính. Bỏ tick = gỡ autostart. (Ẩn con trỏ chuột nay do ô 'Cài + bật unclutter' ở tab Config máy tính quản lý.)" Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                   </StackPanel>
                 </CheckBox>
                 <CheckBox x:Name="PART_ChkWatchdog" IsChecked="True">
                   <StackPanel Spacing="1">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                       <TextBlock Text="Watchdog: tự khởi động lại app kiosk khi đóng/crash" VerticalAlignment="Center"/>
-                      <TextBlock Text="❓" ToolTip.Tip="Cài dịch vụ systemd giám sát app kiosk: nếu app bị đóng hoặc crash sẽ tự bật lại sau vài giây, không để lộ màn hình desktop trống. Có giới hạn chống lặp vô hạn nếu app chưa được cài. Khi bật, app do dịch vụ quản lý (không dùng autostart .desktop để tránh chạy 2 lần)." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                      <controls:LucideIcon Data="{StaticResource ic.info}" ToolTip.Tip="Cài dịch vụ systemd giám sát app kiosk: nếu app bị đóng hoặc crash sẽ tự bật lại sau vài giây, không để lộ màn hình desktop trống. Có giới hạn chống lặp vô hạn nếu app chưa được cài. Khi bật, app do dịch vụ quản lý (không dùng autostart .desktop để tránh chạy 2 lần)." Cursor="Hand" Foreground="#94A3B8" VerticalAlignment="Center"/>
                     </StackPanel>
                     <TextBlock Text="Nếu app bị tắt/crash sẽ tự bật lại trong vài giây (systemd Restart=always) — tránh lộ desktop trống (F10)."
                                FontSize="10" Foreground="#94A3B8" TextWrapping="Wrap"/>
@@ -266,10 +267,10 @@
                      (bỏ qua cài extension GNOME/unclutter không liên quan), chỉ chạy
                      2-configure-system.sh để áp dụng autostart/watchdog/software-update.
                      Dùng khi cần đổi app autostart cho app KHÁC mà không đụng cấu hình máy. -->
-                <Border BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,12,0,0">
+                <Border BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,12,0,0">
                   <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" x:Name="PART_StatusMsgSoftware" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"/>
-                    <kz:KzButton Grid.Column="1" x:Name="PART_BtnDeploySoftware" Content="🚀 Deploy Config phần mềm" Classes="kz-primary"/>
+                    <TextBlock Grid.Column="0" x:Name="PART_StatusMsgSoftware" Text="" Foreground="{DynamicResource kz.brush.orange.500}" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"/>
+                    <kz:KzButton Grid.Column="1" x:Name="PART_BtnDeploySoftware" Content="Deploy Config phần mềm" Classes="kz-primary"/>
                   </Grid>
                 </Border>
               </StackPanel>
@@ -279,9 +280,9 @@
         </Border>
 
         <!-- Console log -->
-        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14">
+        <Border Background="{DynamicResource kz.brush.surface.app}" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="1" CornerRadius="8" Padding="14">
           <StackPanel Spacing="8">
-            <TextBlock Text="💻 Nhật ký Deploy (Console Output):" Foreground="#475569" FontSize="13" FontWeight="SemiBold"/>
+            <TextBlock Text="Nhật ký Deploy (Console Output):" Foreground="#475569" FontSize="13" FontWeight="SemiBold"/>
             <TextBox x:Name="PART_LogConsole"
                      Height="280"
                      Padding="12,12,12,32"
@@ -290,10 +291,10 @@
                      TextWrapping="Wrap"
                      Background="#FFFFFF"
                      Foreground="#334155"
-                     FontFamily="Consolas, Cascadia Code, Monospace"
+                     FontFamily="{DynamicResource app.font.mono}"
                      FontSize="13"
                      BorderThickness="1"
-                     BorderBrush="#CBD5E1"
+                     BorderBrush="{DynamicResource kz.brush.divider}"
                      CornerRadius="6"/>
           </StackPanel>
         </Border>
@@ -302,8 +303,8 @@
     </ScrollViewer>
 
     <!-- ── Footer ────────────────────────────────────────────────── -->
-    <Border Grid.Row="2" Background="#F8FAFC" Padding="20,12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
-      <TextBlock x:Name="PART_StatusMsg" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"/>
+    <Border Grid.Row="2" Background="{DynamicResource kz.brush.surface.app}" Padding="20,12" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="0,1,0,0">
+      <TextBlock x:Name="PART_StatusMsg" Text="" Foreground="{DynamicResource kz.brush.orange.500}" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap"/>
     </Border>
 
   </Grid>

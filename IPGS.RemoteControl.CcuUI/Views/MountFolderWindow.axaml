@@ -8,10 +8,10 @@
 
   <Grid RowDefinitions="Auto,Auto,*">
 
-    <Border Grid.Row="0" Background="#251C53" Padding="20,14">
+    <Border Grid.Row="0" Background="{DynamicResource kz.brush.navy.900}" Padding="20,14">
       <StackPanel Spacing="2">
-        <TextBlock Text="📂 Mount thư mục share" Foreground="White" FontSize="15" FontWeight="SemiBold" />
-        <TextBlock x:Name="PART_TargetText" Foreground="#D1C4E9" FontSize="12" TextWrapping="Wrap" />
+        <TextBlock Text="Mount thư mục share" Foreground="White" FontSize="15" FontWeight="SemiBold" />
+        <TextBlock x:Name="PART_TargetText" Foreground="{DynamicResource app.brush.header.sub}" FontSize="12" TextWrapping="Wrap" />
       </StackPanel>
     </Border>
 
@@ -43,29 +43,29 @@
 
         <CheckBox x:Name="PART_ReadOnly" Content="Chỉ đọc (read-only)" />
 
-        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12">
+        <Border Background="{DynamicResource kz.brush.surface.app}" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="1" CornerRadius="8" Padding="12">
           <TextBlock x:Name="PART_Hint" FontSize="12" Foreground="#475569" TextWrapping="Wrap" />
         </Border>
 
         <Border x:Name="PART_NfsServerBox" Background="#FFFBEB" BorderBrush="#FDE68A" BorderThickness="1" CornerRadius="8" Padding="12" IsVisible="False">
           <StackPanel Spacing="8">
-            <TextBlock Text="🖥️ Thiết lập máy chủ NFS (chạy trên máy Ubuntu CHỨA thư mục)" FontWeight="SemiBold" FontSize="12" Foreground="#92400E" />
+            <TextBlock Text="Thiết lập máy chủ NFS (chạy trên máy Ubuntu CHỨA thư mục)" FontWeight="SemiBold" FontSize="12" Foreground="#92400E" />
             <TextBlock FontSize="12" Foreground="#92400E" TextWrapping="Wrap"
                        Text="Máy chủ phải có trong danh sách với IP trùng ô 'IP máy chủ share' và đã nhập SSH user/password. Cài nfs-kernel-server và export thư mục ở ô 'Đường dẫn export' cho các dải IP bên dưới." />
             <kz:KzTextBox x:Name="PART_AllowedClients" Text="192.168.0.0/16,10.0.0.0/8,172.16.0.0/12" PlaceholderText="Dải IP máy khách được phép" />
-            <kz:KzButton x:Name="PART_BtnSetupServer" Content="🖥️ Thiết lập máy chủ NFS" KzSize="Sm" HorizontalAlignment="Left" />
+            <kz:KzButton x:Name="PART_BtnSetupServer" Content="Thiết lập máy chủ NFS" KzSize="Sm" HorizontalAlignment="Left" />
           </StackPanel>
         </Border>
 
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <kz:KzButton x:Name="PART_BtnMount" Content="📂 Cài &amp; Mount" Classes="kz-primary" />
-          <kz:KzButton x:Name="PART_BtnUnmount" Content="⏏ Gỡ mount" />
+          <kz:KzButton x:Name="PART_BtnMount" Content="Cài &amp; Mount" Classes="kz-primary" />
+          <kz:KzButton x:Name="PART_BtnUnmount" Content="Gỡ mount" />
         </StackPanel>
 
       </StackPanel>
     </ScrollViewer>
 
     <TextBox Grid.Row="2" x:Name="PART_Log" Margin="24,4,24,16" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
-             Background="#0F172A" Foreground="#E2E8F0" FontFamily="Consolas, monospace" FontSize="12" />
+             Background="#0F172A" Foreground="#E2E8F0" FontFamily="{DynamicResource app.font.mono}" FontSize="12" />
   </Grid>
 </Window>

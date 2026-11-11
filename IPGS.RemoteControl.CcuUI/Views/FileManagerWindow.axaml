@@ -8,24 +8,24 @@
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,Auto,*,Auto">
     <!-- Header -->
-    <Border Grid.Row="0" Background="#251C53" Padding="20,14">
+    <Border Grid.Row="0" Background="{DynamicResource kz.brush.navy.900}" Padding="20,14">
       <Grid ColumnDefinitions="*,Auto">
         <TextBlock x:Name="PART_TitleText" Text="Quản Lý File Chuyên Sâu" Foreground="White" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
       </Grid>
     </Border>
 
     <!-- Toolbar -->
-    <Border Grid.Row="1" Background="#F8FAFC" Padding="12" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+    <Border Grid.Row="1" Background="{DynamicResource kz.brush.surface.app}" Padding="12" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="0,0,0,1">
       <StackPanel Spacing="8">
         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,0">
-          <kz:KzButton Grid.Column="0" x:Name="PART_BtnUp" Content="⬆ Lên 1 cấp" KzSize="Sm" Margin="0,0,8,0" Classes="kz-outline" />
+          <kz:KzButton Grid.Column="0" x:Name="PART_BtnUp" Content="Lên 1 cấp" KzSize="Sm" Margin="0,0,8,0" Classes="kz-outline" />
           <kz:KzTextBox Grid.Column="1" x:Name="PART_TxtPath" Text="/" Margin="0,0,8,0" VerticalAlignment="Center" />
           <kz:KzButton Grid.Column="2" x:Name="PART_BtnGo" Content="Đi" KzSize="Sm" Classes="kz-primary" Margin="0,0,16,0" />
 
-          <kz:KzButton Grid.Column="3" x:Name="PART_BtnRefresh" Content="🔄 Làm mới" KzSize="Sm" Margin="0,0,8,0" Classes="kz-outline" />
-          <kz:KzButton Grid.Column="4" x:Name="PART_BtnSync" Content="🔄 Đồng bộ" KzSize="Sm" Classes="kz-outline" Margin="0,0,8,0" ToolTip.Tip="Đồng bộ thư mục cục bộ lên thư mục đích" />
-          <kz:KzButton Grid.Column="5" x:Name="PART_BtnUpload" Content="⬆ Upload File" KzSize="Sm" Classes="kz-primary" Margin="0,0,8,0" />
-          <kz:KzButton Grid.Column="6" x:Name="PART_BtnDelete" Content="🗑 Xóa" KzSize="Sm" Classes="kz-danger" />
+          <kz:KzButton Grid.Column="3" x:Name="PART_BtnRefresh" Content="Làm mới" KzSize="Sm" Margin="0,0,8,0" Classes="kz-outline" />
+          <kz:KzButton Grid.Column="4" x:Name="PART_BtnSync" Content="Đồng bộ" KzSize="Sm" Classes="kz-outline" Margin="0,0,8,0" ToolTip.Tip="Đồng bộ thư mục cục bộ lên thư mục đích" />
+          <kz:KzButton Grid.Column="5" x:Name="PART_BtnUpload" Content="Upload File" KzSize="Sm" Classes="kz-primary" Margin="0,0,8,0" />
+          <kz:KzButton Grid.Column="6" x:Name="PART_BtnDelete" Content="Xóa" KzSize="Sm" Classes="kz-danger" />
         </Grid>
         <Grid ColumnDefinitions="Auto,*">
           <TextBlock Text="Lọc file:" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#475569" FontWeight="Medium" />
@@ -40,7 +40,7 @@
               CanUserSortColumns="True"
               IsReadOnly="True"
               GridLinesVisibility="All"
-              BorderThickness="1" BorderBrush="#E2E8F0"
+              BorderThickness="1" BorderBrush="{DynamicResource kz.brush.border}"
               Margin="12"
               SelectionMode="Extended"
               DragDrop.AllowDrop="True"
@@ -54,7 +54,7 @@
     </DataGrid>
 
     <!-- Status Bar -->
-    <Border Grid.Row="3" Background="#F1F5F9" Padding="12,6" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+    <Border Grid.Row="3" Background="{DynamicResource kz.brush.surface.app}" Padding="12,6" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="0,1,0,0">
       <TextBlock x:Name="PART_StatusMsg" Text="Sẵn sàng" Foreground="#475569" FontSize="12" />
     </Border>
   </Grid>

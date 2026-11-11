@@ -1,0 +1,246 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
+        xmlns:controls="clr-namespace:IPGS.RemoteControl.CcuUI.Controls">
+  <!--
+    Giao diện chung CcuUI (redesign theo ui-ux-pro-max: Minimalism & Swiss, màu thương hiệu Kztek).
+    Nạp SAU KzTokens trong App.axaml. Style ở đây (Styles) thắng style trong ControlTheme của
+    KztekComponentAvalonia ở cùng mức ưu tiên — dùng để map các class đang có trong Views:
+      kz-primary  → nút navy        kz-outline → nút viền (secondary)
+      kz-accent   → nút CTA cam     kz-danger  → navy 700 (Kztek không dùng đỏ tươi)
+      kz-success  → xanh lá         (không class) → nút viền
+  -->
+  <Styles.Resources>
+    <FontFamily x:Key="app.font.sans">avares://IPGS.RemoteControl.CcuUI/Assets/Fonts#Be Vietnam Pro</FontFamily>
+    <FontFamily x:Key="app.font.mono">avares://IPGS.RemoteControl.CcuUI/Assets/Fonts#JetBrains Mono</FontFamily>
+    <SolidColorBrush x:Key="app.brush.header.sub" Color="#C9C4E6" />
+    <SolidColorBrush x:Key="app.brush.table.header" Color="#FAFAFC" />
+    <SolidColorBrush x:Key="app.brush.row.divider" Color="#F0EFF5" />
+  </Styles.Resources>
+
+  <!-- ── Nền tảng ─────────────────────────────────────────────── -->
+  <Style Selector="Window">
+    <Setter Property="FontFamily" Value="{StaticResource app.font.sans}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.text}" />
+  </Style>
+  <Style Selector="TextBlock.mono">
+    <Setter Property="FontFamily" Value="{StaticResource app.font.mono}" />
+  </Style>
+  <Style Selector="SelectableTextBlock.mono">
+    <Setter Property="FontFamily" Value="{StaticResource app.font.mono}" />
+  </Style>
+  <Style Selector="TextBox.mono">
+    <Setter Property="FontFamily" Value="{StaticResource app.font.mono}" />
+  </Style>
+  <Style Selector="controls|LucideIcon">
+    <Setter Property="Width" Value="16" />
+    <Setter Property="Height" Value="16" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- ── Header cửa sổ (navy) ─────────────────────────────────── -->
+  <Style Selector="Border.app-header">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.navy.900}" />
+    <Setter Property="Padding" Value="24,14" />
+  </Style>
+  <Style Selector="TextBlock.h-title">
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="FontWeight" Value="Bold" />
+  </Style>
+  <Style Selector="TextBlock.h-sub">
+    <Setter Property="Foreground" Value="{StaticResource app.brush.header.sub}" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+  <Style Selector="TextBlock.section-title">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.text}" />
+  </Style>
+  <Style Selector="TextBlock.muted">
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.text.muted}" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+  <Style Selector="TextBlock.th">
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.text.muted}" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- ── Bề mặt ───────────────────────────────────────────────── -->
+  <Style Selector="Border.card">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.white}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.border}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="16" />
+  </Style>
+  <Style Selector="Border.footer">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.white}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.border}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="Padding" Value="24,12" />
+  </Style>
+  <Style Selector="Border.pill">
+    <Setter Property="CornerRadius" Value="999" />
+    <Setter Property="Padding" Value="8,2" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.hint">
+    <Setter Property="Background" Value="#EEF2FF" />
+    <Setter Property="BorderBrush" Value="#C7D2FE" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="12,8" />
+  </Style>
+  <Style Selector="Border.hint TextBlock">
+    <Setter Property="Foreground" Value="#1E3A8A" />
+  </Style>
+
+  <!-- ── Nút KzButton ─────────────────────────────────────────── -->
+  <Style Selector="kz|KzButton">
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="MinHeight" Value="34" />
+  </Style>
+
+  <!-- Không có class biến thể nào → nút viền -->
+  <Style Selector="kz|KzButton:not(.kz-btn-primary):not(.kz-btn-accent):not(.kz-btn-secondary):not(.kz-btn-ghost):not(.kz-btn-danger)">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.white}" />
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.navy.900}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.divider}" />
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="Height" Value="36" />
+  </Style>
+  <Style Selector="kz|KzButton:not(.kz-btn-primary):not(.kz-btn-accent):not(.kz-btn-secondary):not(.kz-btn-ghost):not(.kz-btn-danger):pointerover /template/ Border#PART_Border">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.navy.100}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.navy.300}" />
+  </Style>
+
+  <Style Selector="kz|KzButton.kz-primary">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.navy.900}" />
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.white}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.navy.900}" />
+  </Style>
+  <Style Selector="kz|KzButton.kz-primary:pointerover /template/ Border#PART_Border">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.navy.hover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.navy.hover}" />
+  </Style>
+
+  <Style Selector="kz|KzButton.kz-accent">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.cta}" />
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.white}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.cta}" />
+  </Style>
+  <Style Selector="kz|KzButton.kz-accent:pointerover /template/ Border#PART_Border">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.cta.hover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.cta.hover}" />
+    <Setter Property="BoxShadow" Value="0 4 10 0 #40CC4A1C" />
+  </Style>
+
+  <Style Selector="kz|KzButton.kz-outline">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.white}" />
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.navy.900}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.divider}" />
+  </Style>
+  <Style Selector="kz|KzButton.kz-outline:pointerover /template/ Border#PART_Border">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.navy.100}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.navy.300}" />
+    <Setter Property="BoxShadow" Value="0 0 0 0 #00000000" />
+  </Style>
+
+  <Style Selector="kz|KzButton.kz-danger">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.navy.700}" />
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.white}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.navy.700}" />
+  </Style>
+  <Style Selector="kz|KzButton.kz-danger:pointerover /template/ Border#PART_Border">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.navy.900}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.navy.900}" />
+  </Style>
+
+  <Style Selector="kz|KzButton.kz-success">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.success.text}" />
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.white}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.success.text}" />
+  </Style>
+  <Style Selector="kz|KzButton.kz-success:pointerover /template/ Border#PART_Border">
+    <Setter Property="Background" Value="#166534" />
+    <Setter Property="BorderBrush" Value="#166534" />
+  </Style>
+
+  <!-- Nút icon vuông (chỉ icon, PHẢI có ToolTip.Tip / AutomationProperties.Name) -->
+  <Style Selector="kz|KzButton.icon">
+    <Setter Property="Width" Value="34" />
+    <Setter Property="Height" Value="34" />
+    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="{DynamicResource kz.brush.white}" />
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.navy.700}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.divider}" />
+  </Style>
+  <Style Selector="kz|KzButton.icon:pointerover /template/ Border#PART_Border">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.navy.100}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.navy.300}" />
+    <Setter Property="BoxShadow" Value="0 0 0 0 #00000000" />
+  </Style>
+
+  <!-- Nút trên nền navy: viền trắng mờ -->
+  <Style Selector="kz|KzButton.on-dark">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="BorderBrush" Value="#47FFFFFF" />
+  </Style>
+  <Style Selector="kz|KzButton.on-dark:pointerover /template/ Border#PART_Border">
+    <Setter Property="Background" Value="#14FFFFFF" />
+    <Setter Property="BorderBrush" Value="#66FFFFFF" />
+    <Setter Property="BoxShadow" Value="0 0 0 0 #00000000" />
+  </Style>
+
+  <Style Selector="kz|KzButton:focus-visible /template/ Border#PART_Border">
+    <Setter Property="BoxShadow" Value="0 0 0 2 #F05922" />
+  </Style>
+
+  <!-- ── Ô nhập ───────────────────────────────────────────────── -->
+  <Style Selector="TextBox">
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.divider}" />
+    <Setter Property="MinHeight" Value="36" />
+  </Style>
+  <Style Selector="ComboBox, AutoCompleteBox">
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.divider}" />
+    <Setter Property="MinHeight" Value="36" />
+  </Style>
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.text}" />
+  </Style>
+
+  <!-- ── Bảng ─────────────────────────────────────────────────── -->
+  <Style Selector="DataGrid">
+    <Setter Property="Background" Value="{DynamicResource kz.brush.white}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource kz.brush.border}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource app.brush.row.divider}" />
+    <Setter Property="GridLinesVisibility" Value="Horizontal" />
+  </Style>
+  <Style Selector="DataGridColumnHeader">
+    <Setter Property="Background" Value="{StaticResource app.brush.table.header}" />
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.text.muted}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Padding" Value="12,0" />
+  </Style>
+
+  <!-- ── Tab ──────────────────────────────────────────────────── -->
+  <Style Selector="TabItem">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.text.muted}" />
+  </Style>
+  <Style Selector="TabItem:selected">
+    <Setter Property="Foreground" Value="{DynamicResource kz.brush.navy.900}" />
+  </Style>
+</Styles>

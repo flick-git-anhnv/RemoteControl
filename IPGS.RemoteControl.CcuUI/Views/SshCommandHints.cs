@@ -20,7 +20,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
         /// init 0|6 / telinit 0|6 / systemctl reboot|poweroff|halt.
         /// </summary>
         private static readonly Regex ShutdownPattern = new(
-            @"(^|[;&|(])\s*(sudo\s+(-\S+\s+)*)?(reboot|poweroff|halt|shutdown|(tel)?init\s+[06]|systemctl\s+(reboot|poweroff|halt))(\s|$|[;&|)])",
+            @"(^|[;&|(])\s*(sudo\s+(-\S+\s+)*)?(reboot|poweroff|halt|shutdown|Restart-Computer|Stop-Computer|(tel)?init\s+[06]|systemctl\s+(reboot|poweroff|halt))(\s|$|[;&|)])",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         /// <summary>

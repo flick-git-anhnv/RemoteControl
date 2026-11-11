@@ -85,12 +85,12 @@ public partial class MountFolderWindow : Window
         }
         catch (ArgumentException ex)
         {
-            Log("❌ " + ex.Message);
+            Log("" + ex.Message);
             return;
         }
         if (!unmount && (opts.ServerHost.Length == 0 || opts.SharePath.Length == 0))
         {
-            Log("❌ Nhập IP máy chủ và " + (IsNfs ? "đường dẫn export." : "tên share."));
+            Log("Nhập IP máy chủ và " + (IsNfs ? "đường dẫn export." : "tên share."));
             return;
         }
 
@@ -106,15 +106,15 @@ public partial class MountFolderWindow : Window
                 if (string.IsNullOrWhiteSpace(p.SshUsername))
                     throw new InvalidOperationException("chưa cấu hình SSH user — bấm 'Sửa' máy để bổ sung.");
 
-                Log($"🔄 [{name}] {(unmount ? "Đang gỡ mount" : "Đang cài & mount")}...");
+                Log($"[{name}] {(unmount ? "Đang gỡ mount" : "Đang cài & mount")}...");
                 string result = unmount
                     ? await _service.UnmountAsync(Ssh(p), opts.MountPoint)
                     : await _service.MountAsync(Ssh(p), opts);
-                Log($"✅ [{name}] {LastLines(result)}");
+                Log($"[{name}] {LastLines(result)}");
             }
             catch (Exception ex)
             {
-                Log($"❌ [{name}] {LastLines(ex.Message)}");
+                Log($"[{name}] {LastLines(ex.Message)}");
             }
             finally
             {
@@ -134,7 +134,7 @@ public partial class MountFolderWindow : Window
             .FirstOrDefault(p => p.Host.Equals(host, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(p.SshUsername));
         if (server == null)
         {
-            Log("❌ Không tìm thấy máy chủ có IP '" + host + "' (kèm SSH user) trong danh sách. Thêm máy chủ vào danh sách và nhập SSH trước.");
+            Log("Không tìm thấy máy chủ có IP '" + host + "' (kèm SSH user) trong danh sách. Thêm máy chủ vào danh sách và nhập SSH trước.");
             return;
         }
 
@@ -142,13 +142,13 @@ public partial class MountFolderWindow : Window
         PART_Log.Text = "";
         try
         {
-            Log($"🖥️ [{server.DisplayName}] Đang thiết lập máy chủ NFS...");
+            Log($"[{server.DisplayName}] Đang thiết lập máy chủ NFS...");
             string result = await _service.SetupNfsServerAsync(Ssh(server), exportPath, PART_AllowedClients.Text ?? "");
-            Log($"✅ [{server.DisplayName}] {result}");
+            Log($"[{server.DisplayName}] {result}");
         }
         catch (Exception ex)
         {
-            Log($"❌ [{server.DisplayName}] {ex.Message}");
+            Log($"[{server.DisplayName}] {ex.Message}");
         }
         finally
         {
