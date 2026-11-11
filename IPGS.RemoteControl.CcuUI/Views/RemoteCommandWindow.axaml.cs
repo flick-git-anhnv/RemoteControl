@@ -57,13 +57,159 @@ namespace IPGS.RemoteControl.CcuUI.Views
             => "'" + value.Replace("'", "'\\''") + "'";
 
         /// <summary>
-        /// S3: Chạy lệnh SSH. Password sudo được ghi vào STDIN của channel (mỗi lần sudo 1 dòng)
-        /// thay vì nhúng vào command line — không còn lộ qua `ps -ef` / `/proc/*/environ` trên máy remote.
-        /// Lệnh KHÔNG có sudo thì không pipe gì cả (tránh lệnh đọc stdin nhận nhầm password làm input).
+        /// Ánh xạ các lệnh mẫu (Quick Commands) của Linux sang lệnh PowerShell tương đương
+        /// khi máy đích được nhận diện là Windows. Nếu là lệnh tùy chỉnh khác thì giữ nguyên.
         /// </summary>
-        private static async Task<(string Output, string Error)> RunSshCommandAsync(
-            SshClient ssh, string command, string sudoPassword, Action<string>? diag = null)
+        public static string TranslateQuickCommandForWindows(string? command)
         {
+            if (string.IsNullOrWhiteSpace(command))
+                return string.Empty;
+
+            string trimmed = command.Trim();
+
+            if (string.Equals(trimmed, "sudo reboot", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "reboot", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Restart-Computer -Force";
+            }
+
+            if (string.Equals(trimmed, "sudo poweroff", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "sudo shutdown -h now", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "sudo shutdown -P now", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "poweroff", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Stop-Computer -Force";
+            }
+
+            if (string.Equals(trimmed, "free -m && echo '' && df -h /", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "free -h && echo '---' && df -h", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Get-CimInstance Win32_OperatingSystem | Select-Object @{N='TotalRAM_MB';E={[math]::Round($_.TotalVisibleMemorySize/1KB,0)}},@{N='FreeRAM_MB';E={[math]::Round($_.FreePhysicalMemory/1KB,0)}},@{N='UsedRAM_MB';E={[math]::Round(($_.TotalVisibleMemorySize-$_.FreePhysicalMemory)/1KB,0)}} | Format-Table -AutoSize; Write-Output '---'; Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | Select-Object DeviceID,VolumeName,@{N='Size_GB';E={[math]::Round($_.Size/1GB,1)}},@{N='Free_GB';E={[math]::Round($_.FreeSpace/1GB,1)}} | Format-Table -AutoSize";
+            }
+
+            if (string.Equals(trimmed, "top -bn1 | head -n 15", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "ps aux --sort=-%mem | head -n 15", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First 15 Id,ProcessName,CPU,@{N='MemoryMB';E={[math]::Round($_.WorkingSet64/1MB,1)}} | Format-Table -AutoSize";
+            }
+
+            if (string.Equals(trimmed, "ip a && echo '---' && ip route", StringComparison.OrdinalIgnoreCase))
+            {
+                return "ipconfig /all; Write-Output '---'; Get-NetRoute -AddressFamily IPv4 | Where-Object DestinationPrefix -eq '0.0.0.0/0'";
+            }
+
+            if (string.Equals(trimmed, "ip a && ping -c 4 8.8.8.8", StringComparison.OrdinalIgnoreCase))
+            {
+                return "ipconfig /all; Write-Output '---'; Get-NetRoute -AddressFamily IPv4 | Where-Object DestinationPrefix -eq '0.0.0.0/0'; ping.exe -n 4 8.8.8.8";
+            }
+
+            if (string.Equals(trimmed, "sudo systemctl restart ssh", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "sudo systemctl restart sshd", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Restart-Service sshd -Force";
+            }
+
+            if (string.Equals(trimmed, "tail -n 50 /var/log/syslog", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Get-EventLog -LogName System -Newest 30 | Format-Table TimeGenerated,EntryType,Source,Message -AutoSize";
+            }
+
+            if (string.Equals(trimmed, "sudo apt clean && sudo apt autoremove -y", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Remove-Item -Path \"$env:TEMP\\*\" -Recurse -Force -ErrorAction SilentlyContinue; Write-Output 'Đã dọn dẹp thư mục TEMP trên Windows.'";
+            }
+
+            if (string.Equals(trimmed, "sudo apt update", StringComparison.OrdinalIgnoreCase))
+            {
+                return "winget source update";
+            }
+
+            if (string.Equals(trimmed, "sudo apt update && sudo apt upgrade -y", StringComparison.OrdinalIgnoreCase))
+            {
+                return "winget upgrade --all --accept-source-agreements --accept-package-agreements";
+            }
+
+            if (string.Equals(trimmed, "sudo rm -rf /var/log/ipgs/*.log", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Remove-Item -Path 'C:\\Program Files\\KztekWinAgent\\*.log' -Force -ErrorAction SilentlyContinue";
+            }
+
+            return command;
+        }
+
+        /// <summary>
+        /// Tạo câu lệnh mở nhanh Terminal tại thư mục hiện tại trên Tab SFTP:
+        /// - Windows SFTP path (<c>/C:/Users/...</c>) -> <c>Set-Location -LiteralPath 'C:\Users\...' ; Get-ChildItem</c>
+        /// - Linux POSIX path (<c>/home/...</c>) -> <c>cd '/home/...' &amp;&amp; ls -la</c>
+        /// </summary>
+        public static string BuildOpenTerminalHereCommand(string? remotePath)
+        {
+            if (ShellQuote.IsWindowsSftpPath(remotePath))
+            {
+                string winLocalPath = ShellQuote.ToWindowsLocalPath(remotePath);
+                return $"Set-Location -LiteralPath {ShellQuote.QuotePowerShell(winLocalPath)}; Get-ChildItem";
+            }
+
+            string norm = ShellQuote.NormalizeSftpPath(remotePath);
+            return $"cd {ShQuote(norm)} && ls -la";
+        }
+
+        /// <summary>
+        /// Tạo câu lệnh SSH xóa đệ quy thư mục không rỗng cho cả Windows (PowerShell <c>Remove-Item</c>)
+        /// và Linux (<c>rm -rf</c>).
+        /// </summary>
+        public static string BuildRecursiveDeleteCommand(string remoteFullPath)
+        {
+            if (ShellQuote.IsWindowsSftpPath(remoteFullPath))
+            {
+                string winLocalPath = ShellQuote.ToWindowsLocalPath(remoteFullPath);
+                return $"powershell.exe -NoProfile -NonInteractive -Command \"Remove-Item -LiteralPath {ShellQuote.QuotePowerShell(winLocalPath)} -Recurse -Force\"";
+            }
+
+            return $"rm -rf {ShQuote(remoteFullPath)}";
+        }
+
+        /// <summary>
+        /// S3: Chạy lệnh SSH đa nền tảng (Linux &amp; Windows).
+        /// - Trên Windows: tự động ánh xạ Quick Command sang PowerShell và chạy trực tiếp (không bọc <c>env DISPLAY=:0 ... bash -c</c> hay <c>sudo -S</c>).
+        /// - Trên Linux: password sudo được ghi vào STDIN của channel (mỗi lần sudo 1 dòng)
+        ///   thay vì nhúng vào command line — không còn lộ qua <c>ps -ef</c> / <c>/proc/*/environ</c> trên máy remote.
+        /// </summary>
+        internal static async Task<(string Output, string Error)> RunSshCommandAsync(
+            SshClient ssh,
+            string command,
+            string sudoPassword,
+            Action<string>? diag = null,
+            RemoteOsType? osType = null)
+        {
+            RemoteOsType targetOs = osType ?? await RemoteOsDetector.DetectRemoteOsAsync(ssh);
+            if (targetOs == RemoteOsType.Windows)
+            {
+                string winCmd = TranslateQuickCommandForWindows(command);
+                if (!string.Equals(winCmd.Trim(), command.Trim(), StringComparison.Ordinal))
+                {
+                    diag?.Invoke($"[Windows] Ánh xạ lệnh sang PowerShell: {winCmd}");
+                }
+
+                using var winSshCmd = ssh.CreateCommand(winCmd, Encoding.UTF8);
+                await winSshCmd.ExecuteAsync();
+                string winOut = winSshCmd.Result ?? string.Empty;
+                string winErr = winSshCmd.Error ?? string.Empty;
+
+                // Nếu DefaultShell của Windows OpenSSH vẫn đang là cmd.exe và lệnh chứa cmdlet PowerShell
+                if (winErr.Contains("is not recognized as an internal or external command", StringComparison.OrdinalIgnoreCase))
+                {
+                    string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(
+                        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " + winCmd));
+                    using var psFallbackCmd = ssh.CreateCommand($"powershell.exe -NoProfile -NonInteractive -EncodedCommand {encoded}", Encoding.UTF8);
+                    await psFallbackCmd.ExecuteAsync();
+                    winOut = psFallbackCmd.Result ?? string.Empty;
+                    winErr = psFallbackCmd.Error ?? string.Empty;
+                }
+
+                return (winOut, winErr);
+            }
+
             int sudoCount = SudoPattern.Matches(command).Count;
             bool hasSudo = sudoCount > 0;
 
@@ -132,6 +278,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
         private readonly string _sshUser;
         private readonly string _sshPassword;
         private SftpClient? _sftpClient;
+        private string _currentRemotePath = "";
 
         private readonly List<RemoteFileItem> _allRemoteFiles = new();
         private readonly ObservableCollection<RemoteFileItem> _displayRemoteFiles = new();
@@ -149,16 +296,16 @@ namespace IPGS.RemoteControl.CcuUI.Views
             {
                 snippetCombo.ItemsSource = new string[]
                 {
-                    "🔄 Khởi động lại (Reboot)",
-                    "🔌 Tắt máy (Shutdown)",
-                    "💾 Kiểm tra RAM & Ổ cứng",
-                    "🧹 Dọn dẹp cache (apt clean)",
-                    "📊 Xem Top Process",
-                    "🌐 Cập nhật APT (apt update)",
-                    "🌐 Cập nhật & Nâng cấp (apt update & upgrade)",
-                    "🔍 Kiểm tra IP & Mạng",
-                    "🛠 Khởi động lại SSH (Restart SSH)",
-                    "📋 Xem log hệ thống (syslog)"
+                    "Khởi động lại (Reboot)",
+                    "Tắt máy (Shutdown)",
+                    "Kiểm tra RAM & Ổ cứng",
+                    "Dọn dẹp cache (apt clean)",
+                    "Xem Top Process",
+                    "Cập nhật APT (apt update)",
+                    "Cập nhật & Nâng cấp (apt update & upgrade)",
+                    "Kiểm tra IP & Mạng",
+                    "Khởi động lại SSH (Restart SSH)",
+                    "Xem log hệ thống (syslog)"
                 };
             }
 
@@ -234,8 +381,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 tabControl.SelectedIndex = initialTabIndex;
             }
 
-            // Initial load of files
-            _ = LoadDirectoryAsync($"/home/{_sshUser}");
+            // Initial load of files (tự động lấy WorkingDirectory từ SFTP cho cả Linux /home/... và Windows /C:/Users/...)
+            _ = LoadDirectoryAsync();
         }
 
         private void ApplyFileFilter()
@@ -338,7 +485,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     return;
                 }
 
-                // S3: RunSshCommandAsync ghi password sudo vào STDIN, không nhúng vào command line
+                // S3: RunSshCommandAsync tự động nhận diện HĐH (Linux/Windows); trên Linux ghi password sudo vào STDIN
                 var (output, error) = await RunSshCommandAsync(ssh, command, sudoPassword, Log);
 
                 if (!string.IsNullOrEmpty(output))
@@ -353,6 +500,11 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
                 SetStatus("Thực thi hoàn tất.", false, true);
                 ssh.Disconnect();
+            }
+            catch (Exception ex) when (SshCommandHints.IsShutdownCommand(command) && SshCommandHints.IsConnectionDropped(ex))
+            {
+                Log(SshCommandHints.ShutdownInfoMessage);
+                SetStatus("Đã gửi lệnh khởi động lại / tắt máy.", false, true);
             }
             catch (Exception ex)
             {
@@ -406,25 +558,39 @@ namespace IPGS.RemoteControl.CcuUI.Views
             {
                 await Task.Run(() => _sftpClient.Connect());
             }
+
+            if (string.IsNullOrWhiteSpace(_currentRemotePath))
+            {
+                string? workDir = _sftpClient.WorkingDirectory;
+                _currentRemotePath = !string.IsNullOrWhiteSpace(workDir)
+                    ? ShellQuote.NormalizeSftpPath(workDir)
+                    : $"/home/{_sshUser}";
+            }
         }
 
         private async Task LoadDirectoryAsync(string? path = null)
         {
             var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
-            if (string.IsNullOrEmpty(path))
+            if (string.IsNullOrWhiteSpace(path))
             {
                 path = txtPath?.Text?.Trim();
             }
-            if (string.IsNullOrEmpty(path))
-            {
-                path = $"/home/{_sshUser}";
-            }
 
-            SetStatus($"Đang tải dữ liệu thư mục {path}...", false);
+            SetStatus($"Đang tải dữ liệu thư mục {(string.IsNullOrWhiteSpace(path) ? "..." : path)}...", false);
 
             try
             {
                 await EnsureSftpConnectedAsync();
+
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    path = !string.IsNullOrWhiteSpace(_currentRemotePath)
+                        ? _currentRemotePath
+                        : $"/home/{_sshUser}";
+                }
+
+                path = ShellQuote.NormalizeSftpPath(path);
+                _currentRemotePath = path;
 
                 var files = await Task.Run(() =>
                 {
@@ -446,7 +612,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     .Select(f => new RemoteFileItem
                     {
                         Name = f.Name,
-                        FullName = f.FullName,
+                        FullName = ShellQuote.NormalizeSftpPath(
+                            !string.IsNullOrWhiteSpace(f.FullName) ? f.FullName : ShellQuote.CombineSftpPath(path, f.Name)),
                         IsDirectory = f.IsDirectory,
                         IsSymbolicLink = f.IsSymbolicLink,
                         Size = f.Length,
@@ -467,20 +634,20 @@ namespace IPGS.RemoteControl.CcuUI.Views
             }
             catch (Exception ex)
             {
-                SetStatus($"❌ Lỗi đọc thư mục: {ex.Message}", true);
+                SetStatus($"Lỗi đọc thư mục: {ex.Message}", true);
             }
         }
 
         private async Task NavigateUpAsync()
         {
             var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
-            string currentPath = txtPath?.Text?.Trim() ?? "/";
-            if (currentPath == "/" || string.IsNullOrEmpty(currentPath)) return;
+            string currentPath = txtPath?.Text?.Trim() ?? _currentRemotePath;
+            if (string.IsNullOrWhiteSpace(currentPath)) return;
 
-            currentPath = currentPath.TrimEnd('/');
-            int lastSlash = currentPath.LastIndexOf('/');
-            string parent = lastSlash <= 0 ? "/" : currentPath.Substring(0, lastSlash);
-            
+            string normalized = ShellQuote.NormalizeSftpPath(currentPath);
+            string parent = ShellQuote.GetParentSftpPath(normalized);
+            if (string.Equals(parent, normalized, StringComparison.Ordinal)) return;
+
             await LoadDirectoryAsync(parent);
         }
 
@@ -502,14 +669,17 @@ namespace IPGS.RemoteControl.CcuUI.Views
         public void OnOpenTerminalHereClick(object? sender, RoutedEventArgs e)
         {
             var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
-            string currentPath = txtPath?.Text?.Trim() ?? "/home";
+            string currentPath = txtPath?.Text?.Trim() ?? _currentRemotePath;
+            if (string.IsNullOrWhiteSpace(currentPath))
+                currentPath = $"/home/{_sshUser}";
+
             var tabControl = this.FindControl<TabControl>("PART_TabControl");
             if (tabControl != null) tabControl.SelectedIndex = 0;
 
             var input = this.FindControl<TextBox>("PART_CommandInput");
             if (input != null)
             {
-                input.Text = $"cd {ShQuote(currentPath)} && ";
+                input.Text = BuildOpenTerminalHereCommand(currentPath);
                 input.Focus();
                 input.CaretIndex = input.Text.Length;
             }
@@ -526,9 +696,10 @@ namespace IPGS.RemoteControl.CcuUI.Views
             if (item != null && (item.IsDirectory || item.IsSymbolicLink))
             {
                 e.Handled = true;
+                string baseDir = this.FindControl<TextBox>("PART_FileCurrentPath")?.Text ?? _currentRemotePath;
                 string targetPath = !string.IsNullOrWhiteSpace(item.FullName)
-                    ? item.FullName
-                    : (this.FindControl<TextBox>("PART_FileCurrentPath")?.Text?.TrimEnd('/') + "/" + item.Name);
+                    ? ShellQuote.NormalizeSftpPath(item.FullName)
+                    : ShellQuote.CombineSftpPath(baseDir, item.Name);
                 _ = LoadDirectoryAsync(targetPath);
             }
         }
@@ -541,9 +712,10 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 if (grid?.SelectedItem is RemoteFileItem item && (item.IsDirectory || item.IsSymbolicLink))
                 {
                     e.Handled = true;
+                    string baseDir = this.FindControl<TextBox>("PART_FileCurrentPath")?.Text ?? _currentRemotePath;
                     string targetPath = !string.IsNullOrWhiteSpace(item.FullName)
-                        ? item.FullName
-                        : (this.FindControl<TextBox>("PART_FileCurrentPath")?.Text?.TrimEnd('/') + "/" + item.Name);
+                        ? ShellQuote.NormalizeSftpPath(item.FullName)
+                        : ShellQuote.CombineSftpPath(baseDir, item.Name);
                     _ = LoadDirectoryAsync(targetPath);
                 }
             }
@@ -576,7 +748,6 @@ namespace IPGS.RemoteControl.CcuUI.Views
         private async Task ProcessUploadFilesAsync(IEnumerable<string> localPaths)
         {
             var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
-            string currentPath = txtPath?.Text?.Trim() ?? "/home";
             var pathList = localPaths.ToList();
             if (pathList.Count == 0) return;
 
@@ -585,23 +756,25 @@ namespace IPGS.RemoteControl.CcuUI.Views
             try
             {
                 await EnsureSftpConnectedAsync();
+                string currentPath = ShellQuote.NormalizeSftpPath(
+                    !string.IsNullOrWhiteSpace(txtPath?.Text) ? txtPath.Text : _currentRemotePath);
 
                 foreach (var localPath in pathList)
                 {
                     if (Directory.Exists(localPath)) continue; // skip folder upload for now
                     string fileName = Path.GetFileName(localPath);
-                    string remotePath = currentPath.TrimEnd('/') + "/" + fileName;
+                    string remotePath = ShellQuote.CombineSftpPath(currentPath, fileName);
 
                     using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read);
                     await Task.Run(() => _sftpClient!.UploadFile(fs, remotePath, true));
                 }
 
-                SetStatus("🎉 Upload thành công!", false, true);
+                SetStatus("Upload thành công!", false, true);
                 await LoadDirectoryAsync(currentPath);
             }
             catch (Exception ex)
             {
-                SetStatus($"❌ Lỗi upload: {ex.Message}", true);
+                SetStatus($"Lỗi upload: {ex.Message}", true);
             }
         }
 
@@ -632,13 +805,14 @@ namespace IPGS.RemoteControl.CcuUI.Views
             string localDir = folders[0].Path.LocalPath;
             
             var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
-            string remoteDir = txtPath?.Text?.Trim() ?? "/home";
 
             SetStatus($"Đang đối chiếu file để đồng bộ từ {localDir}...", false);
 
             try
             {
                 await EnsureSftpConnectedAsync();
+                string remoteDir = ShellQuote.NormalizeSftpPath(
+                    !string.IsNullOrWhiteSpace(txtPath?.Text) ? txtPath.Text : _currentRemotePath);
                 
                 var localFiles = Directory.GetFiles(localDir, "*", SearchOption.TopDirectoryOnly);
                 var remoteFiles = await Task.Run(() => _sftpClient!.ListDirectory(remoteDir));
@@ -666,19 +840,19 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
                     if (shouldUpload)
                     {
-                        string remotePath = remoteDir.TrimEnd('/') + "/" + fileName;
+                        string remotePath = ShellQuote.CombineSftpPath(remoteDir, fileName);
                         using var fs = new FileStream(localFile, FileMode.Open, FileAccess.Read);
                         await Task.Run(() => _sftpClient!.UploadFile(fs, remotePath, true));
                         uploadCount++;
                     }
                 }
 
-                SetStatus($"🎉 Đồng bộ hoàn tất! (Đã upload {uploadCount} file thay đổi)", false, true);
+                SetStatus($"Đồng bộ hoàn tất! (Đã upload {uploadCount} file thay đổi)", false, true);
                 await LoadDirectoryAsync(remoteDir);
             }
             catch (Exception ex)
             {
-                SetStatus($"❌ Lỗi đồng bộ: {ex.Message}", true);
+                SetStatus($"Lỗi đồng bộ: {ex.Message}", true);
             }
         }
 
@@ -754,11 +928,11 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     }
                 }
 
-                SetStatus("🎉 Download thành công!", false, true);
+                SetStatus("Download thành công!", false, true);
             }
             catch (Exception ex)
             {
-                SetStatus($"❌ Lỗi download: {ex.Message}", true);
+                SetStatus($"Lỗi download: {ex.Message}", true);
             }
         }
 
@@ -779,9 +953,9 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
             var items = selectedList;
             var txtPath = this.FindControl<TextBox>("PART_FileCurrentPath");
-            string currentPath = txtPath?.Text?.Trim() ?? "/home";
+            string currentPath = !string.IsNullOrWhiteSpace(txtPath?.Text) ? txtPath.Text.Trim() : _currentRemotePath;
 
-            // Q14: BẮT BUỘC xác nhận trước khi xóa — nêu rõ danh sách đường dẫn + cảnh báo rm -rf cho thư mục
+            // Q14: BẮT BUỘC xác nhận trước khi xóa — nêu rõ danh sách đường dẫn + cảnh báo xóa đệ quy cho thư mục
             bool hasDirectory = items.Any(i => i.IsDirectory);
             var paths = items.Select(i => (i.IsDirectory ? "📁 " : "📄 ") + i.FullName).ToList();
             bool confirmed = await ConfirmDeleteDialog.ShowAsync(this, paths, hasDirectory);
@@ -800,20 +974,21 @@ namespace IPGS.RemoteControl.CcuUI.Views
                     {
                         if (item.IsDirectory)
                         {
-                            // SftpClient.DeleteDirectory chỉ xóa được thư mục rỗng — fallback rm -rf qua SSH.
+                            // SftpClient.DeleteDirectory chỉ xóa được thư mục rỗng — fallback xóa đệ quy qua SSH (Linux rm -rf / Windows Remove-Item).
                             try { _sftpClient!.DeleteDirectory(item.FullName); }
                             catch
                             {
-                                // Q14: fallback rm -rf phải báo lỗi nếu thất bại, không nuốt im lặng
+                                // Q14: fallback xóa đệ quy phải báo lỗi nếu thất bại, không nuốt im lặng
                                 try
                                 {
                                     using var ssh = new SshClient(_sshHost, _sshPort, _sshUser, _sshPassword);
                                     ssh.Connect();
-                                    using var cmd = ssh.CreateCommand($"rm -rf {ShQuote(item.FullName)}");
+                                    string deleteCmdText = BuildRecursiveDeleteCommand(item.FullName);
+                                    using var cmd = ssh.CreateCommand(deleteCmdText);
                                     cmd.Execute();
                                     string err = (cmd.Error ?? "").Trim();
                                     if (cmd.ExitStatus != 0)
-                                        failures.Add($"{item.FullName}: {(string.IsNullOrEmpty(err) ? $"rm -rf exit {cmd.ExitStatus}" : err)}");
+                                        failures.Add($"{item.FullName}: {(string.IsNullOrEmpty(err) ? $"delete exit {cmd.ExitStatus}" : err)}");
                                     ssh.Disconnect();
                                 }
                                 catch (Exception sshEx)
@@ -832,18 +1007,18 @@ namespace IPGS.RemoteControl.CcuUI.Views
 
                 if (failures.Count == 0)
                 {
-                    SetStatus("🎉 Đã xóa thành công!", false, true);
+                    SetStatus("Đã xóa thành công!", false, true);
                 }
                 else
                 {
-                    SetStatus($"⚠️ Xóa xong nhưng {failures.Count}/{items.Count} mục bị lỗi (xem log).", true);
-                    Log("❌ Các mục xóa thất bại:\n" + string.Join("\n", failures));
+                    SetStatus($"Xóa xong nhưng {failures.Count}/{items.Count} mục bị lỗi (xem log).", true);
+                    Log("Các mục xóa thất bại:\n" + string.Join("\n", failures));
                 }
                 await LoadDirectoryAsync(currentPath);
             }
             catch (Exception ex)
             {
-                SetStatus($"❌ Lỗi xóa file: {ex.Message}", true);
+                SetStatus($"Lỗi xóa file: {ex.Message}", true);
             }
         }
     }

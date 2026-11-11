@@ -467,6 +467,9 @@ namespace IPGS.RemoteControl.CcuClient
         /// Lọc: bỏ NoDisplay=true, Hidden=true; chuẩn hoá Exec (loại %placeholder).
         /// Kiểm tra binary: đường dẫn tuyệt đối → test -x; tên lệnh → tìm trong PATH.
         /// Ưu tiên 1 = tên/lệnh chứa "ipgs" hoặc "kiosk".
+        /// Lệnh ở /usr/bin|/usr/local/bin thực chất là symlink hoặc wrapper `exec` tới
+        /// /opt/kztek/&lt;app&gt;/run.sh → quy về đường dẫn /opt thật và gộp tên từ .desktop
+        /// vào cùng 1 dòng (tránh 1 app hiện 2 lần với 2 đường dẫn).
         /// </summary>
         private static readonly string _scanScriptContent =
 @"import os, re, glob
@@ -491,10 +494,37 @@ for pattern in ['/opt/kztek/*/run.sh', '/opt/kztek/*/bin/*', '/usr/bin/ipgs*', '
         try:
             if os.path.isfile(f) and (os.access(f, os.X_OK) or f.endswith('.sh')): r.append(('', f))
         except: pass
-seen = set()
+def which(cmd):
+    for d in os.environ.get('PATH', '/usr/bin:/usr/local/bin').split(':'):
+        if d and os.access(os.path.join(d, cmd), os.X_OK): return os.path.join(d, cmd)
+    return ''
+def canon(exec_cmd):
+    parts = exec_cmd.split(None, 1)
+    if not parts: return exec_cmd
+    b = parts[0]
+    if b.startswith('/opt/kztek/'): return exec_cmd
+    p = b if os.path.isabs(b) else which(b)
+    if not p: return exec_cmd
+    t = os.path.realpath(p)
+    if not t.startswith('/opt/kztek/'):
+        try:
+            if os.path.getsize(t) < 4096:
+                m = re.search(r'^exec\s+[\x27\x22]?(/opt/kztek/[^\s\x27\x22]+)', open(t, errors='ignore').read(), re.M)
+                if m and os.path.isfile(m.group(1)): t = os.path.realpath(m.group(1))
+        except: pass
+    if not t.startswith('/opt/kztek/'): return exec_cmd
+    return t + (' ' + parts[1] if len(parts) > 1 else '')
+merged = {}
+order = []
 for name, exec_cmd in r:
-    if exec_cmd in seen: continue
-    seen.add(exec_cmd)
+    c = canon(exec_cmd)
+    if c not in merged:
+        merged[c] = name
+        order.append(c)
+    elif name and not merged[c]:
+        merged[c] = name
+for exec_cmd in order:
+    name = merged[exec_cmd]
     prio = '1' if any(k in exec_cmd.lower() or k in name.lower() for k in ['ipgs', 'kiosk']) else '0'
     bin_part = exec_cmd.split()[0] if exec_cmd else ''
     if os.path.isabs(bin_part):

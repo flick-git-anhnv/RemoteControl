@@ -22,13 +22,14 @@ public static class TopParser
 {
     /// <summary>
     /// Lệnh top chuẩn: chạy batch mode với 2 lần lấy mẫu, khoảng cách 0.5s, ép LC_ALL=C để chuẩn hoá output.
+    /// -w 512: nới độ rộng dòng để cột COMMAND không bị top cắt cụt thành "tên+".
     /// </summary>
-    public const string DefaultTopCommand = "LC_ALL=C top -b -n 2 -d 0.5";
+    public const string DefaultTopCommand = "LC_ALL=C top -b -n 2 -d 0.5 -w 512";
 
     /// <summary>
     /// Phân tích chuỗi đầu ra từ lệnh top để tính tổng tải CPU và danh sách top tiến trình.
     /// </summary>
-    public static TopParseResult Parse(string? topOutput)
+    public static TopParseResult Parse(string? topOutput, int maxProcesses = 5)
     {
         if (string.IsNullOrWhiteSpace(topOutput))
         {
@@ -43,7 +44,7 @@ public static class TopParser
         if (cpuLine != null)
         {
             // Bắt trường idle (% id). Hỗ trợ cả số nguyên, số thập phân dấu chấm (.) và dấu phẩy (,)
-            var idleMatch = Regex.Match(cpuLine, @"([\d.,]+)\s*id");
+            var idleMatch = Regex.Match(cpuLine, @"(\d+(?:[.,]\d+)?)\s*id");
             if (idleMatch.Success)
             {
                 string idleStr = idleMatch.Groups[1].Value.Replace(',', '.');
@@ -56,7 +57,7 @@ public static class TopParser
             // Fallback: nếu không tìm thấy idle, tính dựa trên % us (user CPU)
             if (totalCpu == null)
             {
-                var usMatch = Regex.Match(cpuLine, @"([\d.,]+)\s*us");
+                var usMatch = Regex.Match(cpuLine, @"(\d+(?:[.,]\d+)?)\s*us");
                 if (usMatch.Success)
                 {
                     string usStr = usMatch.Groups[1].Value.Replace(',', '.');
@@ -73,7 +74,7 @@ public static class TopParser
         int pidIndex = Array.FindLastIndex(lines, l => l.Contains("PID") && l.Contains("USER"));
         if (pidIndex >= 0)
         {
-            for (int i = pidIndex + 1; i < lines.Length && processes.Count < 5; i++)
+            for (int i = pidIndex + 1; i < lines.Length && processes.Count < maxProcesses; i++)
             {
                 var parts = lines[i].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length >= 12)

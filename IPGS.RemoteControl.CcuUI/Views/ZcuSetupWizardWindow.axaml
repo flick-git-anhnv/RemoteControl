@@ -1,8 +1,9 @@
 <Window Icon="avares://IPGS.RemoteControl.CcuUI/Assets/icon.png" xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:IPGS.RemoteControl.CcuUI.Controls"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         x:Class="IPGS.RemoteControl.CcuUI.Views.ZcuSetupWizardWindow"
-        Title="⚡ Cài đặt IPGS Remote Agent lên Máy khách (qua SSH)"
+        Title="Cài đặt IPGS Remote Agent lên Máy khách (qua SSH)"
         Width="680" Height="860"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
@@ -10,11 +11,11 @@
   <Grid RowDefinitions="Auto,*,Auto">
 
     <!-- ── Header ────────────────────────────────────────────────── -->
-    <Border Grid.Row="0" Background="#1E1B4B" Padding="20,16">
+    <Border Grid.Row="0" Background="{DynamicResource kz.brush.navy.900}" Padding="20,16">
       <StackPanel Spacing="4">
-        <TextBlock Text="⚡ Cài đặt &amp; Thiết lập Máy khách Remote Agent Tự động"
+        <TextBlock Text="Cài đặt &amp; Thiết lập Máy khách Remote Agent Tự động"
                    Foreground="White" FontSize="16" FontWeight="Bold" />
-        <TextBlock Text="Tự động cài đặt dependencies, cấu hình systemd service, firewall &amp; khoá màn hình qua SSH"
+        <TextBlock Text="Tự động nhận diện HĐH (Linux / Windows), cài đặt Remote Agent, cấu hình Service/Scheduled Task, Firewall &amp; chống khoá màn hình qua SSH"
                    Foreground="#A5B4FC" FontSize="12" />
       </StackPanel>
     </Border>
@@ -26,7 +27,7 @@
         <!-- Target host (chỉ hiển thị, lấy từ hồ sơ máy tính đã lưu — xem "Sửa" để đổi SSH) -->
         <Border Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" CornerRadius="8" Padding="14">
           <StackPanel Orientation="Horizontal" Spacing="10">
-            <TextBlock Text="🎯" FontSize="16"/>
+            <controls:LucideIcon Data="{StaticResource ic.monitor}"/>
             <StackPanel Spacing="2">
               <TextBlock x:Name="PART_TargetHostText" Text="Đang cài đặt cho: —" FontWeight="Bold" FontSize="13" Foreground="#3730A3"/>
               <TextBlock Text="Thông tin SSH lấy từ hồ sơ máy tính đã lưu — vào 'Sửa' để thay đổi." FontSize="11" Foreground="#4338CA"/>
@@ -35,38 +36,38 @@
         </Border>
 
         <!-- STEP 1: Agent Config -->
-        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16">
+        <Border Background="White" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="1" CornerRadius="8" Padding="16">
           <StackPanel Spacing="12">
-            <TextBlock Text="1️⃣ Cấu hình tham số Remote Agent" FontWeight="Bold" FontSize="14" Foreground="#334155"/>
+            <TextBlock Text="1⃣ Cấu hình tham số Remote Agent" FontWeight="Bold" FontSize="14" Foreground="#334155"/>
 
             <Grid ColumnDefinitions="110,*,Auto" RowDefinitions="Auto">
               <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
-                <TextBlock Text="Cổng TCP Agent:" FontSize="12" Foreground="#64748B"/>
+                <TextBlock Text="Cổng TCP Agent:" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
                 <kz:KzTextBox x:Name="PART_AgentPort" Text="17600" />
               </StackPanel>
 
               <StackPanel Grid.Column="1" Spacing="4" Margin="0,0,10,0">
-                <TextBlock Text="Token Bảo mật (Shared Secret):" FontSize="12" Foreground="#64748B"/>
+                <TextBlock Text="Token Bảo mật (Shared Secret):" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
                 <kz:KzTextBox x:Name="PART_AgentToken" PlaceholderText="Nhập hoặc tạo Token ngẫu nhiên..." />
               </StackPanel>
 
-              <kz:KzButton Grid.Column="2" x:Name="PART_BtnGenToken" Content="🎲 Sinh Token" KzSize="Sm" VerticalAlignment="Bottom" Margin="0,0,0,2"/>
+              <kz:KzButton Grid.Column="2" x:Name="PART_BtnGenToken" Content="Sinh Token" KzSize="Sm" VerticalAlignment="Bottom" Margin="0,0,0,2"/>
             </Grid>
 
             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto">
               <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,10,0">
-                <TextBlock Text="Mạng/IP Cho Phép Kết Nối (AllowedClientIPs):" FontSize="12" Foreground="#64748B"/>
+                <TextBlock Text="Mạng/IP Cho Phép Kết Nối (AllowedClientIPs):" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
                 <!-- F06: mặc định giới hạn dải LAN riêng (RFC 1918) thay vì mở toàn mạng 0.0.0.0/0 -->
-                <kz:KzTextBox x:Name="PART_AllowedIPs" Text="192.168.0.0/16,10.0.0.0/8,172.16.0.0/12" PlaceholderText="Ví dụ: 192.168.1.0/24 hoặc nhiều dải cách nhau dấu phẩy" />
+                <kz:KzTextBox x:Name="PART_AllowedIPs" Text="0.0.0.0/0" PlaceholderText="Mặc định: 0.0.0.0/0 (cho phép tất cả) hoặc dải LAN (VD: 192.168.1.0/24)" />
               </StackPanel>
 
               <Grid Grid.Column="1" ColumnDefinitions="*,*" RowDefinitions="Auto">
                 <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,8,0">
-                  <TextBlock Text="FPS (5-30):" FontSize="12" Foreground="#64748B"/>
+                  <TextBlock Text="FPS (5-30):" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
                   <kz:KzTextBox x:Name="PART_TargetFps" Text="30" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Spacing="4">
-                  <TextBlock Text="Chất lượng JPEG (%):" FontSize="12" Foreground="#64748B"/>
+                  <TextBlock Text="Chất lượng JPEG (%):" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
                   <kz:KzTextBox x:Name="PART_JpegQuality" Text="70" />
                 </StackPanel>
               </Grid>
@@ -80,11 +81,11 @@
         <Border Background="#0F172A" CornerRadius="8" Padding="14">
           <StackPanel Spacing="8">
             <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Text="💻 Nhật ký Cài đặt (Console Output):" Foreground="#94A3B8" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Text="Nhật ký Cài đặt (Console Output):" Foreground="#94A3B8" FontSize="12" FontWeight="SemiBold"/>
               <TextBlock x:Name="PART_ProgressText" Grid.Column="1" Text="Sẵn sàng" Foreground="#38BDF8" FontSize="12"/>
             </Grid>
 
-            <ProgressBar x:Name="PART_ProgressBar" Value="0" Maximum="100" Height="6" Background="#1E293B" Foreground="#38BDF8"/>
+            <ProgressBar x:Name="PART_ProgressBar" Value="0" Maximum="100" Height="6" Background="{DynamicResource kz.brush.navy.900}" Foreground="#38BDF8"/>
 
             <TextBox x:Name="PART_LogConsole"
                      Height="120"
@@ -94,7 +95,7 @@
                      TextWrapping="Wrap"
                      Background="#020617"
                      Foreground="#4ADE80"
-                     FontFamily="Consolas, Monospace"
+                     FontFamily="{DynamicResource app.font.mono}"
                      FontSize="11"
                      BorderThickness="0"/>
           </StackPanel>
@@ -104,10 +105,10 @@
     </ScrollViewer>
 
     <!-- ── Footer ────────────────────────────────────────────────── -->
-    <Border Grid.Row="2" Background="#F8FAFC" Padding="20,12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+    <Border Grid.Row="2" Background="{DynamicResource kz.brush.surface.app}" Padding="20,12" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="*,Auto">
         <TextBlock Grid.Column="0" x:Name="PART_StatusMsg" Text="" Foreground="#E11D48" VerticalAlignment="Center" FontSize="12"/>
-        <kz:KzButton Grid.Column="1" x:Name="PART_BtnStartInstall" Content="🚀 Bắt đầu Cài đặt" Classes="kz-primary"/>
+        <kz:KzButton Grid.Column="1" x:Name="PART_BtnStartInstall" Content="Bắt đầu Cài đặt" Classes="kz-primary"/>
       </Grid>
     </Border>
 

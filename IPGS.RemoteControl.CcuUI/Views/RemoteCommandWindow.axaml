@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         xmlns:views="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
+        xmlns:controls="clr-namespace:IPGS.RemoteControl.CcuUI.Controls"
         x:Class="IPGS.RemoteControl.CcuUI.Views.RemoteCommandWindow"
         Title="Quản lý File &amp; Lệnh (SFTP / SSH)"
         Width="1000" Height="720"
@@ -10,11 +11,11 @@
 
   <Grid RowDefinitions="Auto,*,Auto">
     <!-- Header -->
-    <Border Grid.Row="0" Background="#251C53" Padding="20,16">
+    <Border Grid.Row="0" Background="{DynamicResource kz.brush.navy.900}" Padding="20,16">
       <StackPanel Spacing="4">
-        <TextBlock Text="🛠️ Quản lý File (SFTP) &amp; Lệnh (SSH)"
+        <TextBlock Text="Quản lý File (SFTP) &amp; Lệnh (SSH)"
                    Foreground="White" FontSize="16" FontWeight="Bold" />
-        <TextBlock x:Name="PART_TargetHostText" Text="Đang kết nối: —" Foreground="#B8B3D6" FontSize="12" />
+        <TextBlock x:Name="PART_TargetHostText" Text="Đang kết nối: —" Foreground="{DynamicResource app.brush.header.sub}" FontSize="12" />
       </StackPanel>
     </Border>
 
@@ -27,37 +28,36 @@
           <StackPanel Spacing="16" Margin="16,16">
             
             <StackPanel Spacing="4">
-              <TextBlock Text="Sudo password (nếu lệnh cần quyền sudo, để trống nếu giống SSH password):" FontSize="12" Foreground="#64748B"/>
+              <TextBlock Text="Sudo password (nếu lệnh cần quyền sudo, để trống nếu giống SSH password):" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}"/>
               <TextBox x:Name="PART_SudoPassword" PasswordChar="•" Height="36" />
             </StackPanel>
 
             <StackPanel Spacing="4">
               <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="Nhập lệnh bash/shell cần thực thi:" FontSize="12" Foreground="#64748B" VerticalAlignment="Center"/>
+                <TextBlock Text="Nhập lệnh bash/shell cần thực thi:" FontSize="12" Foreground="{DynamicResource kz.brush.text.muted}" VerticalAlignment="Center"/>
                 <AutoCompleteBox x:Name="PART_SnippetCombo" PlaceholderText="Nhập từ khóa (vd: Reboot, RAM)..." Width="300" SelectionChanged="OnSnippetSelectionChanged" FilterMode="Contains" MinimumPrefixLength="0" Tapped="OnSnippetComboTapped" />
               </StackPanel>
               <Grid ColumnDefinitions="*,Auto">
                 <TextBox x:Name="PART_CommandInput" Grid.Column="0" Margin="0,0,8,0" Height="80" AcceptsReturn="True" TextWrapping="Wrap" />
-                <Button x:Name="PART_BtnRunCommand" Content="🚀 Chạy lệnh" Grid.Column="1" Padding="16,8" Foreground="White" Background="#10B981" />
+                <kz:KzButton x:Name="PART_BtnRunCommand" Classes="kz-accent" Grid.Column="1" VerticalAlignment="Top"><StackPanel Orientation="Horizontal" Spacing="6"><controls:LucideIcon Data="{StaticResource ic.play}" /><TextBlock Text="Chạy lệnh" VerticalAlignment="Center" /></StackPanel></kz:KzButton>
               </Grid>
             </StackPanel>
 
-            <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,8,0,0">
+            <Border Background="{DynamicResource kz.brush.surface.app}" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,8,0,0">
               <StackPanel Spacing="8">
-                <TextBlock Text="💻 Kết quả trả về (Console Output):" Foreground="#475569" FontSize="13" FontWeight="SemiBold"/>
+                <TextBlock Text="Kết quả trả về (Console Output):" Foreground="#475569" FontSize="13" FontWeight="SemiBold"/>
                 <TextBox x:Name="PART_LogConsole"
                          Height="340"
                          Padding="12"
                          IsReadOnly="True"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
-                         Background="#FFFFFF"
-                         Foreground="#334155"
-                         FontFamily="Consolas, Cascadia Code, Monospace"
-                         FontSize="13"
-                         BorderThickness="1"
-                         BorderBrush="#CBD5E1"
-                         CornerRadius="6"/>
+                         Background="#14112A"
+                         Foreground="#DCD8F0"
+                         FontFamily="{DynamicResource app.font.mono}"
+                         FontSize="12"
+                         BorderThickness="0"
+                         CornerRadius="8"/>
               </StackPanel>
             </Border>
           </StackPanel>
@@ -65,29 +65,29 @@
       </TabItem>
 
       <!-- TAB 2: File Manager -->
-      <TabItem Header="📁 Quản lý File (SFTP)">
+      <TabItem Header="Quản lý File (SFTP)">
         <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="8">
           
           <!-- Hint Alert -->
-          <Border Grid.Row="0" Background="#FFF9C4" BorderBrush="#FFF59D" BorderThickness="1" CornerRadius="4" Padding="12,8" Margin="0,0,0,8">
+          <Border Grid.Row="0" Classes="hint" Margin="0,0,0,8">
             <StackPanel Orientation="Vertical" Spacing="4">
-              <TextBlock Text="💡 Quản lý File SFTP: Duyệt file trên máy đích dạng danh sách tương tự File Explorer. Hỗ trợ sắp xếp cột, lọc file trực tiếp và Kéo/Thả (Drag &amp; Drop) file từ máy cá nhân lên máy đích." TextWrapping="Wrap" FontSize="12" Foreground="#E65100"/>
-              <TextBlock Text="🔄 Đồng Bộ &amp; Chuyển tiếp: Bấm 'Sync' để đối chiếu và đẩy file thay đổi lên máy đích, hoặc bấm '>_ CMD tại đây' để mở ngay Terminal vào thư mục hiện hành." TextWrapping="Wrap" FontSize="12" Foreground="#E65100"/>
+              <TextBlock Text="Quản lý File SFTP: Duyệt file trên máy đích dạng danh sách tương tự File Explorer. Hỗ trợ sắp xếp cột, lọc file trực tiếp và Kéo/Thả (Drag &amp; Drop) file từ máy cá nhân lên máy đích." TextWrapping="Wrap" FontSize="12"/>
+              <TextBlock Text="Đồng Bộ &amp; Chuyển tiếp: Bấm 'Sync' để đối chiếu và đẩy file thay đổi lên máy đích, hoặc bấm '>_ CMD tại đây' để mở ngay Terminal vào thư mục hiện hành." TextWrapping="Wrap" FontSize="12"/>
             </StackPanel>
           </Border>
 
           <!-- File Toolbar -->
           <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,8">
-            <Button x:Name="PART_BtnFileUpDir" Grid.Column="0" Content="⬆️ Lên" ToolTip.Tip="Lên thư mục cha" Margin="0,0,8,0" />
+            <kz:KzButton x:Name="PART_BtnFileUpDir" Classes="kz-outline" Grid.Column="0" ToolTip.Tip="Lên thư mục cha" Margin="0,0,8,0"><StackPanel Orientation="Horizontal" Spacing="6"><controls:LucideIcon Data="{StaticResource ic.arrow-up}" /><TextBlock Text="Lên" VerticalAlignment="Center" /></StackPanel></kz:KzButton>
             <TextBox x:Name="PART_FileCurrentPath" Grid.Column="1" Margin="0,0,8,0" KeyDown="OnFileCurrentPathKeyDown" />
-            <Button x:Name="PART_BtnFileGo" Grid.Column="2" Content="Đi" Margin="0,0,8,0" ToolTip.Tip="Đi đến đường dẫn đã nhập" Click="OnFileGoClick" />
+            <kz:KzButton x:Name="PART_BtnFileGo" Classes="kz-outline" Grid.Column="2" Margin="0,0,8,0" ToolTip.Tip="Đi đến đường dẫn đã nhập" Click="OnFileGoClick"><StackPanel Orientation="Horizontal" Spacing="6"><controls:LucideIcon Data="{StaticResource ic.arrow-right}" /><TextBlock Text="Đi" VerticalAlignment="Center" /></StackPanel></kz:KzButton>
             <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
-               <Button x:Name="PART_BtnFileRefresh" Content="🔄 Tải lại" ToolTip.Tip="Làm mới danh sách file/thư mục (F5)" />
-               <Button x:Name="PART_BtnFileSync" Content="🔄 Sync (Local &gt; Remote)" Background="#8B5CF6" Foreground="White" ToolTip.Tip="Đồng bộ tất cả các file có thay đổi từ máy trạm lên thư mục đích trên Máy khách" />
-               <Button x:Name="PART_BtnFileUpload" Content="📤 Upload File" Background="#10B981" Foreground="White" ToolTip.Tip="Tải file từ máy tính của bạn lên thư mục hiện tại trên Máy khách (Có thể kéo thả)" />
-               <Button x:Name="PART_BtnFileDownload" Content="📥 Download" Background="#3B82F6" Foreground="White" ToolTip.Tip="Tải file/thư mục đang chọn từ Máy khách về máy tính của bạn" />
-               <Button x:Name="PART_BtnFileDelete" Content="🗑️ Xóa" Background="#EF4444" Foreground="White" ToolTip.Tip="Xóa các file/thư mục đang chọn khỏi Máy khách (Delete)" />
-               <Button x:Name="PART_BtnOpenTerminalHere" Content="&gt;_ CMD tại đây" Background="#0F766E" Foreground="White" ToolTip.Tip="Mở tab Console tại thư mục này" Click="OnOpenTerminalHereClick" />
+               <kz:KzButton x:Name="PART_BtnFileRefresh" Classes="kz-outline" ToolTip.Tip="Làm mới danh sách file/thư mục (F5)"><StackPanel Orientation="Horizontal" Spacing="6"><controls:LucideIcon Data="{StaticResource ic.refresh-cw}" /><TextBlock Text="Tải lại" VerticalAlignment="Center" /></StackPanel></kz:KzButton>
+               <kz:KzButton x:Name="PART_BtnFileSync" Classes="kz-outline" ToolTip.Tip="Chọn 1 thư mục trên máy này: đẩy các file mới/thay đổi (chỉ cấp đầu, không xoá) lên thư mục đang mở trên máy đích"><StackPanel Orientation="Horizontal" Spacing="6"><controls:LucideIcon Data="{StaticResource ic.git-compare}" /><TextBlock Text="Đồng bộ lên máy đích" VerticalAlignment="Center" /></StackPanel></kz:KzButton>
+               <kz:KzButton x:Name="PART_BtnFileUpload" Classes="kz-outline" ToolTip.Tip="Tải file từ máy tính của bạn lên thư mục hiện tại trên Máy khách (Có thể kéo thả)"><StackPanel Orientation="Horizontal" Spacing="6"><controls:LucideIcon Data="{StaticResource ic.upload}" /><TextBlock Text="Upload" VerticalAlignment="Center" /></StackPanel></kz:KzButton>
+               <kz:KzButton x:Name="PART_BtnFileDownload" Classes="kz-outline" ToolTip.Tip="Tải file/thư mục đang chọn từ Máy khách về máy tính của bạn"><StackPanel Orientation="Horizontal" Spacing="6"><controls:LucideIcon Data="{StaticResource ic.download}" /><TextBlock Text="Download" VerticalAlignment="Center" /></StackPanel></kz:KzButton>
+               <kz:KzButton x:Name="PART_BtnFileDelete" Classes="kz-danger" ToolTip.Tip="Xóa các file/thư mục đang chọn khỏi Máy khách (Delete)"><StackPanel Orientation="Horizontal" Spacing="6"><controls:LucideIcon Data="{StaticResource ic.trash}" /><TextBlock Text="Xóa" VerticalAlignment="Center" /></StackPanel></kz:KzButton>
+               <kz:KzButton x:Name="PART_BtnOpenTerminalHere" Classes="kz-primary" ToolTip.Tip="Mở tab Console tại thư mục này" Click="OnOpenTerminalHereClick"><StackPanel Orientation="Horizontal" Spacing="6"><controls:LucideIcon Data="{StaticResource ic.terminal}" /><TextBlock Text="CMD tại đây" VerticalAlignment="Center" /></StackPanel></kz:KzButton>
             </StackPanel>
           </Grid>
 
@@ -103,7 +103,7 @@
                     CanUserSortColumns="True"
                     IsReadOnly="True"
                     GridLinesVisibility="All"
-                    BorderThickness="1" BorderBrush="#CBD5E1" Background="White"
+                    BorderThickness="1" BorderBrush="{DynamicResource kz.brush.divider}" Background="White"
                     SelectionMode="Extended"
                     DoubleTapped="OnFileDataGridDoubleTapped"
                     KeyDown="OnFileDataGridKeyDown"
@@ -131,9 +131,9 @@
     </TabControl>
 
     <!-- Footer Status -->
-    <Border Grid.Row="2" Background="#F8FAFC" Padding="20,12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+    <Border Grid.Row="2" Background="{DynamicResource kz.brush.surface.app}" Padding="20,12" BorderBrush="{DynamicResource kz.brush.border}" BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Grid.Column="0" x:Name="PART_StatusMsg" Text="" Foreground="#F05922" VerticalAlignment="Center" FontSize="12"/>
+        <TextBlock Grid.Column="0" x:Name="PART_StatusMsg" Text="" Foreground="{DynamicResource kz.brush.orange.500}" VerticalAlignment="Center" FontSize="12"/>
       </Grid>
     </Border>
 

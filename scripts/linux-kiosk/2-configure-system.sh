@@ -12,7 +12,7 @@
 #   - Tắt popup Software Updater (tránh gián đoạn kiosk khi có bản vá mới)
 #   - Bỏ qua màn hình gnome-initial-setup (hữu ích khi user kiosk vừa tạo mới)
 #   - Autologin GDM cho user kiosk
-#   - Autostart app iPGS fullscreen + unclutter khi vào desktop
+#   - Autostart app iPGS fullscreen khi vào desktop (unclutter do 1-install-software.sh quản lý)
 #
 # BẮT BUỘC chạy SAU khi đã chạy xong 1-install-software.sh (cần unclutter đã
 # cài để autostart unclutter.desktop hoạt động).
@@ -20,7 +20,7 @@
 # Chạy (mặc định bật tất cả):
 #   bash scripts/linux-kiosk/2-configure-system.sh [kiosk_user] [app_exec]
 #
-# Chạy có chọn lọc từng mục (tham số 3-9: 1=bật, 0=bỏ qua, mặc định 1 nếu không truyền):
+# Chạy có chọn lọc từng mục (tham số 3+: 1=áp dụng, 0=HOÀN TÁC về mặc định, mặc định 1 nếu không truyền):
 #   bash scripts/linux-kiosk/2-configure-system.sh <kiosk_user> <app_exec> \
 #        <disable_hotcorner> <disable_dock_icons> <block_sleep> \
 #        <skip_initial_setup> <enable_autologin> <disable_sw_update> <enable_autostart>
@@ -35,7 +35,7 @@
 #   skip_initial_setup  Bỏ qua màn hình gnome-initial-setup
 #   enable_autologin    Autologin GDM cho kiosk_user
 #   disable_sw_update   Tắt popup + auto-download Software Updater
-#   enable_autostart    Autostart app iPGS + unclutter khi vào desktop
+#   enable_autostart    Autostart app iPGS khi vào desktop (1=tạo, 0=xoá)
 #   lock_single_workspace  Khóa còn 1 workspace tĩnh (tham số 10) — chặn triệt để lỗi
 #                       cử chỉ 2/3 ngón trên màn cảm ứng bị Mutter hiểu thành gesture
 #                       chuyển workspace, làm app fullscreen "biến mất" sang workspace
@@ -94,6 +94,64 @@ _sudo() {
     else
         sudo "$@"
     fi
+}
+
+# Bật/tắt extension GNOME Shell bằng cách sửa TRỰC TIẾP 2 key gsettings
+# org.gnome.shell enabled-extensions / disabled-extensions — KHÔNG cần gnome-shell đang
+# chạy (chỉ ghi dconf), nên vẫn đúng khi shell đang bị nạp lại (killall gnome-shell ở
+# cuối 1-install-software.sh) — trước đây `gnome-extensions enable/disable` gọi D-Bus tới
+# shell, shell đang khởi động lại → lệnh fail âm thầm ("bỏ qua") → bỏ tick không có tác
+# dụng. GNOME 40+: uuid nằm trong disabled-extensions THẮNG enabled-extensions, và
+# extension mặc định của session Ubuntu (ubuntu-dock, ding) CHỈ tắt được qua
+# disabled-extensions → phải sửa cả 2 key theo cặp.
+_ext_gsettings_set() {
+    local uuid="$1" want="$2"   # want: on | off
+    python3 - "$uuid" "$want" <<'PYEOF' || true
+import ast, subprocess, sys
+uuid, want = sys.argv[1], sys.argv[2]
+def get(key):
+    try:
+        out = subprocess.run(["gsettings", "get", "org.gnome.shell", key],
+                             capture_output=True, text=True).stdout.strip()
+    except Exception:
+        return None
+    if out.startswith("@as "):
+        out = out[4:]
+    try:
+        v = ast.literal_eval(out)
+        return list(v) if isinstance(v, (list, tuple)) else None
+    except Exception:
+        return None
+def put(key, lst):
+    subprocess.run(["gsettings", "set", "org.gnome.shell", key, str(lst)], capture_output=True)
+en, dis = get("enabled-extensions"), get("disabled-extensions")
+if en is None or dis is None:
+    sys.exit(0)
+if want == "on":
+    if uuid not in en:
+        put("enabled-extensions", en + [uuid])
+    if uuid in dis:
+        put("disabled-extensions", [u for u in dis if u != uuid])
+else:
+    if uuid in en:
+        put("enabled-extensions", [u for u in en if u != uuid])
+    if uuid not in dis:
+        put("disabled-extensions", dis + [uuid])
+PYEOF
+}
+
+_force_enable_ext() {
+    local uuid="$1"
+    gnome-extensions enable "$uuid" 2>/dev/null || true
+    _ext_gsettings_set "$uuid" on
+    echo "  → Extension '$uuid' đã ENABLE (có trong enabled-extensions, đã gỡ khỏi disabled-extensions)."
+}
+
+_force_disable_ext() {
+    local uuid="$1"
+    gnome-extensions disable "$uuid" 2>/dev/null || true
+    _ext_gsettings_set "$uuid" off
+    echo "  → Extension '$uuid' đã DISABLE (gỡ khỏi enabled-extensions, thêm vào disabled-extensions)."
 }
 
 # Khai báo sớm các đường dẫn dconf & helper backup để có thể gỡ khoá dconf TRƯỚC TIÊN
@@ -169,22 +227,50 @@ if [ "$EUID" -eq 0 ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────
-# GỠ KHOÁ DCONF TRƯỚC TIÊN NẾU LOCKDOWN_SHELL=0
-# Lỗi ngược thứ tự: nếu để gỡ khoá ở mục [9/10] thì các lệnh gsettings set ở [1/10] & [2/10]
-# (như enable-hot-corners=true, dynamic-workspaces=true) sẽ bị dconf lock chặn lại ngầm!
-if [ "$DEPLOY_SCOPE" != "software" ] && [ "$LOCKDOWN_SHELL" = "0" ]; then
+# TẠM GỠ KHOÁ DCONF TRƯỚC TIÊN — MỌI lần deploy Config máy tính, bất kể ô "Khoá lối thoát".
+# Key đang bị dconf lock thì các lệnh gsettings set ở [1/10] & [2/10] (enable-hot-corners,
+# dynamic-workspaces...) bị chặn NGẦM → trước đây bỏ tick "Tắt hot corner"/"Khóa 1
+# workspace" mà vẫn giữ tick "Khoá lối thoát" thì KHÔNG có tác dụng gì. Gỡ trước, áp cấu
+# hình theo đúng các ô đang chọn, rồi mục [9/10] khoá lại (nếu đang tick).
+#
+# AN TOÀN: nếu script DỪNG GIỮA CHỪNG (vd AUTOLOGIN-FAILED → exit 1 do sai mật khẩu sudo)
+# trước khi tới [9/10] mà "Khoá lối thoát" đang tick → trap EXIT chép lại đúng file khoá
+# cũ, không để kiosk bị bỏ ngỏ (bản trước chỉ gỡ khoá khi bỏ tick nên không gặp rủi ro này).
+LOCK_RESTORE_DIR=""
+LOCKDOWN_REAPPLIED=0
+_restore_lockdown_on_failure() {
+    local rc=$?
+    if [ "$rc" != "0" ] && [ "$LOCKDOWN_SHELL" = "1" ] && [ "$LOCKDOWN_REAPPLIED" != "1" ] && \
+       [ -n "$LOCK_RESTORE_DIR" ] && [ -d "$LOCK_RESTORE_DIR" ]; then
+        echo "CẢNH BÁO: deploy dừng giữa chừng (exit $rc) — khôi phục khoá dconf cũ để kiosk không bị bỏ ngỏ." >&2
+        _sudo mkdir -p "$DCONF_LOCAL_D/locks" || true
+        [ -f "$LOCK_RESTORE_DIR/settings" ] && { _sudo cp "$LOCK_RESTORE_DIR/settings" "$DCONF_SETTINGS" || true; }
+        [ -f "$LOCK_RESTORE_DIR/locks" ]    && { _sudo cp "$LOCK_RESTORE_DIR/locks" "$DCONF_LOCKS" || true; }
+        _sudo dconf update || true
+    fi
+    [ -n "$LOCK_RESTORE_DIR" ] && rm -rf "$LOCK_RESTORE_DIR"
+    return 0
+}
+trap _restore_lockdown_on_failure EXIT
+
+if [ "$DEPLOY_SCOPE" != "software" ]; then
     if [ -f "$DCONF_SETTINGS" ] || [ -f "$DCONF_LOCKS" ]; then
-        echo "=== [0/10] Gỡ khóa dconf hệ thống trước khi áp dụng cấu hình (chế độ bảo trì) ==="
+        echo "=== [0/10] Tạm gỡ khóa dconf hệ thống trước khi áp dụng cấu hình ==="
+        LOCK_RESTORE_DIR="$(mktemp -d)"
+        [ -f "$DCONF_SETTINGS" ] && cp "$DCONF_SETTINGS" "$LOCK_RESTORE_DIR/settings"
+        [ -f "$DCONF_LOCKS" ]    && cp "$DCONF_LOCKS"    "$LOCK_RESTORE_DIR/locks"
         _backup_sys_file "$DCONF_SETTINGS"
         _backup_sys_file "$DCONF_LOCKS"
         _sudo rm -f "$DCONF_SETTINGS" "$DCONF_LOCKS"
         _sweep_stray_dconf_backups
         _sudo dconf update
-        # Reset các phím tắt và overlay-key về mặc định để mở được Activities
-        gsettings reset org.gnome.mutter overlay-key 2>/dev/null || true
-        gsettings reset org.gnome.shell.keybindings toggle-overview 2>/dev/null || true
-        gsettings reset org.gnome.shell.keybindings toggle-application-view 2>/dev/null || true
-        echo "  → Đã gỡ dconf lockdown thành công. Các thiết lập gsettings bên dưới sẽ có hiệu lực ngay."
+        if [ "$LOCKDOWN_SHELL" = "0" ]; then
+            # Reset các phím tắt và overlay-key về mặc định để mở được Activities
+            gsettings reset org.gnome.mutter overlay-key 2>/dev/null || true
+            gsettings reset org.gnome.shell.keybindings toggle-overview 2>/dev/null || true
+            gsettings reset org.gnome.shell.keybindings toggle-application-view 2>/dev/null || true
+        fi
+        echo "  → Đã gỡ dconf lockdown. Các thiết lập gsettings bên dưới sẽ có hiệu lực ngay."
     fi
 fi
 
@@ -227,10 +313,10 @@ fi
 # ─────────────────────────────────────────────────────────────
 if [ "$DISABLE_UBUNTU_DOCK" = "1" ]; then
     echo "=== [3a/10] Tắt Ubuntu Dock (ubuntu-dock@ubuntu.com) ==="
-    gnome-extensions disable ubuntu-dock@ubuntu.com 2>/dev/null || echo "  → ubuntu-dock@ubuntu.com không có/đã tắt, bỏ qua."
+    _force_disable_ext ubuntu-dock@ubuntu.com
 else
     echo "=== [3a/10] Bật lại Ubuntu Dock (ubuntu-dock@ubuntu.com) ==="
-    gnome-extensions enable ubuntu-dock@ubuntu.com 2>/dev/null || echo "  → ubuntu-dock@ubuntu.com không có, bỏ qua."
+    _force_enable_ext ubuntu-dock@ubuntu.com
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -238,10 +324,10 @@ fi
 # Mặc định KHÔNG tắt (=0) để icon shortcut app trên desktop click được (F14).
 if [ "$DISABLE_DESKTOP_ICONS" = "1" ]; then
     echo "=== [3b/10] Tắt Desktop Icons NG (ding@rastersoft.com) ==="
-    gnome-extensions disable ding@rastersoft.com 2>/dev/null || echo "  → ding@rastersoft.com không có/đã tắt, bỏ qua."
+    _force_disable_ext ding@rastersoft.com
 else
     echo "=== [3b/10] Bật lại Desktop Icons NG (ding@rastersoft.com) ==="
-    gnome-extensions enable ding@rastersoft.com 2>/dev/null || echo "  → ding@rastersoft.com không có, bỏ qua."
+    _force_enable_ext ding@rastersoft.com
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -365,7 +451,16 @@ EOF
     fi
     gsettings set org.gnome.software download-updates false 2>/dev/null || true
 else
-    echo "=== [7/10] Bỏ qua (không chọn) ==="
+    echo "=== [7/10] Bật lại Software Updater (mặc định) ==="
+    # Chỉ xoá override do chính script này tạo (nội dung Hidden=true).
+    if [ -f "$HOME/.config/autostart/update-notifier.desktop" ] && \
+       grep -qx 'Hidden=true' "$HOME/.config/autostart/update-notifier.desktop"; then
+        rm -f "$HOME/.config/autostart/update-notifier.desktop"
+        echo "  → Đã xoá override ẩn update-notifier (popup cập nhật hiện lại từ lần đăng nhập kế tiếp)."
+    else
+        echo "  → Không có override ẩn update-notifier — giữ nguyên."
+    fi
+    gsettings reset org.gnome.software download-updates 2>/dev/null || true
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -374,12 +469,14 @@ fi
 # chạy 2 instance khi lần này bật watchdog. Ma trận trạng thái sau deploy (luôn nhất
 # quán với cấu hình VỪA chọn, bất kể lần deploy trước):
 #
-#   Watchdog | Autostart | ipgs-kiosk.desktop (app) | ipgs-kiosk-app.service | unclutter.desktop
-#   ---------|-----------|--------------------------|------------------------|------------------
-#      1     |   1/0     | XÓA (service quản lý app)| cài + enable (mục [10])| theo Autostart
-#      0     |    1      | TẠO                      | gỡ (mục [10])          | tạo
-#      0     |    0      | XÓA (2 chiều)            | gỡ (mục [10])          | xóa (2 chiều)
-echo "=== [8/10] Autostart app iPGS + unclutter + desktop icon khi vào desktop (Autostart=$ENABLE_AUTOSTART, Watchdog=$ENABLE_WATCHDOG) ==="
+#   Watchdog | Autostart | ipgs-kiosk.desktop (app) | ipgs-kiosk-app.service
+#   ---------|-----------|--------------------------|------------------------
+#      1     |   1/0     | XÓA (service quản lý app)| cài + enable (mục [10])
+#      0     |    1      | TẠO                      | gỡ (mục [10])
+#      0     |    0      | XÓA (2 chiều)            | gỡ (mục [10])
+# unclutter.desktop KHÔNG còn do mục này quản lý — thuộc ô "Cài unclutter" (tab Config
+# máy tính, 1-install-software.sh), tránh 2 ô cùng tạo/xoá 1 file và đá nhau.
+echo "=== [8/10] Autostart app iPGS + desktop icon khi vào desktop (Autostart=$ENABLE_AUTOSTART, Watchdog=$ENABLE_WATCHDOG) ==="
 mkdir -p "$HOME/.config/autostart"
 
 if [ "$ENABLE_WATCHDOG" = "1" ]; then
@@ -401,25 +498,6 @@ else
     # 2 chiều: bỏ tick Autostart (và không watchdog) = app không tự chạy nữa.
     rm -f "$HOME/.config/autostart/ipgs-kiosk.desktop"
     echo "  → Autostart + Watchdog đều TẮT: đã xóa autostart .desktop của app (nếu có)."
-fi
-
-# unclutter độc lập với watchdog — theo đúng ô Autostart (2 chiều).
-if [ "$ENABLE_AUTOSTART" = "1" ]; then
-    if command -v unclutter >/dev/null 2>&1; then
-        cat > "$HOME/.config/autostart/unclutter.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=Unclutter
-Exec=unclutter -idle 1
-X-GNOME-Autostart-enabled=true
-EOF
-        echo "  → Đã tạo $HOME/.config/autostart/unclutter.desktop"
-    else
-        echo "CẢNH BÁO: chưa thấy lệnh 'unclutter' — chạy 1-install-software.sh trước khi chạy script này." >&2
-    fi
-else
-    rm -f "$HOME/.config/autostart/unclutter.desktop"
-    echo "  → Autostart TẮT: đã xóa unclutter.desktop (nếu có)."
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -626,17 +704,16 @@ system-db:local
 EOF
 
     # 2) Giá trị hệ thống.
-    cat > "$TMP_D/settings" <<'EOF'
+    # Key thuộc ô KHÁC (hot corner/screensaver lock → ô "Tắt hot corner"; workspace → ô
+    # "Khóa 1 workspace") CHỈ bị khoá cứng khi ô đó đang tick — trước đây luôn khoá cứng
+    # nên bỏ tick 2 ô đó (mà vẫn tick "Khoá lối thoát") bị dconf lock đè lại, không có tác dụng.
+    LD_MUTTER_WS=""
+    if [ "$LOCK_SINGLE_WORKSPACE" = "1" ]; then LD_MUTTER_WS="dynamic-workspaces=false"; fi
+    cat > "$TMP_D/settings" <<EOF
 # Sinh bởi 2-configure-system.sh (F09) — KHÔNG sửa tay; gỡ = xóa file + dconf update
 [org/gnome/mutter]
 overlay-key=''
-dynamic-workspaces=false
-
-[org/gnome/desktop/wm/preferences]
-num-workspaces=1
-
-[org/gnome/desktop/interface]
-enable-hot-corners=false
+$LD_MUTTER_WS
 
 [org/gnome/shell/keybindings]
 toggle-overview=@as []
@@ -689,17 +766,17 @@ disable-user-switching=true
 disable-lock-screen=true
 disable-printing=true
 disable-print-setup=true
-
-[org/gnome/desktop/screensaver]
-lock-enabled=false
 EOF
+    if [ "$LOCK_SINGLE_WORKSPACE" = "1" ]; then
+        printf '\n[org/gnome/desktop/wm/preferences]\nnum-workspaces=1\n' >> "$TMP_D/settings"
+    fi
+    if [ "$DISABLE_HOTCORNER" = "1" ]; then
+        printf '\n[org/gnome/desktop/interface]\nenable-hot-corners=false\n\n[org/gnome/desktop/screensaver]\nlock-enabled=false\n' >> "$TMP_D/settings"
+    fi
 
     # 3) LOCKS — phần quan trọng nhất: thiếu lock thì user vẫn set ngược lại được.
     cat > "$TMP_D/locks" <<'EOF'
 /org/gnome/mutter/overlay-key
-/org/gnome/mutter/dynamic-workspaces
-/org/gnome/desktop/wm/preferences/num-workspaces
-/org/gnome/desktop/interface/enable-hot-corners
 /org/gnome/shell/keybindings/toggle-overview
 /org/gnome/shell/keybindings/toggle-application-view
 /org/gnome/shell/keybindings/toggle-message-tray
@@ -744,8 +821,13 @@ EOF
 /org/gnome/desktop/lockdown/disable-lock-screen
 /org/gnome/desktop/lockdown/disable-printing
 /org/gnome/desktop/lockdown/disable-print-setup
-/org/gnome/desktop/screensaver/lock-enabled
 EOF
+    if [ "$LOCK_SINGLE_WORKSPACE" = "1" ]; then
+        printf '/org/gnome/mutter/dynamic-workspaces\n/org/gnome/desktop/wm/preferences/num-workspaces\n' >> "$TMP_D/locks"
+    fi
+    if [ "$DISABLE_HOTCORNER" = "1" ]; then
+        printf '/org/gnome/desktop/interface/enable-hot-corners\n/org/gnome/desktop/screensaver/lock-enabled\n' >> "$TMP_D/locks"
+    fi
 
     # Backup file cũ (nếu có) rồi cài đặt — F11: backup ra $BACKUP_DIR, TUYỆT ĐỐI
     # không đặt trong local.d/locks/profile (dconf update nạp mọi file trong đó).
@@ -811,6 +893,7 @@ HELPER_EOF
         echo "LOCKDOWN-FAILED: không ghi được dconf DB hệ thống (kiểm tra sudo password)." >&2
         exit 1
     fi
+    LOCKDOWN_REAPPLIED=1
     # F11: xác nhận không còn file rác trong db sau khi cài (sweep phải sạch).
     STRAY_LEFT="$(find "$DCONF_LOCAL_D" -maxdepth 2 -type f -name '00-kiosk-lockdown.*' 2>/dev/null | wc -l)"
     if [ "$STRAY_LEFT" != "0" ]; then
@@ -846,7 +929,7 @@ else
         fi
     else
         _sweep_stray_dconf_backups
-        echo "  → Chưa từng khoá (không có $DCONF_SETTINGS) — bỏ qua."
+        echo "  → Không còn khoá dconf (đã gỡ ở bước [0/10] hoặc chưa từng khoá)."
     fi
 fi
 fi # [DEPLOY_SCOPE != software]

@@ -15,7 +15,7 @@
 # Chạy (mặc định bật tất cả):
 #   bash scripts/lubuntu-kiosk/2-configure-system.sh [kiosk_user] [app_exec]
 #
-# Chạy có chọn lọc (tham số 3-10: 1=bật, 0=bỏ qua, mặc định 1 nếu không truyền):
+# Chạy có chọn lọc (tham số 3-10: 1=áp dụng, 0=HOÀN TÁC về mặc định, mặc định 1 nếu không truyền):
 #   bash scripts/lubuntu-kiosk/2-configure-system.sh <kiosk_user> <app_exec> \
 #        <block_sleep> <enable_autologin> <disable_sw_update> <enable_autostart> \
 #        <lock_single_desktop> <lockdown_shell> <enable_watchdog> <enable_firewall>
@@ -30,8 +30,8 @@
 #                         (Lubuntu cũ hơn dùng LXDE/LightDM) cho kiosk_user.
 #   disable_sw_update    Ẩn popup update-notifier (Lubuntu vẫn dựa trên Ubuntu nên có
 #                         gói này).
-#   enable_autostart     Autostart app iPGS + unclutter khi vào desktop (XDG chuẩn,
-#                         LXQt đọc y hệt GNOME).
+#   enable_autostart     Autostart app iPGS khi vào desktop (XDG chuẩn, LXQt đọc y hệt
+#                         GNOME). unclutter do 1-install-software.sh quản lý.
 #   lock_single_desktop  Khoá còn 1 desktop/workspace tĩnh trong Openbox (tương đương
 #                         num-workspaces=1 bản GNOME) — giảm bề mặt thoát kiosk.
 #   lockdown_shell       Khoá phím tắt thoát kiosk — 2 lớp: (1) Openbox rc.xml (Alt+F4,
@@ -254,11 +254,18 @@ EOF
         echo "  → Không thấy update-notifier.desktop, bỏ qua."
     fi
 else
-    echo "=== [4/9] Bỏ qua (không chọn) ==="
+    echo "=== [4/9] Bật lại Software Updater (mặc định) ==="
+    if [ -f "$HOME/.config/autostart/update-notifier.desktop" ] && \
+       grep -qx 'Hidden=true' "$HOME/.config/autostart/update-notifier.desktop"; then
+        rm -f "$HOME/.config/autostart/update-notifier.desktop"
+        echo "  → Đã xoá override ẩn update-notifier (popup cập nhật hiện lại từ lần đăng nhập kế tiếp)."
+    else
+        echo "  → Không có override ẩn update-notifier — giữ nguyên."
+    fi
 fi
 
 
-echo "=== [5/9] Autostart app iPGS + unclutter khi vào desktop (Autostart=$ENABLE_AUTOSTART, Watchdog=$ENABLE_WATCHDOG) ==="
+echo "=== [5/9] Autostart app iPGS khi vào desktop (Autostart=$ENABLE_AUTOSTART, Watchdog=$ENABLE_WATCHDOG) ==="
 mkdir -p "$HOME/.config/autostart"
 
 if [ "$ENABLE_WATCHDOG" = "1" ]; then
@@ -277,22 +284,8 @@ else
     echo "  → Autostart + Watchdog đều TẮT: đã xóa autostart .desktop của app (nếu có)."
 fi
 
-if [ "$ENABLE_AUTOSTART" = "1" ]; then
-    if command -v unclutter >/dev/null 2>&1; then
-        cat > "$HOME/.config/autostart/unclutter.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=Unclutter
-Exec=unclutter -idle 1
-EOF
-        echo "  → Đã tạo $HOME/.config/autostart/unclutter.desktop"
-    else
-        echo "CẢNH BÁO: chưa thấy lệnh 'unclutter' — chạy 1-install-software.sh trước khi chạy script này." >&2
-    fi
-else
-    rm -f "$HOME/.config/autostart/unclutter.desktop"
-    echo "  → Autostart TẮT: đã xóa unclutter.desktop (nếu có)."
-fi
+# unclutter.desktop KHÔNG còn do ô Autostart quản lý — thuộc ô "Cài unclutter" (tab Config
+# máy tính, 1-install-software.sh), tránh 2 ô cùng tạo/xoá 1 file và đá nhau.
 
 # Desktop icon LXQt: pcmanfm-qt chạy .desktop trên ~/Desktop chỉ cần chmod +x (không
 # cần "gio set trusted" — đó là cơ chế riêng của GNOME Files/Nautilus).
@@ -311,42 +304,56 @@ fi # [DEPLOY_SCOPE != machine]
 # 1 file cấu hình thường, user (hoặc app nào đó) vẫn có thể sửa lại nếu có quyền ghi.
 # Giảm nhẹ bằng cách set file thành 444 + chattr +i (immutable, cần root để gỡ) sau khi
 # sửa — không tuyệt đối bằng dconf lock nhưng đủ chặn thao tác vô tình/qua GUI.
-if [ -f "$OB_RC" ]; then
+# FIX: trước đây khối này lồng if sai (nhánh "không tìm thấy rc.xml" thực ra chạy khi deploy
+# tab phần mềm, phần [6b] chạy cả khi deploy tab phần mềm và chỉ chạy khi có rc.xml), và
+# bỏ tick "Khoá lối thoát" KHÔNG trả lại các keybind Openbox đã xoá. Giờ: keybind bị xoá
+# được cất vào $OB_KEYBIND_STORE, bỏ tick → chèn lại đúng các keybind đó.
+OB_KEYBIND_STORE="$OB_DIR/kiosk-removed-keybinds.xml"
 if [ "$DEPLOY_SCOPE" != "software" ]; then
+if [ -f "$OB_RC" ]; then
+    _sudo chattr -i "$OB_RC" 2>/dev/null || true
+    chmod u+w "$OB_RC" 2>/dev/null || true
     if [ "$LOCKDOWN_SHELL" = "1" ]; then
         echo "=== [6/9] Khoá phím tắt thoát kiosk (Openbox rc.xml) ==="
-        _sudo chattr -i "$OB_RC" 2>/dev/null || true
-        chmod u+w "$OB_RC" 2>/dev/null || true
-
-        # Xoá các <keybind key="..."> nguy hiểm nếu có (Alt+F4 đóng cửa sổ, Alt+Tab
-        # chuyển app, Ctrl+Alt+T mở terminal, Alt+F2 run dialog, Alt+Space menu cửa
-        # sổ, phím Super mở menu chính). Cách an toàn nhất với sed đa dòng là dùng
-        # python3 (có sẵn trên hầu hết Lubuntu) để parse XML đúng cấu trúc thay vì
-        # regex fragile trên thẻ lồng nhau.
+        # Xoá các <keybind key="..."> nguy hiểm (Alt+F4, Alt+Tab, Ctrl+Alt+T, Alt+F2,
+        # Alt+Space, phím Super...) — parse XML bằng python3 thay vì sed đa dòng. Keybind
+        # gốc được cất vào $OB_KEYBIND_STORE để bỏ tick là trả lại được.
         if command -v python3 >/dev/null 2>&1; then
-            python3 - "$OB_RC" <<'PYEOF'
-import sys, xml.etree.ElementTree as ET
+            python3 - "$OB_RC" "$OB_KEYBIND_STORE" <<'PYEOF'
+import os, sys, xml.etree.ElementTree as ET
 
-path = sys.argv[1]
+path, store = sys.argv[1], sys.argv[2]
+NS = 'http://openbox.org/3.4/rc'
 DANGEROUS_KEYS = {
     "A-F4", "A-Tab", "A-S-Tab", "C-A-T", "A-F2", "A-space",
     "W", "A-grave", "C-A-Escape", "C-A-Delete",
 }
-
 try:
-    ET.register_namespace('', 'http://openbox.org/3.4/rc')
+    ET.register_namespace('', NS)
     tree = ET.parse(path)
     root = tree.getroot()
-    ns = {'ob': 'http://openbox.org/3.4/rc'}
+    saved = {}
+    if os.path.isfile(store):
+        try:
+            for kb in ET.parse(store).getroot():
+                saved.setdefault(kb.get('key', ''), kb)
+        except Exception:
+            pass
     removed = 0
-    for keyboard in root.iter('{http://openbox.org/3.4/rc}keyboard'):
-        for kb in list(keyboard.findall('{http://openbox.org/3.4/rc}keybind')):
+    for keyboard in root.iter('{%s}keyboard' % NS):
+        for kb in list(keyboard.findall('{%s}keybind' % NS)):
             key = kb.get('key', '')
             if key in DANGEROUS_KEYS:
+                saved.setdefault(key, kb)
                 keyboard.remove(kb)
                 removed += 1
     tree.write(path, xml_declaration=True, encoding='UTF-8')
-    print(f"  -> Da xoa {removed} keybind nguy hiem trong <keyboard> (Openbox rc.xml).")
+    if saved:
+        holder = ET.Element('{%s}removed' % NS)
+        for kb in saved.values():
+            holder.append(kb)
+        ET.ElementTree(holder).write(store, xml_declaration=True, encoding='UTF-8')
+    print(f"  -> Da xoa {removed} keybind nguy hiem (cat ban goc vao {store}).")
 except Exception as e:
     print(f"CANH BAO: khong parse duoc {path} bang python3 ({e}) - bo qua buoc khoa phim tat.", file=sys.stderr)
 PYEOF
@@ -354,23 +361,47 @@ PYEOF
             echo "CẢNH BÁO: không có python3 — bỏ qua khoá phím tắt Openbox (cần python3 để parse XML an toàn)." >&2
         fi
 
-        # XÁC MINH THẬT: chạy qua SSH không có DISPLAY sẽ in "Openbox-Message: Failed to
-        # open the display..." ra STDOUT (không phải stderr) nên `2>/dev/null` không che
-        # được — dùng >/dev/null 2>&1 để nuốt cả 2. Vô hại khi chạy trong phiên desktop
-        # thật có DISPLAY (trường hợp thực tế của script này).
+        # Chạy qua SSH không có DISPLAY, openbox in "Failed to open the display" ra STDOUT
+        # → nuốt cả stdout lẫn stderr.
         openbox --reconfigure >/dev/null 2>&1 || true
         chmod 444 "$OB_RC" 2>/dev/null || true
         _sudo chattr +i "$OB_RC" 2>/dev/null || echo "  CẢNH BÁO: không set immutable (chattr +i) — filesystem có thể không hỗ trợ (VD overlayfs)." >&2
         echo "  → Đã áp dụng + đặt $OB_RC read-only (444 + chattr +i nếu hỗ trợ)."
-        echo "  Gỡ khoá bảo trì: sudo chattr -i $OB_RC && chmod u+w $OB_RC (rồi tự sửa lại hoặc chạy lại script với tham số 8 = 0)."
     else
-        echo "=== [6/9] GỠ khoá phím tắt (chế độ bảo trì) ==="
-        _sudo chattr -i "$OB_RC" 2>/dev/null || true
-        chmod u+w "$OB_RC" 2>/dev/null || true
-        echo "  → Đã gỡ read-only khỏi $OB_RC (bạn cần tự khôi phục nội dung từ file .bak-* nếu muốn trả lại phím tắt mặc định)."
+        echo "=== [6/9] GỠ khoá phím tắt Openbox (trả lại keybind đã xoá) ==="
+        if [ -f "$OB_KEYBIND_STORE" ] && command -v python3 >/dev/null 2>&1; then
+            python3 - "$OB_RC" "$OB_KEYBIND_STORE" <<'PYEOF'
+import os, sys, xml.etree.ElementTree as ET
+
+path, store = sys.argv[1], sys.argv[2]
+NS = 'http://openbox.org/3.4/rc'
+try:
+    ET.register_namespace('', NS)
+    tree = ET.parse(path)
+    root = tree.getroot()
+    keyboard = root.find('{%s}keyboard' % NS)
+    if keyboard is None:
+        keyboard = ET.SubElement(root, '{%s}keyboard' % NS)
+    existing = {kb.get('key', '') for kb in keyboard.findall('{%s}keybind' % NS)}
+    restored = 0
+    for kb in ET.parse(store).getroot():
+        if kb.get('key', '') not in existing:
+            keyboard.append(kb)
+            restored += 1
+    tree.write(path, xml_declaration=True, encoding='UTF-8')
+    os.remove(store)
+    print(f"  -> Da tra lai {restored} keybind (Openbox rc.xml).")
+except Exception as e:
+    print(f"CANH BAO: khong khoi phuc duoc keybind ({e}) - xem {store} va {path}.bak-*.", file=sys.stderr)
+PYEOF
+        else
+            echo "  → Không có keybind nào bị kiosk xoá trước đó — chỉ gỡ read-only."
+        fi
+        openbox --reconfigure >/dev/null 2>&1 || true
+        echo "  → Đã gỡ read-only khỏi $OB_RC."
     fi
 else
-    echo "=== [6/9] Bỏ qua khoá phím tắt — không tìm thấy $OB_RC ===" >&2
+    echo "CẢNH BÁO: không tìm thấy $OB_RC — bỏ qua khoá/gỡ khoá phím tắt Openbox." >&2
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -401,22 +432,22 @@ if [ ! -f "$GKS_CONF" ]; then
 fi
 
 if [ -f "$GKS_CONF" ]; then
-    cp "$GKS_CONF" "$GKS_CONF.bak-$(date +%Y%m%d%H%M%S)"
     if command -v python3 >/dev/null 2>&1; then
+        cp "$GKS_CONF" "$GKS_CONF.bak-$(date +%Y%m%d%H%M%S)"
         if [ "$LOCKDOWN_SHELL" = "1" ]; then
             echo "=== [6b/9] Khoá phím tắt thoát kiosk thật (lxqt-globalkeyshortcuts) ==="
-            python3 - "$GKS_CONF" 1 <<'PYEOF'
+        else
+            echo "=== [6b/9] GỠ khoá phím tắt thật (chế độ bảo trì) ==="
+        fi
+        # 1 = khoá (Enabled=false), 0 = bật lại (Enabled=true) — cùng 1 đoạn code 2 chiều.
+        python3 - "$GKS_CONF" "$LOCKDOWN_SHELL" <<'PYEOF'
 import sys, configparser
 
 path, hide = sys.argv[1], sys.argv[2] == "1"
-# Comment= key trong file gốc có ký tự "%" (VD \x2600) khiến configparser hiểu nhầm
-# thành interpolation — tắt interpolation để đọc/ghi nguyên văn, không phá nội dung.
 cp = configparser.ConfigParser(interpolation=None)
 cp.optionxform = str  # giữ nguyên hoa/thường của key
 cp.read(path, encoding="utf-8")
-
-# Tên section là key tổ hợp phím đã percent-encode (dấu + -> %2B), kèm hậu tố ".<n>"
-# để phân biệt (VD "Control%2BAlt%2BT.4"). So khớp theo phần TRƯỚC dấu chấm cuối.
+# Section dạng "<phím>.<số thứ tự>" — so khớp theo phần phím (trước dấu chấm cuối).
 DANGEROUS_PREFIXES = {
     "Control%2BAlt%2BT",        # Ctrl+Alt+T - mo Terminal
     "Control%2BAlt%2BDelete",   # Ctrl+Alt+Delete - Task Manager
@@ -424,54 +455,30 @@ DANGEROUS_PREFIXES = {
     "Meta%2BR",                 # Meta+R - Runner (go lenh chay app bat ky)
     "Super_L",                  # phim Super - mo main menu
 }
+want = "false" if hide else "true"
 changed = 0
 for section in cp.sections():
     prefix = section.rsplit(".", 1)[0]
     if prefix in DANGEROUS_PREFIXES and cp.has_option(section, "Enabled"):
-        if hide and cp.get(section, "Enabled") != "false":
-            cp.set(section, "Enabled", "false")
-            changed += 1
-        elif not hide and cp.get(section, "Enabled") != "true":
-            cp.set(section, "Enabled", "true")
+        if cp.get(section, "Enabled") != want:
+            cp.set(section, "Enabled", want)
             changed += 1
 with open(path, "w", encoding="utf-8") as f:
     cp.write(f, space_around_delimiters=False)
-print(f"  -> Da doi Enabled cho {changed} phim tat nguy hiem (lxqt-globalkeyshortcuts).")
+print(f"  -> Da doi Enabled={want} cho {changed} phim tat (lxqt-globalkeyshortcuts).")
 PYEOF
-        else
-            echo "=== [6b/9] GỠ khoá phím tắt thật (chế độ bảo trì) ==="
-            python3 - "$GKS_CONF" 0 <<'PYEOF'
-import sys, configparser
-path, hide = sys.argv[1], sys.argv[2] == "1"
-cp = configparser.ConfigParser(interpolation=None)
-cp.optionxform = str
-cp.read(path, encoding="utf-8")
-DANGEROUS_PREFIXES = {"Control%2BAlt%2BT", "Control%2BAlt%2BDelete", "Meta%2BE", "Meta%2BR", "Super_L"}
-changed = 0
-for section in cp.sections():
-    prefix = section.rsplit(".", 1)[0]
-    if prefix in DANGEROUS_PREFIXES and cp.has_option(section, "Enabled"):
-        if cp.get(section, "Enabled") != "true":
-            cp.set(section, "Enabled", "true")
-            changed += 1
-with open(path, "w", encoding="utf-8") as f:
-    cp.write(f, space_around_delimiters=False)
-print(f"  -> Da bat lai {changed} phim tat.")
-PYEOF
-        fi
-        # lxqt-globalkeyshortcutsd chỉ đọc file này lúc khởi động — kill để lxqt-session
-        # tự respawn theo autostart (best-effort, không chặn script nếu thất bại; cách
-        # chắc chắn nhất vẫn là đăng nhập lại, đã ghi rõ ở dòng HOÀN THÀNH cuối script).
+        # lxqt-globalkeyshortcutsd chỉ đọc file lúc khởi động — kill để lxqt-session respawn
+        # (best-effort; chắc chắn nhất là đăng nhập lại).
         pkill -x lxqt-globalkeyshortcutsd 2>/dev/null || true
         echo "  → Đã ghi $GKS_CONF (hiệu lực ngay nếu daemon tự respawn, chắc chắn nhất là đăng nhập lại)."
         echo "  Backup: $GKS_CONF.bak-*"
     else
-        echo "CẢNH BÁO: không có python3 — bỏ qua khoá phím tắt lxqt-globalkeyshortcuts (Ctrl+Alt+T/Meta+E/Meta+R/Super_L vẫn mở được, đây là lối thoát kiosk thật nguy hiểm nhất)." >&2
+        echo "CẢNH BÁO: không có python3 — bỏ qua khoá/gỡ khoá phím tắt lxqt-globalkeyshortcuts." >&2
     fi
-fi # [DEPLOY_SCOPE != software]
 else
     echo "CẢNH BÁO: không tìm thấy $GKS_CONF hoặc mẫu hệ thống — bỏ qua bước khoá phím tắt thật. Đăng nhập vào LXQt 1 lần rồi chạy lại." >&2
 fi
+fi # [DEPLOY_SCOPE != software]
 
 # ─────────────────────────────────────────────────────────────
 # [7/9] Watchdog systemd USER service — CƠ CHẾ Y HỆT bản GNOME (systemd --user không
@@ -538,8 +545,10 @@ fi # [DEPLOY_SCOPE != machine]
 # [8/9] Tường lửa ufw. LUÔN allow OpenSSH TRƯỚC khi enable — nếu quên bước này, bật
 # ufw trên máy chỉ có SSH sẽ tự khoá luôn quyền truy cập từ xa (không có GUI để mở lại
 # nếu kỹ thuật viên đang thao tác qua SSH).
-if [ "$ENABLE_FIREWALL" = "1" ]; then
+# FIX: trước đây 2 dòng if bị đảo thứ tự → bỏ tick Firewall thì KHÔNG ufw disable, còn
+# tick Firewall + "Deploy Config phần mềm" lại chạy nhánh else → ufw disable nhầm.
 if [ "$DEPLOY_SCOPE" != "software" ]; then
+if [ "$ENABLE_FIREWALL" = "1" ]; then
     echo "=== [8/9] Bật tường lửa ufw ==="
     if ! command -v ufw >/dev/null 2>&1; then
         _sudo apt-get install -y -qq ufw 2>&1 || true

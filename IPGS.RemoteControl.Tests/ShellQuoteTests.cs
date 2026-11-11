@@ -47,6 +47,28 @@ public class ShellQuoteTests
     }
 
     [Theory]
+    [InlineData("/home/kztek/app_1.0~rc1_amd64.deb")]
+    [InlineData("/opt/setup/install-v2.sh")]
+    public void ValidateRemotePath_ValidPaths_Succeeds(string path)
+    {
+        Assert.Equal(path, ShellQuote.ValidateRemotePath(path, "param"));
+    }
+
+    [Theory]
+    [InlineData("relative/file.deb")]
+    [InlineData("/home/kztek/")]
+    [InlineData("/home/../etc/passwd")]
+    [InlineData("/home/kztek/a b.deb")]
+    [InlineData("/home/kztek/a;rm -rf ~.deb")]
+    [InlineData("/home/kztek/$(id).deb")]
+    [InlineData("/home/kztek/a\"b.deb")]
+    [InlineData("")]
+    public void ValidateRemotePath_MaliciousPaths_ThrowsArgumentException(string path)
+    {
+        Assert.Throws<ArgumentException>(() => ShellQuote.ValidateRemotePath(path, "param"));
+    }
+
+    [Theory]
     [InlineData("file;evil.sh")]
     [InlineData("../secret")]
     [InlineData("file $(rm -rf)")]

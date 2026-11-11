@@ -2,107 +2,173 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:kz="clr-namespace:KztekComponentAvalonia.Controls;assembly=KztekComponentAvalonia"
         xmlns:local="clr-namespace:IPGS.RemoteControl.CcuUI.Views"
+        xmlns:controls="clr-namespace:IPGS.RemoteControl.CcuUI.Controls"
         x:Class="IPGS.RemoteControl.CcuUI.Views.HealthMonitorWindow"
-        Title="Dashboard - Giám Sát Sức Khỏe Máy khách"
-        Width="760" Height="600"
+        Title="Giám sát máy khách"
+        Width="1000" Height="740"
+        Background="{DynamicResource kz.brush.surface.app}"
         WindowStartupLocation="CenterOwner">
+  <Window.Styles>
+    <Style Selector="TextBlock.kpi-label">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource kz.brush.text.muted}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.kpi-big">
+      <Setter Property="FontFamily" Value="{DynamicResource app.font.mono}" />
+      <Setter Property="FontSize" Value="26" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="ProgressBar.kpi">
+      <Setter Property="Height" Value="6" />
+      <Setter Property="MinHeight" Value="6" />
+      <Setter Property="Minimum" Value="0" />
+      <Setter Property="Maximum" Value="100" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Background" Value="#ECEAF3" />
+      <Setter Property="Foreground" Value="{DynamicResource kz.brush.navy.700}" />
+    </Style>
+  </Window.Styles>
+
   <Grid RowDefinitions="Auto,*,Auto">
     <!-- Header -->
-    <Border Grid.Row="0" Background="#1E293B" Padding="20,16">
-      <TextBlock x:Name="PART_TitleText" Text="Giám Sát Sức Khỏe - Máy khách" Foreground="White" FontSize="16" FontWeight="SemiBold"/>
+    <Border Grid.Row="0" Classes="app-header">
+      <Grid ColumnDefinitions="Auto,*">
+        <controls:LucideIcon Grid.Column="0" Data="{StaticResource ic.activity}" Foreground="{DynamicResource kz.brush.orange.500}" Width="20" Height="20" Margin="0,0,12,0" />
+        <TextBlock Grid.Column="1" x:Name="PART_TitleText" Classes="h-title" Text="Giám sát - Máy khách" VerticalAlignment="Center" />
+      </Grid>
     </Border>
 
-    <!-- Main Content -->
-    <ScrollViewer Grid.Row="1" Padding="20">
-      <StackPanel Spacing="20">
-        
-        <!-- CPU & RAM & Disk Panel -->
-        <Grid ColumnDefinitions="*,*,*">
-          <!-- CPU -->
-          <Border Grid.Column="0" Background="#F1F5F9" CornerRadius="8" Padding="16" Margin="0,0,10,0" BorderBrush="#E2E8F0" BorderThickness="1">
-            <StackPanel>
-              <TextBlock Text="CPU" FontSize="14" FontWeight="SemiBold" Foreground="#475569" Margin="0,0,0,8" />
-              <TextBlock x:Name="PART_CpuText" Text="--%" FontSize="24" FontWeight="Bold" Foreground="#0F172A" />
+    <!-- Nội dung -->
+    <ScrollViewer Grid.Row="1" Padding="24,20">
+      <StackPanel Spacing="16">
+
+        <!-- CPU / RAM / Disk -->
+        <Grid ColumnDefinitions="*,16,*,16,*">
+          <Border Grid.Column="0" Classes="card">
+            <StackPanel Spacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <controls:LucideIcon Data="{StaticResource ic.cpu}" Foreground="{DynamicResource kz.brush.text.muted}" />
+                <TextBlock Classes="kpi-label" Text="CPU" />
+              </StackPanel>
+              <TextBlock x:Name="PART_CpuText" Classes="kpi-big" Text="--%" />
+              <ProgressBar x:Name="PART_CpuBar" Classes="kpi" />
             </StackPanel>
           </Border>
 
-          <!-- RAM -->
-          <Border Grid.Column="1" Background="#F1F5F9" CornerRadius="8" Padding="16" Margin="0,0,10,0" BorderBrush="#E2E8F0" BorderThickness="1">
-            <StackPanel>
-              <TextBlock Text="RAM" FontSize="14" FontWeight="SemiBold" Foreground="#475569" Margin="0,0,0,8" />
-              <TextBlock x:Name="PART_RamText" Text="-- / -- MB" FontSize="18" FontWeight="Bold" Foreground="#0F172A" />
-              <TextBlock x:Name="PART_RamPercentText" Text="--%" FontSize="14" Foreground="#64748B" Margin="0,4,0,0" />
+          <Border Grid.Column="2" Classes="card">
+            <StackPanel Spacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <controls:LucideIcon Data="{StaticResource ic.memory-stick}" Foreground="{DynamicResource kz.brush.text.muted}" />
+                <TextBlock Classes="kpi-label" Text="RAM" />
+              </StackPanel>
+              <TextBlock x:Name="PART_RamPercentText" Classes="kpi-big" Text="--%" />
+              <ProgressBar x:Name="PART_RamBar" Classes="kpi" />
+              <TextBlock x:Name="PART_RamText" Classes="mono muted" Text="-- / -- MB" />
             </StackPanel>
           </Border>
 
-          <!-- DISK -->
-          <Border Grid.Column="2" Background="#F1F5F9" CornerRadius="8" Padding="16" BorderBrush="#E2E8F0" BorderThickness="1">
-            <StackPanel>
-              <TextBlock Text="Ổ cứng ( / )" FontSize="14" FontWeight="SemiBold" Foreground="#475569" Margin="0,0,0,8" />
-              <TextBlock x:Name="PART_DiskText" Text="-- / --" FontSize="18" FontWeight="Bold" Foreground="#0F172A" />
-              <TextBlock x:Name="PART_DiskPercentText" Text="--%" FontSize="14" Foreground="#64748B" Margin="0,4,0,0" />
+          <Border Grid.Column="4" Classes="card">
+            <StackPanel Spacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <controls:LucideIcon Data="{StaticResource ic.hard-drive}" Foreground="{DynamicResource kz.brush.text.muted}" />
+                <TextBlock Classes="kpi-label" Text="Ổ đĩa ( / )" />
+              </StackPanel>
+              <TextBlock x:Name="PART_DiskPercentText" Classes="kpi-big" Text="--%" />
+              <ProgressBar x:Name="PART_DiskBar" Classes="kpi" />
+              <TextBlock x:Name="PART_DiskText" Classes="mono muted" Text="-- / --" />
             </StackPanel>
           </Border>
         </Grid>
 
         <!-- GPU / NPU / VPU (chỉ hiện khi máy khách có) -->
-        <StackPanel x:Name="PART_AcceleratorPanel" IsVisible="False" Spacing="5">
-          <TextBlock Text="GPU / NPU / VPU" FontSize="14" FontWeight="SemiBold" Margin="0,10,0,0" />
-          <Border Background="White" CornerRadius="8" BorderBrush="#E2E8F0" BorderThickness="1">
-            <DataGrid x:Name="PART_AcceleratorList"
-                      AutoGenerateColumns="False"
-                      CanUserSortColumns="False"
-                      IsReadOnly="True"
-                      GridLinesVisibility="All"
-                      HeadersVisibility="Column"
-                      x:DataType="local:AcceleratorItem">
-              <DataGrid.Columns>
-                <DataGridTextColumn Header="Loại" Binding="{Binding Kind}" Width="60" />
-                <DataGridTextColumn Header="Thiết bị" Binding="{Binding Name}" Width="*" />
-                <DataGridTextColumn Header="Tải" Binding="{Binding Util}" Width="65" />
-                <DataGridTextColumn Header="Xung nhịp" Binding="{Binding Freq}" Width="90" />
-                <DataGridTextColumn Header="Nhiệt độ" Binding="{Binding Temp}" Width="80" />
-                <DataGridTextColumn Header="Ghi chú" Binding="{Binding Note}" Width="*" />
-              </DataGrid.Columns>
-            </DataGrid>
-          </Border>
-        </StackPanel>
-
-        <!-- Top Processes -->
-        <TextBlock Text="Top Process Đang Chạy" FontSize="14" FontWeight="SemiBold" Margin="0,10,0,5" />
-        <Border Background="White" CornerRadius="8" BorderBrush="#E2E8F0" BorderThickness="1" MinHeight="150">
-          <DataGrid x:Name="PART_ProcessList" 
-                    AutoGenerateColumns="False" 
-                    CanUserSortColumns="False" 
-                    IsReadOnly="True" 
-                    GridLinesVisibility="All" 
+        <StackPanel x:Name="PART_AcceleratorPanel" IsVisible="False" Spacing="8">
+          <TextBlock Classes="section-title" Text="GPU / NPU / VPU" />
+          <DataGrid x:Name="PART_AcceleratorList"
+                    AutoGenerateColumns="False"
+                    CanUserSortColumns="False"
+                    IsReadOnly="True"
                     HeadersVisibility="Column"
-                    x:DataType="local:ProcessItem">
+                    x:DataType="local:AcceleratorItem">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="80" />
-              <DataGridTextColumn Header="Người dùng" Binding="{Binding User}" Width="100" />
-              <DataGridTextColumn Header="CPU %" Binding="{Binding Cpu}" Width="80" />
-              <DataGridTextColumn Header="RAM %" Binding="{Binding Mem}" Width="80" />
-              <DataGridTextColumn Header="Lệnh (Command)" Binding="{Binding Command}" Width="*" />
+              <DataGridTextColumn Header="Loại" Binding="{Binding Kind}" Width="84" />
+              <DataGridTextColumn Header="Thiết bị" Binding="{Binding Name}" Width="2*" />
+              <DataGridTextColumn Header="Tải" Binding="{Binding Util}" Width="80" />
+              <DataGridTextColumn Header="Xung nhịp" Binding="{Binding Freq}" Width="120" />
+              <DataGridTextColumn Header="Nhiệt độ" Binding="{Binding Temp}" Width="110" />
+              <DataGridTextColumn Header="Ghi chú" Binding="{Binding Note}" Width="*" />
             </DataGrid.Columns>
           </DataGrid>
-        </Border>
-        
+        </StackPanel>
+
+        <!-- Tiến trình -->
+        <StackPanel Spacing="8">
+          <Grid ColumnDefinitions="*,Auto,Auto">
+            <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="1">
+              <TextBlock Classes="section-title" Text="Tiến trình dùng nhiều CPU nhất" />
+              <TextBlock Classes="muted" Text="Chọn 1 dòng rồi bấm Kết thúc tiến trình (hoặc chuột phải / phím Delete)" />
+            </StackPanel>
+            <kz:KzButton Grid.Column="1" x:Name="PART_BtnKillTask" Classes="kz-outline" Margin="0,0,8,0" IsEnabled="False"
+                         ToolTip.Tip="Buộc dừng ngay (kill -9) — dùng khi tiến trình bị treo, không phản hồi Kết thúc">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <controls:LucideIcon Data="{StaticResource ic.circle-x}" />
+                <TextBlock Text="Buộc dừng" VerticalAlignment="Center" />
+              </StackPanel>
+            </kz:KzButton>
+            <kz:KzButton Grid.Column="2" x:Name="PART_BtnEndTask" Classes="kz-danger" IsEnabled="False"
+                         ToolTip.Tip="Gửi tín hiệu kết thúc (kill -TERM) — tiến trình được đóng an toàn">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <controls:LucideIcon Data="{StaticResource ic.power}" />
+                <TextBlock Text="Kết thúc tiến trình" VerticalAlignment="Center" />
+              </StackPanel>
+            </kz:KzButton>
+          </Grid>
+          <DataGrid x:Name="PART_ProcessList"
+                    AutoGenerateColumns="False"
+                    CanUserSortColumns="False"
+                    IsReadOnly="True"
+                    SelectionMode="Single"
+                    HeadersVisibility="Column"
+                    MinHeight="160"
+                    x:DataType="local:ProcessItem">
+            <DataGrid.ContextMenu>
+              <ContextMenu>
+                <MenuItem x:Name="PART_MenuEndTask" Header="Kết thúc tiến trình">
+                  <MenuItem.Icon><controls:LucideIcon Data="{StaticResource ic.power}" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem x:Name="PART_MenuKillTask" Header="Buộc dừng (kill -9)">
+                  <MenuItem.Icon><controls:LucideIcon Data="{StaticResource ic.circle-x}" /></MenuItem.Icon>
+                </MenuItem>
+              </ContextMenu>
+            </DataGrid.ContextMenu>
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="100" />
+              <DataGridTextColumn Header="Người dùng" Binding="{Binding User}" Width="140" />
+              <DataGridTextColumn Header="CPU %" Binding="{Binding Cpu}" Width="100" />
+              <DataGridTextColumn Header="RAM %" Binding="{Binding Mem}" Width="100" />
+              <DataGridTextColumn Header="Lệnh" Binding="{Binding Command}" Width="*" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </StackPanel>
+
       </StackPanel>
     </ScrollViewer>
 
     <!-- Footer -->
-    <Border Grid.Row="2" Background="#F8FAFC" Padding="12" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+    <Border Grid.Row="2" Classes="footer">
       <Grid ColumnDefinitions="Auto,*,Auto">
-        <TextBlock x:Name="PART_StatusMsg" Text="Đang kết nối..." VerticalAlignment="Center" Foreground="#64748B" />
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10">
-          <kz:KzButton x:Name="PART_BtnRefresh" Content="🔄 Làm mới ngay" KzSize="Sm" Classes="kz-outline" />
-          <kz:KzButton x:Name="PART_BtnClose" Content="Đóng" KzSize="Sm" Classes="kz-primary" />
+        <TextBlock x:Name="PART_StatusMsg" Text="Đang kết nối..." Classes="muted" VerticalAlignment="Center" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+          <kz:KzButton x:Name="PART_BtnRefresh" Classes="kz-outline">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <controls:LucideIcon Data="{StaticResource ic.refresh-cw}" />
+              <TextBlock Text="Làm mới" VerticalAlignment="Center" />
+            </StackPanel>
+          </kz:KzButton>
+          <kz:KzButton x:Name="PART_BtnClose" Content="Đóng" Classes="kz-primary" />
         </StackPanel>
       </Grid>
     </Border>
   </Grid>
 </Window>
-
-
-

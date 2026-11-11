@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -31,6 +33,16 @@ public class AcceleratorItem
     public string Temp { get; set; } = "";
     public string Note { get; set; } = "";
 }
+
+public sealed record HealthParseResult(
+    string? Uptime,
+    double? CpuPercent,
+    double? RamUsedMb,
+    double? RamTotalMb,
+    string? DiskUsed,
+    string? DiskTotal,
+    double? DiskPercent,
+    IReadOnlyList<ProcessItem> Processes);
 
 public partial class HealthMonitorWindow : Window
 {
@@ -131,7 +143,202 @@ exit 0
 
     // Q18: giữ 1 kết nối SSH xuyên suốt thay vì mở kết nối mới mỗi tick 5s (chậm + nặng cho ZCU)
     private SshClient? _sshClient;
+    private RemoteOsType? _detectedOs;
     private bool _isClosed;
+
+    /// <summary>
+    /// Câu lệnh PowerShell thu thập đầy đủ sức khỏe máy đích Windows theo 5 section chuẩn:
+    /// <c>===UPTIME===</c>, <c>===CPU===</c>, <c>===MEM===</c>, <c>===DISK===</c>, <c>===PROCS===</c>.
+    /// </summary>
+    public const string WindowsHealthProbeCommand =
+        "powershell.exe -NoProfile -NonInteractive -Command \"" +
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " +
+        "Write-Output '===UPTIME==='; " +
+        "$os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue; " +
+        "if ($null -ne $os -and $null -ne $os.LastBootUpTime) { " +
+        "$up = (Get-Date) - $os.LastBootUpTime; " +
+        "Write-Output ([string]::Format('{0}d {1:00}:{2:00}:{3:00}', [int]$up.TotalDays, $up.Hours, $up.Minutes, $up.Seconds)) " +
+        "}; " +
+        "Write-Output '===CPU==='; " +
+        "$cpu = (Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Measure-Object -Property LoadPercentage -Average).Average; " +
+        "if ($null -eq $cpu) { $cpu = 0 }; " +
+        "Write-Output ([string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0:0.0}', $cpu)); " +
+        "Write-Output '===MEM==='; " +
+        "if ($null -ne $os -and $os.TotalVisibleMemorySize -gt 0) { " +
+        "$totMb = [int][math]::Round($os.TotalVisibleMemorySize / 1024.0); " +
+        "$freeMb = [int][math]::Round($os.FreePhysicalMemory / 1024.0); " +
+        "$usedMb = $totMb - $freeMb; " +
+        "Write-Output ([string]::Format([System.Globalization.CultureInfo]::InvariantCulture, 'Mem: {0} {1} {2}', $totMb, $usedMb, $freeMb)) " +
+        "}; " +
+        "Write-Output '===DISK==='; " +
+        "$d = Get-CimInstance Win32_LogicalDisk -Filter 'DeviceID=''C:''' -ErrorAction SilentlyContinue; " +
+        "if ($null -ne $d -and $d.Size -gt 0) { " +
+        "$totG = $d.Size / 1GB; $usedG = ($d.Size - $d.FreeSpace) / 1GB; $freeG = $d.FreeSpace / 1GB; $pct = [int][math]::Round(($usedG / $totG) * 100); " +
+        "Write-Output 'Filesystem Size Used Avail Use% Mounted'; " +
+        "Write-Output ([string]::Format([System.Globalization.CultureInfo]::InvariantCulture, 'C: {0:0.0}G {1:0.0}G {2:0.0}G {3}% C:', $totG, $usedG, $freeG, $pct)) " +
+        "}; " +
+        "Write-Output '===PROCS==='; " +
+        "$totRamBytes = if ($null -ne $os -and $os.TotalVisibleMemorySize -gt 0) { $os.TotalVisibleMemorySize * 1024.0 } else { 1.0 }; " +
+        "Get-Process -ErrorAction SilentlyContinue | Sort-Object WorkingSet64 -Descending | Select-Object -First 15 | ForEach-Object { " +
+        "$memPct = ($_.WorkingSet64 / $totRamBytes) * 100.0; " +
+        "$cpuSec = if ($null -ne $_.CPU) { $_.CPU } else { 0.0 }; " +
+        "Write-Output ([string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0}|windows|{1:0.0}|{2:0.0}|{3}', $_.Id, $cpuSec, $memPct, $_.ProcessName)) " +
+        "}\"";
+
+    /// <summary>
+    /// Phân tích đầu ra theo section (<c>===UPTIME===</c>, <c>===CPU===</c>, <c>===MEM===</c>,
+    /// <c>===DISK===</c>, <c>===PROCS===</c>) từ máy đích Windows/Linux.
+    /// </summary>
+    public static HealthParseResult ParseHealthOutput(string? output, int maxProcesses = MaxProcessRows)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            return new HealthParseResult(null, null, null, null, null, null, null, Array.Empty<ProcessItem>());
+        }
+
+        var sections = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        string currentSection = string.Empty;
+
+        foreach (var rawLine in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            string line = rawLine.Trim();
+            if (line.StartsWith("===", StringComparison.Ordinal) && line.EndsWith("===", StringComparison.Ordinal) && line.Length > 6)
+            {
+                currentSection = line.Substring(3, line.Length - 6).Trim();
+                if (!sections.ContainsKey(currentSection))
+                    sections[currentSection] = new List<string>();
+                continue;
+            }
+
+            if (!string.IsNullOrEmpty(currentSection))
+            {
+                sections[currentSection].Add(line);
+            }
+        }
+
+        string? uptime = sections.TryGetValue("UPTIME", out var upLines) && upLines.Count > 0
+            ? upLines[0]
+            : null;
+
+        double? cpuPercent = null;
+        if (sections.TryGetValue("CPU", out var cpuLines) && cpuLines.Count > 0)
+        {
+            string cLine = cpuLines[0].TrimEnd('%').Replace(',', '.');
+            if (double.TryParse(cLine, NumberStyles.Float, CultureInfo.InvariantCulture, out double cVal))
+            {
+                cpuPercent = Math.Clamp(cVal, 0.0, 100.0);
+            }
+            else
+            {
+                cpuPercent = TopParser.Parse(string.Join("\n", cpuLines)).TotalCpuPercent;
+            }
+        }
+
+        double? ramUsedMb = null;
+        double? ramTotalMb = null;
+        if (sections.TryGetValue("MEM", out var memLines) && memLines.Count > 0)
+        {
+            var memLine = memLines.FirstOrDefault(l => l.StartsWith("Mem:", StringComparison.OrdinalIgnoreCase)) ?? memLines[0];
+            var parts = memLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 3 && parts[0].StartsWith("Mem", StringComparison.OrdinalIgnoreCase))
+            {
+                if (double.TryParse(parts[1].Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double tot)
+                    && double.TryParse(parts[2].Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double used))
+                {
+                    ramTotalMb = tot;
+                    ramUsedMb = used;
+                }
+            }
+            else if (parts.Length >= 2
+                     && double.TryParse(parts[0].Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double used2)
+                     && double.TryParse(parts[1].Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double tot2))
+            {
+                ramUsedMb = used2;
+                ramTotalMb = tot2;
+            }
+        }
+
+        string? diskUsed = null;
+        string? diskTotal = null;
+        double? diskPercent = null;
+        if (sections.TryGetValue("DISK", out var diskLines) && diskLines.Count > 0)
+        {
+            string dataLine = diskLines.Count >= 2 && diskLines[0].StartsWith("Filesystem", StringComparison.OrdinalIgnoreCase)
+                ? diskLines[1]
+                : diskLines[0];
+            var parts = dataLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 5 && parts[4].EndsWith('%'))
+            {
+                diskTotal = parts[1];
+                diskUsed = parts[2];
+                if (double.TryParse(parts[4].TrimEnd('%').Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double dp))
+                    diskPercent = dp;
+            }
+            else if (parts.Length >= 3 && parts[2].EndsWith('%'))
+            {
+                diskUsed = parts[0];
+                diskTotal = parts[1];
+                if (double.TryParse(parts[2].TrimEnd('%').Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double dp))
+                    diskPercent = dp;
+            }
+        }
+
+        var processes = new List<ProcessItem>();
+        if (sections.TryGetValue("PROCS", out var procLines))
+        {
+            foreach (var pLine in procLines)
+            {
+                if (processes.Count >= maxProcesses) break;
+                if (pLine.StartsWith("PID", StringComparison.OrdinalIgnoreCase)) continue;
+
+                if (pLine.Contains('|'))
+                {
+                    var pParts = pLine.Split('|', 5);
+                    if (pParts.Length >= 5)
+                    {
+                        processes.Add(new ProcessItem
+                        {
+                            Pid = pParts[0].Trim(),
+                            User = pParts[1].Trim(),
+                            Cpu = pParts[2].Trim(),
+                            Mem = pParts[3].Trim(),
+                            Command = pParts[4].Trim()
+                        });
+                    }
+                }
+                else
+                {
+                    var pParts = pLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (pParts.Length >= 5)
+                    {
+                        processes.Add(new ProcessItem
+                        {
+                            Pid = pParts[0],
+                            User = pParts[1],
+                            Cpu = pParts[2],
+                            Mem = pParts[3],
+                            Command = string.Join(" ", pParts.Skip(4))
+                        });
+                    }
+                }
+            }
+        }
+
+        return new HealthParseResult(uptime, cpuPercent, ramUsedMb, ramTotalMb, diskUsed, diskTotal, diskPercent, processes);
+    }
+
+    /// <summary>
+    /// Tạo lệnh dừng tiến trình theo PID cho hệ điều hành đích (Windows dùng <c>Stop-Process -Id &lt;pid&gt; -Force</c>,
+    /// Linux dùng <c>LC_ALL=C kill -&lt;sig&gt; &lt;pid&gt;</c>).
+    /// </summary>
+    public static string BuildKillProcessCommand(int pid, string sig, RemoteOsType osType)
+    {
+        if (osType == RemoteOsType.Windows)
+        {
+            return $"powershell.exe -NoProfile -NonInteractive -Command \"Stop-Process -Id {pid} -Force -ErrorAction Stop\"";
+        }
+        return $"LC_ALL=C kill -{sig} {pid}";
+    }
 
     public ObservableCollection<ProcessItem> Processes { get; set; } = new();
     public ObservableCollection<AcceleratorItem> Accelerators { get; set; } = new();
@@ -161,6 +368,23 @@ exit 0
 
         if (this.FindControl<KzButton>("PART_BtnRefresh") is { } btnRefresh) btnRefresh.Click += OnRefreshClick;
         if (this.FindControl<KzButton>("PART_BtnClose") is { } btnClose) btnClose.Click += (s, e) => Close();
+
+        // End task (như Task Manager): nút, menu chuột phải, phím Delete
+        if (processList != null)
+        {
+            processList.SelectionChanged += (_, _) => UpdateEndTaskButtons();
+            processList.KeyDown += async (_, ev) =>
+            {
+                if (ev.Key != Avalonia.Input.Key.Delete) return;
+                ev.Handled = true;
+                await EndSelectedProcessAsync(force: false);
+            };
+        }
+        if (this.FindControl<KzButton>("PART_BtnEndTask") is { } btnEnd) btnEnd.Click += async (_, _) => await EndSelectedProcessAsync(force: false);
+        if (this.FindControl<KzButton>("PART_BtnKillTask") is { } btnKill) btnKill.Click += async (_, _) => await EndSelectedProcessAsync(force: true);
+        if (this.FindControl<MenuItem>("PART_MenuEndTask") is { } miEnd) miEnd.Click += async (_, _) => await EndSelectedProcessAsync(force: false);
+        if (this.FindControl<MenuItem>("PART_MenuKillTask") is { } miKill) miKill.Click += async (_, _) => await EndSelectedProcessAsync(force: true);
+        UpdateEndTaskButtons();
 
         this.Opened += OnWindowOpened;
         this.Closed += OnWindowClosed;
@@ -194,6 +418,7 @@ exit 0
     {
         var client = _sshClient;
         _sshClient = null;
+        _detectedOs = null;
         if (client == null) return;
         try { if (client.IsConnected) client.Disconnect(); } catch { /* đang đóng — bỏ qua lỗi mạng */ }
         try { client.Dispose(); } catch { }
@@ -210,6 +435,7 @@ exit 0
         {
             try { client.Dispose(); } catch { }
             _sshClient = null;
+            _detectedOs = null;
         }
 
         string host = _profile.Host;
@@ -220,6 +446,7 @@ exit 0
         var newClient = new SshClient(host, port, username, password);
         newClient.Connect();
         _sshClient = newClient;
+        _detectedOs = RemoteOsDetector.DetectRemoteOs(newClient);
         return newClient;
     }
 
@@ -251,13 +478,33 @@ exit 0
             {
                 // Q18: tái sử dụng kết nối; chỉ reconnect khi rớt
                 var ssh = EnsureSshConnected();
+                var osType = _detectedOs ?? RemoteOsDetector.DetectRemoteOs(ssh);
+                _detectedOs = osType;
+
+                if (osType == RemoteOsType.Windows)
+                {
+                    using var winCmd = ssh.CreateCommand(WindowsHealthProbeCommand);
+                    winCmd.CommandTimeout = TimeSpan.FromSeconds(10);
+                    string winOut = winCmd.Execute() ?? string.Empty;
+                    var parsedWin = ParseHealthOutput(winOut, MaxProcessRows);
+
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (_isClosed) return;
+                        ApplyParsedHealthResult(parsedWin);
+                        UpdateAccelerators("");
+                        string uptimeSuffix = !string.IsNullOrWhiteSpace(parsedWin.Uptime) ? $" (Uptime: {parsedWin.Uptime})" : "";
+                        SetStatus($"Cập nhật lần cuối: {DateTime.Now:HH:mm:ss}{uptimeSuffix}");
+                    });
+                    return;
+                }
 
                 // 1. RAM Usage
-                using var ramCmd = ssh.CreateCommand("free -m");
+                using var ramCmd = ssh.CreateCommand("LC_ALL=C free -m");
                 string ramResult = ramCmd.Execute();
 
                 // 2. Disk Usage
-                using var diskCmd = ssh.CreateCommand("df -h /");
+                using var diskCmd = ssh.CreateCommand("LC_ALL=C df -hP /");
                 string diskResult = diskCmd.Execute();
 
                 // 3. Top Processes & CPU
@@ -300,6 +547,56 @@ exit 0
             if (_isClosed)
                 DisposeSshClient();
         }
+    }
+
+    private void ApplyParsedHealthResult(HealthParseResult result)
+    {
+        if (result.CpuPercent.HasValue)
+        {
+            if (this.FindControl<TextBlock>("PART_CpuText") is { } cpuTxt)
+                cpuTxt.Text = $"{result.CpuPercent.Value:F1}%";
+            if (this.FindControl<ProgressBar>("PART_CpuBar") is { } cpuBar)
+                cpuBar.Value = result.CpuPercent.Value;
+        }
+
+        if (result.RamUsedMb.HasValue && result.RamTotalMb.HasValue && result.RamTotalMb.Value > 0)
+        {
+            double used = result.RamUsedMb.Value;
+            double total = result.RamTotalMb.Value;
+            double pct = Math.Clamp(used / total * 100.0, 0.0, 100.0);
+            if (this.FindControl<TextBlock>("PART_RamText") is { } ramTxt)
+                ramTxt.Text = $"{used:0} / {total:0} MB";
+            if (this.FindControl<TextBlock>("PART_RamPercentText") is { } ramPctTxt)
+                ramPctTxt.Text = $"{pct:0.0}%";
+            if (this.FindControl<ProgressBar>("PART_RamBar") is { } ramBar)
+                ramBar.Value = pct;
+        }
+
+        if (!string.IsNullOrEmpty(result.DiskUsed) && !string.IsNullOrEmpty(result.DiskTotal))
+        {
+            if (this.FindControl<TextBlock>("PART_DiskText") is { } diskTxt)
+                diskTxt.Text = $"{result.DiskUsed} / {result.DiskTotal}";
+            if (result.DiskPercent.HasValue)
+            {
+                if (this.FindControl<TextBlock>("PART_DiskPercentText") is { } diskPctTxt)
+                    diskPctTxt.Text = $"{result.DiskPercent.Value:0}%";
+                if (this.FindControl<ProgressBar>("PART_DiskBar") is { } diskBar)
+                    diskBar.Value = result.DiskPercent.Value;
+            }
+        }
+
+        var grid = this.FindControl<DataGrid>("PART_ProcessList");
+        string? selectedPid = (grid?.SelectedItem as ProcessItem)?.Pid;
+
+        Processes.Clear();
+        foreach (var p in result.Processes)
+        {
+            Processes.Add(p);
+        }
+
+        if (grid != null && selectedPid != null)
+            grid.SelectedItem = Processes.FirstOrDefault(x => x.Pid == selectedPid);
+        UpdateEndTaskButtons();
     }
 
     private static string WithUnit(string v, string unit)
@@ -349,6 +646,8 @@ exit 0
                         ramTxt.Text = $"{used} / {total} MB";
                     if (this.FindControl<TextBlock>("PART_RamPercentText") is { } ramPctTxt)
                         ramPctTxt.Text = $"{(used / total * 100):0.0}%";
+                    if (this.FindControl<ProgressBar>("PART_RamBar") is { } ramBar)
+                        ramBar.Value = total > 0 ? used / total * 100 : 0;
                 }
             }
         }
@@ -365,17 +664,26 @@ exit 0
                 if (this.FindControl<TextBlock>("PART_DiskText") is { } diskTxt)
                     diskTxt.Text = $"{parts[2]} / {parts[1]}";
                 if (this.FindControl<TextBlock>("PART_DiskPercentText") is { } diskPctTxt)
-                    diskPctTxt.Text = $"{parts[4]} Used";
+                    diskPctTxt.Text = parts[4];
+                if (this.FindControl<ProgressBar>("PART_DiskBar") is { } diskBar
+                    && double.TryParse(parts[4].TrimEnd('%'), out double diskPct))
+                    diskBar.Value = diskPct;
             }
         }
 
         // 3. Parse Top (CPU & Processes) using TopParser (hỗ trợ locale vi_VN dấu phẩy và steady-state mẫu 2)
-        var parsedTop = TopParser.Parse(topStr);
+        var parsedTop = TopParser.Parse(topStr, MaxProcessRows);
         if (parsedTop.TotalCpuPercent.HasValue)
         {
             if (this.FindControl<TextBlock>("PART_CpuText") is { } cpuTxt)
                 cpuTxt.Text = $"{parsedTop.TotalCpuPercent.Value:F1}%";
+            if (this.FindControl<ProgressBar>("PART_CpuBar") is { } cpuBar)
+                cpuBar.Value = parsedTop.TotalCpuPercent.Value;
         }
+
+        // Giữ dòng đang chọn (theo PID) qua mỗi lần làm mới 5s — nếu không, chọn để End task sẽ bị mất.
+        var grid = this.FindControl<DataGrid>("PART_ProcessList");
+        string? selectedPid = (grid?.SelectedItem as ProcessItem)?.Pid;
 
         Processes.Clear();
         foreach (var p in parsedTop.Processes)
@@ -388,6 +696,161 @@ exit 0
                 Mem = p.Mem,
                 Command = p.Command
             });
+        }
+
+        if (grid != null && selectedPid != null)
+            grid.SelectedItem = Processes.FirstOrDefault(x => x.Pid == selectedPid);
+        UpdateEndTaskButtons();
+    }
+
+    // ── End task ────────────────────────────────────────────────────────────
+
+    private const int MaxProcessRows = 15;
+
+    private void UpdateEndTaskButtons()
+    {
+        bool hasSel = this.FindControl<DataGrid>("PART_ProcessList")?.SelectedItem is ProcessItem;
+        if (this.FindControl<KzButton>("PART_BtnEndTask") is { } b1) b1.IsEnabled = hasSel;
+        if (this.FindControl<KzButton>("PART_BtnKillTask") is { } b2) b2.IsEnabled = hasSel;
+        if (this.FindControl<MenuItem>("PART_MenuEndTask") is { } m1) m1.IsEnabled = hasSel;
+        if (this.FindControl<MenuItem>("PART_MenuKillTask") is { } m2) m2.IsEnabled = hasSel;
+    }
+
+    /// <summary>
+    /// Kết thúc tiến trình đang chọn trên máy đích: kill -TERM (đóng an toàn) hoặc kill -KILL (buộc dừng).
+    /// Không đủ quyền (tiến trình của user khác/root) → thử lại bằng sudo, mật khẩu SSH ghi qua STDIN.
+    /// </summary>
+    private async Task EndSelectedProcessAsync(bool force)
+    {
+        if (_isClosed) return;
+        if (this.FindControl<DataGrid>("PART_ProcessList")?.SelectedItem is not ProcessItem p) return;
+        if (!int.TryParse(p.Pid, out int pid) || pid <= 1)
+        {
+            SetStatus($"PID không hợp lệ: {p.Pid}");
+            return;
+        }
+        if (!await ConfirmEndTaskAsync(p, force)) return;
+
+        string sig = force ? "KILL" : "TERM";
+        SetStatus($"Đang {(force ? "buộc dừng" : "kết thúc")} PID {pid} ({p.Command})...");
+        try
+        {
+            string result = await Task.Run(() => KillRemoteProcess(pid, sig));
+            SetStatus(result);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Không dừng được PID {pid}: {ex.Message}");
+        }
+        await RefreshMetricsAsync();
+    }
+
+    private async Task<bool> ConfirmEndTaskAsync(ProcessItem p, bool force)
+    {
+        string action = force ? "Buộc dừng" : "Kết thúc";
+        string text = $"{action} tiến trình \"{p.Command}\" (PID {p.Pid}, người dùng {p.User}) trên máy đích?";
+        if (force)
+            text += "\n\nBuộc dừng không cho tiến trình lưu dữ liệu — chỉ dùng khi nó bị treo.";
+        if (p.User == "root")
+            text += "\n\nĐây là tiến trình hệ thống (root) — dừng có thể làm máy đích hoạt động sai.";
+        if (p.Command.Contains("IPGS.Remote", StringComparison.OrdinalIgnoreCase)
+            || p.Command.Contains("ZcuAgent", StringComparison.OrdinalIgnoreCase))
+            text += "\n\nĐây có thể là Remote Agent — dừng nó sẽ ngắt điều khiển từ xa (service tự bật lại sau vài giây).";
+
+        bool confirmed = false;
+        var dlg = new Window
+        {
+            Title = $"{action} tiến trình",
+            Width = 460,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+        var btnCancel = new KzButton { Content = "Hủy" };
+        btnCancel.Classes.Add("kz-outline");
+        var btnOk = new KzButton { Content = action };
+        btnOk.Classes.Add("kz-danger");
+        btnCancel.Click += (_, _) => dlg.Close();
+        btnOk.Click += (_, _) => { confirmed = true; dlg.Close(); };
+
+        var buttons = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right
+        };
+        buttons.Children.Add(btnCancel);
+        buttons.Children.Add(btnOk);
+
+        var root = new StackPanel { Margin = new Avalonia.Thickness(24, 20), Spacing = 18 };
+        root.Children.Add(new TextBlock { Text = text, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+        root.Children.Add(buttons);
+        dlg.Content = root;
+
+        await dlg.ShowDialog(this);
+        return confirmed;
+    }
+
+    /// <summary>Chạy trên thread nền. Dùng kết nối SSH riêng để không đụng kết nối của vòng làm mới 5s.</summary>
+    private string KillRemoteProcess(int pid, string sig)
+    {
+        string host = _profile.Host;
+        int port = _profile.SshPort > 0 ? _profile.SshPort : 22;
+        string username = !string.IsNullOrWhiteSpace(_profile.SshUsername) ? _profile.SshUsername : "kztek";
+        string password = _profile.SshPassword ?? "";
+
+        using var ssh = new SshClient(host, port, username, password);
+        ssh.ConnectionInfo.Timeout = TimeSpan.FromSeconds(5);
+        ssh.Connect();
+        try
+        {
+            var osType = _detectedOs ?? RemoteOsDetector.DetectRemoteOs(ssh);
+            if (osType == RemoteOsType.Windows)
+            {
+                using var winKill = ssh.CreateCommand(BuildKillProcessCommand(pid, sig, RemoteOsType.Windows));
+                winKill.Execute();
+                if (winKill.ExitStatus == 0)
+                    return $"Đã dừng tiến trình PID {pid} trên Windows (Stop-Process -Force).";
+
+                string err = (winKill.Error ?? winKill.Result ?? "").Trim();
+                return $"Không dừng được PID {pid}: {(string.IsNullOrEmpty(err) ? $"exit {winKill.ExitStatus}" : err)}";
+            }
+
+            using (var cmd = ssh.CreateCommand(BuildKillProcessCommand(pid, sig, RemoteOsType.Linux)))
+            {
+                cmd.Execute();
+                if (cmd.ExitStatus == 0)
+                    return $"Đã gửi {sig} tới PID {pid}.";
+                if (!cmd.Error.Contains("not permitted", StringComparison.OrdinalIgnoreCase))
+                    return $"Không dừng được PID {pid}: {cmd.Error.Trim()}";
+            }
+
+            // Không đủ quyền → sudo; mật khẩu ghi vào STDIN (không lộ trên command line) — như RemoteAppInstallService.
+            using var sudo = ssh.CreateCommand($"LC_ALL=C sudo -S -p '' kill -{sig} {pid}");
+            var async = sudo.BeginExecute();
+            System.IO.Stream? input = null;
+            for (int i = 0; i < 20 && input == null; i++)
+            {
+                try { input = sudo.CreateInputStream(); }
+                catch { System.Threading.Thread.Sleep(50); }
+            }
+            if (input != null)
+            {
+                using (input)
+                {
+                    var bytes = Encoding.UTF8.GetBytes(password + "\n");
+                    input.Write(bytes, 0, bytes.Length);
+                    input.Flush();
+                }
+            }
+            sudo.EndExecute(async);
+            return sudo.ExitStatus == 0
+                ? $"Đã gửi {sig} tới PID {pid} (sudo)."
+                : $"Không dừng được PID {pid} (sudo): {sudo.Error.Trim()}";
+        }
+        finally
+        {
+            try { ssh.Disconnect(); } catch { }
         }
     }
 }

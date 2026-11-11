@@ -8,8 +8,9 @@
 #   - Compile schema + set các key ẩn/HIỆN UI (panel/top bar, activities button,
 #     dash, workspace switcher) — 2 CHIỀU: 1=ẩn, 0=hiện lại
 #   - Tắt/BẬT LẠI bàn phím ảo GNOME (on-screen keyboard) — 2 chiều
-#   - Cài package "unclutter" (ẩn con trỏ chuột) — CHỈ 1 CHIỀU: 1=cài, 0=bỏ qua
-#     (không tự gỡ khi = 0, vì gỡ package là thao tác phá hoại/khó hoàn tác)
+#   - Unclutter (ẩn con trỏ chuột) — 2 CHIỀU theo hiệu ứng: 1=cài + bật tự chạy,
+#     0=tắt tự chạy + dừng tiến trình (con trỏ hiện lại). KHÔNG gỡ package khi = 0
+#     (gỡ package là thao tác phá hoại/cần mạng để cài lại).
 #
 # GHI CHÚ QUAN TRỌNG (rút ra ngày 2026-07-25, test thật trên 192.168.21.230):
 # `gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled false`
@@ -134,30 +135,62 @@ _install_ext_offline() {
     echo "  → Đã cài extension '$uuid' vào $ext_dir (không cần bấm popup)."
 }
 
-# Bật extension: thử gnome-extensions enable (cần shell đã nhận diện), fallback
-# trực tiếp vào gsettings enabled-extensions (khi shell chưa scan thư mục mới).
-# Idempotent: không thêm trùng. Hiệu lực thật ở lần login kế tiếp nếu shell
-# chưa nhận diện, hoặc ngay lập tức nếu shell đã nhận diện.
+# Bật/tắt extension GNOME Shell bằng cách sửa TRỰC TIẾP 2 key gsettings
+# org.gnome.shell enabled-extensions / disabled-extensions — KHÔNG cần gnome-shell đang
+# chạy (chỉ ghi dconf), nên vẫn đúng khi shell đang bị nạp lại (killall gnome-shell ở
+# cuối 1-install-software.sh) — trước đây `gnome-extensions enable/disable` gọi D-Bus tới
+# shell, shell đang khởi động lại → lệnh fail âm thầm ("bỏ qua") → bỏ tick không có tác
+# dụng. GNOME 40+: uuid nằm trong disabled-extensions THẮNG enabled-extensions, và
+# extension mặc định của session Ubuntu (ubuntu-dock, ding) CHỈ tắt được qua
+# disabled-extensions → phải sửa cả 2 key theo cặp.
+_ext_gsettings_set() {
+    local uuid="$1" want="$2"   # want: on | off
+    python3 - "$uuid" "$want" <<'PYEOF' || true
+import ast, subprocess, sys
+uuid, want = sys.argv[1], sys.argv[2]
+def get(key):
+    try:
+        out = subprocess.run(["gsettings", "get", "org.gnome.shell", key],
+                             capture_output=True, text=True).stdout.strip()
+    except Exception:
+        return None
+    if out.startswith("@as "):
+        out = out[4:]
+    try:
+        v = ast.literal_eval(out)
+        return list(v) if isinstance(v, (list, tuple)) else None
+    except Exception:
+        return None
+def put(key, lst):
+    subprocess.run(["gsettings", "set", "org.gnome.shell", key, str(lst)], capture_output=True)
+en, dis = get("enabled-extensions"), get("disabled-extensions")
+if en is None or dis is None:
+    sys.exit(0)
+if want == "on":
+    if uuid not in en:
+        put("enabled-extensions", en + [uuid])
+    if uuid in dis:
+        put("disabled-extensions", [u for u in dis if u != uuid])
+else:
+    if uuid in en:
+        put("enabled-extensions", [u for u in en if u != uuid])
+    if uuid not in dis:
+        put("disabled-extensions", dis + [uuid])
+PYEOF
+}
+
 _force_enable_ext() {
     local uuid="$1"
-    if gnome-extensions enable "$uuid" 2>/dev/null; then
-        echo "  → Extension '$uuid' đã ENABLED (gnome-extensions enable OK)."
-        return 0
-    fi
-    # gnome-extensions enable thất bại → fallback: thêm trực tiếp vào gsettings
-    local cur; cur="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || echo '@as []')"
-    if echo "$cur" | grep -q "$uuid"; then
-        echo "  → Extension '$uuid' đã có trong enabled-extensions (bỏ qua)."
-        return 0
-    fi
-    local new_ext
-    if echo "$cur" | grep -qE "^\@as \[\]$|^\[\]$"; then
-        new_ext="['$uuid']"
-    else
-        new_ext="$(echo "$cur" | sed "s/]$/, '$uuid']/")"
-    fi
-    gsettings set org.gnome.shell enabled-extensions "$new_ext" 2>/dev/null || true
-    echo "  → Extension '$uuid' đã đăng ký vào enabled-extensions qua gsettings (hiệu lực ở lần login kế tiếp)."
+    gnome-extensions enable "$uuid" 2>/dev/null || true
+    _ext_gsettings_set "$uuid" on
+    echo "  → Extension '$uuid' đã ENABLE (có trong enabled-extensions, đã gỡ khỏi disabled-extensions)."
+}
+
+_force_disable_ext() {
+    local uuid="$1"
+    gnome-extensions disable "$uuid" 2>/dev/null || true
+    _ext_gsettings_set "$uuid" off
+    echo "  → Extension '$uuid' đã DISABLE (gỡ khỏi enabled-extensions, thêm vào disabled-extensions)."
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -381,26 +414,12 @@ EOF
     # tiếp — deploy vốn đã yêu cầu restart máy). `gnome-extensions enable` có thể báo
     # "not installed" với extension vừa copy khi shell chưa quét lại → thêm trực tiếp
     # vào dconf để chắc chắn, rồi enable best-effort.
-    CUR_EXT="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || echo '@as []')"
-    if ! echo "$CUR_EXT" | grep -q "$EXT_UUID_GESTURE"; then
-        if echo "$CUR_EXT" | grep -q "^@as \[\]$" || [ "$CUR_EXT" = "[]" ]; then
-            NEW_EXT="['$EXT_UUID_GESTURE']"
-        else
-            NEW_EXT="$(echo "$CUR_EXT" | sed "s/]$/, '$EXT_UUID_GESTURE']/")"
-        fi
-        gsettings set org.gnome.shell enabled-extensions "$NEW_EXT" 2>/dev/null || true
-    fi
-    gnome-extensions enable "$EXT_UUID_GESTURE" 2>/dev/null || true
+    _force_enable_ext "$EXT_UUID_GESTURE"
     echo "  → Đã cài + đăng ký enable '$EXT_UUID_GESTURE' (hiệu lực sau khi RESTART/đăng nhập lại)."
     echo "    Overview bị vô hiệu hoàn toàn — cử chỉ cảm ứng/hot corner không mở được overview nữa."
 else
     echo "=== [3b/5] Bỏ tick Ẩn Activities → gỡ extension chặn cử chỉ overview ==="
-    gnome-extensions disable "$EXT_UUID_GESTURE" 2>/dev/null || true
-    CUR_EXT="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || echo '@as []')"
-    if echo "$CUR_EXT" | grep -q "$EXT_UUID_GESTURE"; then
-        NEW_EXT="$(echo "$CUR_EXT" | sed "s/'$EXT_UUID_GESTURE', //g; s/, '$EXT_UUID_GESTURE'//g; s/'$EXT_UUID_GESTURE'//g")"
-        gsettings set org.gnome.shell enabled-extensions "$NEW_EXT" 2>/dev/null || true
-    fi
+    _force_disable_ext "$EXT_UUID_GESTURE"
     rm -rf "$EXT_DIR_GESTURE" 2>/dev/null || true
     echo "  → Đã tắt/gỡ extension chặn cử chỉ overview (trả lại hành vi mặc định GNOME)."
 fi
@@ -427,20 +446,54 @@ if [ "$HIDE_KEYBOARD" = "1" ]; then
     echo "  → Đã tắt bàn phím ảo (gsettings + extension Block Caribou 36)."
 else
     gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled true 2>/dev/null || true
-    gnome-extensions disable "$EXT_UUID_KEYBOARD" 2>/dev/null || true
+    _force_disable_ext "$EXT_UUID_KEYBOARD"
     echo "  → Đã bật lại bàn phím ảo (gsettings + tắt extension Block Caribou 36)."
 fi
 
 # ─────────────────────────────────────────────────────────────
+# Unclutter 2 CHIỀU theo hiệu ứng "ẩn con trỏ chuột": 1 = cài + bật tự chạy, 0 = tắt
+# tự chạy + dừng tiến trình đang chạy (con trỏ hiện lại). KHÔNG gỡ package khi = 0.
+# Ô này là NƠI DUY NHẤT quản lý unclutter (trước đây unclutter.desktop do ô "Autostart"
+# ở tab phần mềm tạo/xoá → bỏ tick ô này không có tác dụng gì).
+# Gói unclutter của Ubuntu còn tự chạy qua /etc/X11/Xsession.d/90unclutter theo cờ
+# START_UNCLUTTER trong /etc/default/unclutter (mặc định "true") → phải đổi cả cờ này,
+# không chỉ file autostart của user.
+UNCLUTTER_AUTOSTART="$HOME/.config/autostart/unclutter.desktop"
+_set_unclutter_default() {  # $1 = true | false
+    [ -f /etc/default/unclutter ] || return 0
+    if grep -q '^START_UNCLUTTER=' /etc/default/unclutter; then
+        _sudo sed -i "s/^START_UNCLUTTER=.*/START_UNCLUTTER=\"$1\"/" /etc/default/unclutter || true
+    else
+        _sudo bash -c "echo 'START_UNCLUTTER=\"$1\"' >> /etc/default/unclutter" || true
+    fi
+}
 if [ "$INSTALL_UNCLUTTER" = "1" ]; then
-    echo "=== [5/5] Cài unclutter (ẩn con trỏ chuột) ==="
+    echo "=== [5/5] Cài + bật unclutter (ẩn con trỏ chuột) ==="
     if ! dpkg -s unclutter >/dev/null 2>&1; then
         _install_deb_offline_or_apt unclutter
     else
-        echo "  → unclutter đã cài, bỏ qua."
+        echo "  → unclutter đã cài, bỏ qua bước cài."
     fi
+    _set_unclutter_default true
+    mkdir -p "$HOME/.config/autostart"
+    cat > "$UNCLUTTER_AUTOSTART" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Unclutter
+Exec=unclutter -idle 1
+X-GNOME-Autostart-enabled=true
+EOF
+    # Chạy ngay (tách hẳn khỏi phiên SSH — setsid + đóng mọi fd để kênh SSH không bị treo)
+    if command -v unclutter >/dev/null 2>&1 && ! pgrep -u "$USER" -x unclutter >/dev/null 2>&1; then
+        DISPLAY="${DISPLAY:-:0}" setsid nohup unclutter -idle 1 >/dev/null 2>&1 < /dev/null &
+    fi
+    echo "  → Đã bật unclutter (autostart: $UNCLUTTER_AUTOSTART + START_UNCLUTTER=true)."
 else
-    echo "=== [5/5] Bỏ qua cài unclutter (không được chọn — KHÔNG tự gỡ nếu đã cài trước đó) ==="
+    echo "=== [5/5] Tắt unclutter (hiện lại con trỏ chuột — giữ package, không gỡ cài) ==="
+    rm -f "$UNCLUTTER_AUTOSTART"
+    _set_unclutter_default false
+    pkill -u "$USER" -x unclutter 2>/dev/null || true
+    echo "  → Đã xoá autostart unclutter + START_UNCLUTTER=false + dừng tiến trình unclutter."
 fi
 
 # Nạp lại GNOME Shell trên X11 để quét và kích hoạt extension mới / cập nhật Top Bar ngay lập tức

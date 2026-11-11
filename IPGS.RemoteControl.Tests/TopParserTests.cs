@@ -120,4 +120,18 @@ top - 13:34:50 up  2:39,  1 user,  load average: 1.18, 1.18, 1.09
         Assert.NotNull(result.TotalCpuPercent);
         Assert.Equal(18.4, result.TotalCpuPercent!.Value, 1);
     }
+
+    [Fact]
+    public void Parse_IdleWithoutSpaceAfterComma_ParsesIdleCorrectly()
+    {
+        // "ni,99.0 id" dính dấu phẩy: regex cũ bắt ",99.0" → parse lỗi → rơi về us (0.5) sai
+        string sample = """
+%Cpu(s):  0.5 us,  0.5 sy,  0.0 ni,99.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+""";
+
+        var result = TopParser.Parse(sample);
+
+        Assert.NotNull(result.TotalCpuPercent);
+        Assert.Equal(1.0, result.TotalCpuPercent!.Value, 1);
+    }
 }

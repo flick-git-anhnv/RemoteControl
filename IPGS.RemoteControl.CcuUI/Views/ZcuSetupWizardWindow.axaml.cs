@@ -32,16 +32,16 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             try
             {
-                Log("🔐 Đang đọc vân tay chứng chỉ TLS của ZcuAgent...");
+                Log("Đang đọc vân tay chứng chỉ TLS của Remote Agent...");
                 var fp = await ZcuAgentDiscoveryService.ProbeTlsFingerprintAsync(host, port);
                 if (!ComputerProfileStore.Instance.ReplaceTlsFingerprint(host, port, fp)) return;
                 Log(fp is null
-                    ? "⚠️ Chưa đọc được vân tay TLS — đã bỏ ghim cũ, lần kết nối đầu tiên sẽ tự ghim lại."
-                    : $"✅ Đã ghim vân tay TLS mới: {fp[..Math.Min(16, fp.Length)]}…");
+                    ? "Chưa đọc được vân tay TLS — đã bỏ ghim cũ, lần kết nối đầu tiên sẽ tự ghim lại."
+                    : $"Đã ghim vân tay TLS mới: {fp[..Math.Min(16, fp.Length)]}…");
             }
             catch (Exception ex)
             {
-                Log("⚠️ Không cập nhật được vân tay TLS: " + ex.Message);
+                Log("Không cập nhật được vân tay TLS: " + ex.Message);
             }
         }
 
@@ -128,21 +128,20 @@ namespace IPGS.RemoteControl.CcuUI.Views
             // F04: reset status cũ (VD lỗi validation đỏ của lần bấm trước) ngay khi bắt đầu
             // lượt cài mới — nếu không, thông báo lỗi cũ treo suốt quá trình cài gây nhầm lẫn.
             PART_StatusMsg.Foreground = Avalonia.Media.Brushes.SlateGray;
-            PART_StatusMsg.Text = "Đang cài đặt ZcuAgent...";
+            PART_StatusMsg.Text = "Đang cài đặt Remote Agent (tự động nhận diện Linux / Windows)...";
 
             // F06: cảnh báo (không chặn) khi cấu hình yếu — token ngắn dễ đoán hoặc whitelist mở toàn mạng.
             if (token.Length < 16)
-                Log("⚠️ CẢNH BÁO BẢO MẬT: Token ngắn hơn 16 ký tự — dễ bị đoán. Dùng nút 🎲 Sinh Token để tạo token ngẫu nhiên mạnh.");
+                Log("CẢNH BÁO BẢO MẬT: Token ngắn hơn 16 ký tự — dễ bị đoán. Dùng nút Sinh Token để tạo token ngẫu nhiên mạnh.");
             if (allowedIps.Contains("0.0.0.0/0") || allowedIps.Contains("::/0"))
-                Log("⚠️ CẢNH BÁO BẢO MẬT: AllowedClientIPs đang mở cho MỌI IP (0.0.0.0/0) — nên giới hạn về dải LAN quản trị (VD 192.168.0.0/16).");
+                Log("ℹAllowedClientIPs: Cấu hình mở cho mọi IP (0.0.0.0/0).");
 
-            // Search for local ZcuAgent publish directory to upload if available.
-            // A4: PHẢI await bản async — bản cũ chạy đồng bộ Process.WaitForExit(30000)
-            // ngay trên UI thread → cửa sổ đơ tối đa 30 giây.
-            string? publishDir = await FindZcuAgentPublishDirAsync();
+            // Để ZcuRemoteInstallerService tự nhận diện HĐH máy đích (Linux vs Windows) sau khi mở SSH
+            // rồi chọn đúng bộ cài (ZcuAgent linux-x64 hoặc WinAgent win-x64) / tự động dotnet publish.
+            string? publishDir = FindPrebuiltZcuAgentPublishDir();
             if (publishDir != null)
             {
-                Log("📁 Đã tìm thấy thư mục publish ZcuAgent tại: " + publishDir);
+                Log("Đã tìm thấy thư mục publish ZcuAgent (Linux) sẵn có tại: " + publishDir);
             }
 
             var options = new SshInstallerOptions
@@ -172,7 +171,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 });
 
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Green;
-                PART_StatusMsg.Text = "🎉 Cài đặt ZcuAgent hoàn tất!";
+                PART_StatusMsg.Text = "Cài đặt Remote Agent hoàn tất!";
 
                 // Save to computer profile if checked
                 if (PART_CheckSaveProfile.IsChecked == true)
@@ -195,6 +194,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
                         MacAddress = existing?.MacAddress,
                         LastAppInstallerPath = existing?.LastAppInstallerPath,
                         LastUninstallPackage = existing?.LastUninstallPackage,
+                        LastLaunchPackage = existing?.LastLaunchPackage,
                         SetupAllowedClientIPs = allowedIps,
                         SetupTargetFps = targetFps,
                         SetupJpegQuality = jpegQuality,
@@ -215,8 +215,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
             catch (Exception ex)
             {
                 PART_StatusMsg.Foreground = Avalonia.Media.Brushes.Red;
-                PART_StatusMsg.Text = "❌ Cài đặt thất bại: " + ex.Message;
-                Log("❌ LỖI: " + ex.Message);
+                PART_StatusMsg.Text = "Cài đặt thất bại: " + ex.Message;
+                Log("LỖI: " + ex.Message);
             }
             finally
             {
@@ -224,69 +224,24 @@ namespace IPGS.RemoteControl.CcuUI.Views
             }
         }
 
-        private async Task<string?> FindZcuAgentPublishDirAsync()
+        private static string? FindPrebuiltZcuAgentPublishDir()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string embedded = Path.Combine(baseDir, "Resources", "zcu-agent", "linux-x64");
+            if (Directory.Exists(embedded) && File.Exists(Path.Combine(embedded, "IPGS.RemoteControl.ZcuAgent")))
+                return embedded;
+
             string candidate1 = Path.Combine(baseDir, "publish", "linux-x64");
             if (Directory.Exists(candidate1) && File.Exists(Path.Combine(candidate1, "IPGS.RemoteControl.ZcuAgent")))
                 return candidate1;
 
-            string candidate2 = Path.Combine(Directory.GetCurrentDirectory(), "IPGS.RemoteControl.ZcuAgent", "publish", "linux-x64");
-            if (Directory.Exists(candidate2) && File.Exists(Path.Combine(candidate2, "IPGS.RemoteControl.ZcuAgent")))
-                return candidate2;
-
-            // Search parent directories up to 3 levels for IPGS.RemoteControl.ZcuAgent/publish/linux-x64
             string? dir = Directory.GetCurrentDirectory();
-            for (int i = 0; i < 4 && dir != null; i++)
+            for (int i = 0; i < 6 && dir != null; i++)
             {
                 string path = Path.Combine(dir, "IPGS.RemoteControl.ZcuAgent", "publish", "linux-x64");
                 if (Directory.Exists(path) && File.Exists(Path.Combine(path, "IPGS.RemoteControl.ZcuAgent")))
                     return path;
                 dir = Directory.GetParent(dir)?.FullName;
-            }
-
-            // Auto-trigger dotnet publish if project exists locally
-            string? projDir = Directory.GetCurrentDirectory();
-            for (int i = 0; i < 4 && projDir != null; i++)
-            {
-                string csprojPath = Path.Combine(projDir, "IPGS.RemoteControl.ZcuAgent", "IPGS.RemoteControl.ZcuAgent.csproj");
-                if (File.Exists(csprojPath))
-                {
-                    try
-                    {
-                        Log("⚙️ Đang tự động chạy 'dotnet publish' để tạo file thực thi ZcuAgent linux-x64 (tối đa 30 giây)...");
-                        string outDir = Path.Combine(projDir, "IPGS.RemoteControl.ZcuAgent", "publish", "linux-x64");
-                        var psi = new System.Diagnostics.ProcessStartInfo("dotnet", $"publish \"{csprojPath}\" -c Release -r linux-x64 --self-contained false -o \"{outDir}\"")
-                        {
-                            CreateNoWindow = true,
-                            UseShellExecute = false
-                        };
-                        using var proc = System.Diagnostics.Process.Start(psi);
-                        if (proc != null)
-                        {
-                            // A4: WaitForExitAsync thay WaitForExit(30000) — không block UI thread,
-                            // progress bar/log console vẫn phản hồi trong lúc publish chạy.
-                            using var timeoutCts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(30));
-                            try
-                            {
-                                await proc.WaitForExitAsync(timeoutCts.Token);
-                            }
-                            catch (OperationCanceledException)
-                            {
-                                try { proc.Kill(entireProcessTree: true); } catch { /* best effort */ }
-                                Log("⚠️ 'dotnet publish' quá 30 giây — đã hủy, bỏ qua bước auto-publish.");
-                            }
-                        }
-
-                        if (Directory.Exists(outDir) && File.Exists(Path.Combine(outDir, "IPGS.RemoteControl.ZcuAgent")))
-                            return outDir;
-                    }
-                    catch (Exception ex)
-                    {
-                        Log("⚠️ Không thể tự động publish ZcuAgent: " + ex.Message);
-                    }
-                }
-                projDir = Directory.GetParent(projDir)?.FullName;
             }
 
             return null;

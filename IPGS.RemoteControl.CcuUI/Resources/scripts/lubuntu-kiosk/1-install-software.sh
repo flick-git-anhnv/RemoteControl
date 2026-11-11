@@ -138,15 +138,48 @@ for _pcmanfm_id in lxqt-desktop.desktop pcmanfm-qt-desktop-pref.desktop; do
 done
 
 # ─────────────────────────────────────────────────────────────
+# Unclutter 2 CHIỀU theo hiệu ứng "ẩn con trỏ chuột": 1 = cài + bật tự chạy, 0 = tắt
+# tự chạy + dừng tiến trình đang chạy (con trỏ hiện lại). KHÔNG gỡ package khi = 0.
+# Ô này là NƠI DUY NHẤT quản lý unclutter (trước đây unclutter.desktop do ô "Autostart"
+# ở tab phần mềm tạo/xoá → bỏ tick ô này không có tác dụng gì).
+# Gói unclutter (Ubuntu/Lubuntu) còn tự chạy qua /etc/X11/Xsession.d/90unclutter theo cờ
+# START_UNCLUTTER trong /etc/default/unclutter (mặc định "true") → phải đổi cả cờ này,
+# không chỉ file autostart của user.
+UNCLUTTER_AUTOSTART="$HOME/.config/autostart/unclutter.desktop"
+_set_unclutter_default() {  # $1 = true | false
+    [ -f /etc/default/unclutter ] || return 0
+    if grep -q '^START_UNCLUTTER=' /etc/default/unclutter; then
+        _sudo sed -i "s/^START_UNCLUTTER=.*/START_UNCLUTTER=\"$1\"/" /etc/default/unclutter || true
+    else
+        _sudo bash -c "echo 'START_UNCLUTTER=\"$1\"' >> /etc/default/unclutter" || true
+    fi
+}
 if [ "$INSTALL_UNCLUTTER" = "1" ]; then
-    echo "=== [3/3] Cài unclutter (ẩn con trỏ chuột) ==="
+    echo "=== [3/3] Cài + bật unclutter (ẩn con trỏ chuột) ==="
     if ! dpkg -s unclutter >/dev/null 2>&1; then
         _install_deb_offline_or_apt unclutter
     else
-        echo "  → unclutter đã cài, bỏ qua."
+        echo "  → unclutter đã cài, bỏ qua bước cài."
     fi
+    _set_unclutter_default true
+    mkdir -p "$HOME/.config/autostart"
+    cat > "$UNCLUTTER_AUTOSTART" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Unclutter
+Exec=unclutter -idle 1
+EOF
+    # Chạy ngay (tách hẳn khỏi phiên SSH — setsid + đóng mọi fd để kênh SSH không bị treo)
+    if command -v unclutter >/dev/null 2>&1 && ! pgrep -u "$USER" -x unclutter >/dev/null 2>&1; then
+        DISPLAY="${DISPLAY:-:0}" setsid nohup unclutter -idle 1 >/dev/null 2>&1 < /dev/null &
+    fi
+    echo "  → Đã bật unclutter (autostart: $UNCLUTTER_AUTOSTART + START_UNCLUTTER=true)."
 else
-    echo "=== [3/3] Bỏ qua cài unclutter (không được chọn — KHÔNG tự gỡ nếu đã cài trước đó) ==="
+    echo "=== [3/3] Tắt unclutter (hiện lại con trỏ chuột — giữ package, không gỡ cài) ==="
+    rm -f "$UNCLUTTER_AUTOSTART"
+    _set_unclutter_default false
+    pkill -u "$USER" -x unclutter 2>/dev/null || true
+    echo "  → Đã xoá autostart unclutter + START_UNCLUTTER=false + dừng tiến trình unclutter."
 fi
 
 echo ""

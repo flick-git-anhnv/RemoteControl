@@ -48,6 +48,9 @@ public sealed class ComputerProfile : INotifyPropertyChanged
     /// <summary>Tên package gỡ cài đặt gần nhất (tùy chọn).</summary>
     public string? LastUninstallPackage { get; set; }
 
+    /// <summary>Tên package app đã khởi động gần nhất (cửa sổ Cài đặt phần mềm từ xa).</summary>
+    public string? LastLaunchPackage { get; set; }
+
     /// <summary>Mã băm SHA-256 của chứng chỉ SSL/TLS tự ký đã lưu (Certificate Pinning chống MitM — audit S3).</summary>
     public string? TlsCertFingerprint { get; set; }
 

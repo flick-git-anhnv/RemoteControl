@@ -91,6 +91,7 @@ public sealed class ComputerProfileStore : IComputerProfileStore
                 }
                 existing.LastAppInstallerPath = profile.LastAppInstallerPath;
                 existing.LastUninstallPackage = profile.LastUninstallPackage;
+                existing.LastLaunchPackage = profile.LastLaunchPackage;
                 existing.MacAddress = profile.MacAddress;
                 if (!string.IsNullOrEmpty(profile.TlsCertFingerprint)) existing.TlsCertFingerprint = profile.TlsCertFingerprint;
                 // Cấu hình cài agent: chỉ ghi đè khi bên gọi có giá trị — các màn hình khác (Sửa máy...)
@@ -331,6 +332,7 @@ public sealed class ComputerProfileStore : IComputerProfileStore
         LastConnectedAt = p.LastConnectedAt,
         LastAppInstallerPath = p.LastAppInstallerPath,
         LastUninstallPackage = p.LastUninstallPackage,
+        LastLaunchPackage = p.LastLaunchPackage,
         SetupAllowedClientIPs = p.SetupAllowedClientIPs,
         SetupTargetFps = p.SetupTargetFps,
         SetupJpegQuality = p.SetupJpegQuality,

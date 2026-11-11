@@ -11,7 +11,7 @@ TOKEN="${2:-$(openssl rand -hex 16 2>/dev/null || echo "ZCU_AGENT_DEFAULT_TOKEN_
 # F06: mặc định giới hạn 3 dải LAN riêng (RFC 1918) thay vì mở toàn mạng 0.0.0.0/0.
 # Truyền nhiều dải cách nhau dấu phẩy, VD: "192.168.1.0/24,10.0.0.5"
 ALLOWED_IPS="${3:-192.168.0.0/16,10.0.0.0/8,172.16.0.0/12}"
-TARGET_FPS="${4:-15}"
+TARGET_FPS="${4:-30}"
 JPEG_QUALITY="${5:-70}"
 INSTALL_DIR="$HOME/ipgs/remote-agent"
 
@@ -46,6 +46,13 @@ elif command -v apt-get >/dev/null 2>&1; then
   echo "✅ Thư viện Native X11 đã hoàn tất cài đặt."
 else
   echo "⚠️ Hệ thống không sử dụng apt-get. Vui lòng đảm bảo libx11, libxext, libxtst đã được cài."
+fi
+
+# 2b. libturbojpeg: nén JPEG SIMD nhanh ~3,6 lần so với Skia. Thiếu thì agent tự dùng Skia (chậm hơn), không lỗi.
+if ! ldconfig -p 2>/dev/null | grep -q libturbojpeg.so.0 && command -v apt-get >/dev/null 2>&1; then
+  echo "🚀 Cài libturbojpeg (nén JPEG SIMD)..."
+  sudo apt-get install -y -qq libturbojpeg || sudo apt-get install -y -qq libturbojpeg0 \
+    || echo "⚠️ Không cài được libturbojpeg — agent sẽ nén bằng Skia (chậm hơn ~3 lần)."
 fi
 
 # 3. Kiểm tra và Cài đặt .NET 8 Runtime nếu chưa có
@@ -151,6 +158,26 @@ echo "🛡️ [7/7] Cấu hình Firewall & Screen Lock..."
 if command -v ufw >/dev/null 2>&1; then
   sudo ufw allow "$PORT"/tcp comment "IPGS Remote Control Agent" >/dev/null 2>&1 || true
   echo "✅ Đã mở port $PORT/tcp trên UFW firewall."
+fi
+
+# CPU governor 'performance': stream chạy theo nhịp "làm rồi ngủ" nên schedutil/ondemand hạ xung giữa các khung →
+# nén JPEG chậm hẳn (đo trên Celeron J3160: 32–39ms so với ~20ms). Unit oneshot chạy lúc boot + áp dụng ngay.
+if [ -e /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor ]; then
+  sudo tee /etc/systemd/system/ipgs-cpu-performance.service >/dev/null <<'UNIT'
+[Unit]
+Description=IPGS - CPU governor performance
+After=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null'
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  sudo systemctl daemon-reload && sudo systemctl enable --now ipgs-cpu-performance.service || true
+  echo "✅ Đã đặt CPU governor = performance."
 fi
 
 # Tắt tự động khóa màn hình GNOME để tránh lỗi màn hình đen khi remote

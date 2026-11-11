@@ -36,7 +36,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
             set { if (_statusColor != value) { _statusColor = value; OnPropertyChanged(); } }
         }
 
-        private string _statusIcon = "⏳";
+        private string _statusIcon = "·";
         public string StatusIcon
         {
             get => _statusIcon;
@@ -54,14 +54,14 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             StatusText = "Đang chạy...";
             StatusColor = "#3B82F6"; // Blue
-            StatusIcon = "🔄";
+            StatusIcon = "…";
         }
 
         public void SetSuccess(string output = "")
         {
             StatusText = "Thành công";
             StatusColor = "#10B981"; // Emerald
-            StatusIcon = "✅";
+            StatusIcon = "✓";
             if (!string.IsNullOrEmpty(output)) Output = output.Trim();
         }
 
@@ -69,7 +69,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             StatusText = "Lỗi";
             StatusColor = "#EF4444"; // Red
-            StatusIcon = "❌";
+            StatusIcon = "✗";
             Output = error;
         }
 
@@ -83,77 +83,14 @@ namespace IPGS.RemoteControl.CcuUI.Views
     public partial class BulkActionWindow : Window
     {
         /// <summary>
-        /// S3: Chỉ match "sudo" ở VỊ TRÍ LỆNH (đầu chuỗi hoặc ngay sau ; &amp; | ( ) —
-        /// không match chuỗi "sudo " nằm trong string literal giữa lệnh.
-        /// (Helper cục bộ — ShellQuote bên CcuClient là internal, xem Handoff bước 1.1.)
+        /// S3: Chạy lệnh SSH đa nền tảng (Linux &amp; Windows).
+        /// - Trên máy đích Windows: tự động nhận diện OS qua <see cref="RemoteOsDetector.DetectRemoteOsAsync"/>,
+        ///   ánh xạ Quick Command sang PowerShell qua <see cref="RemoteCommandWindow.TranslateQuickCommandForWindows"/>
+        ///   và chạy trực tiếp trên Windows.
+        /// - Trên máy đích Linux: giữ nguyên cơ chế <c>env DISPLAY=:0 ... bash -c</c> và truyền password sudo qua STDIN.
         /// </summary>
-        private static readonly System.Text.RegularExpressions.Regex SudoPattern =
-            new(@"(^|[;&|(])(\s*)sudo(?=\s)", System.Text.RegularExpressions.RegexOptions.Compiled);
-
-        /// <summary>Quote single-quote POSIX ('...' với ' bên trong → '\'').</summary>
-        private static string ShQuote(string value)
-            => "'" + value.Replace("'", "'\\''") + "'";
-
-        /// <summary>
-        /// S3: Chạy lệnh SSH. Password sudo ghi vào STDIN của channel (mỗi sudo 1 dòng)
-        /// thay vì nhúng vào command line — không lộ qua `ps -ef` / `/proc/*/environ` trên máy remote.
-        /// Lệnh không có sudo thì không pipe password (tránh lệnh đọc stdin nhận nhầm password).
-        /// </summary>
-        private static async Task<(string Output, string Error)> RunSshCommandAsync(SshClient ssh, string command, string sudoPassword)
-        {
-            int sudoCount = SudoPattern.Matches(command).Count;
-            bool hasSudo = sudoCount > 0;
-
-            // FIX hồi quy S3: trước đây khi có sudo nhưng password rỗng thì chạy `sudo` TRẦN
-            // (không có -S) → sudo cố mở /dev/tty để hỏi password → phiên SSH exec không có tty
-            // → "sudo: no tty present and no askpass program specified". Nay: có sudo là LUÔN
-            // thêm -S, và thiếu password thì báo lỗi rõ ràng ngay tại CCU.
-            if (hasSudo && string.IsNullOrEmpty(sudoPassword))
-                throw new InvalidOperationException(
-                    "Lệnh có 'sudo' nhưng máy này chưa có password sudo/SSH trong cấu hình — " +
-                    "bổ sung password cho máy rồi chạy lại.");
-
-            string finalCmd = hasSudo ? SudoPattern.Replace(command, "$1$2sudo -S -p ''") : command;
-            string bashCmd = $"env DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus bash -c {ShQuote(finalCmd)}";
-
-            using var cmd = ssh.CreateCommand(bashCmd, Encoding.UTF8);
-            if (!hasSudo)
-            {
-                await cmd.ExecuteAsync();
-                return (cmd.Result ?? string.Empty, cmd.Error ?? string.Empty);
-            }
-
-            var execTask = cmd.ExecuteAsync();
-            using (var input = await OpenInputStreamAsync(cmd))
-            {
-                var passBytes = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat(sudoPassword + "\n", sudoCount)));
-                await input.WriteAsync(passBytes);
-                await input.FlushAsync();
-            }
-            await execTask;
-
-            return (cmd.Result ?? string.Empty, cmd.Error ?? string.Empty);
-        }
-
-        /// <summary>
-        /// SSH.NET chỉ cho tạo input stream KHI channel đã mở ("The input stream can be used only
-        /// during execution"). <c>ExecuteAsync()</c> mở channel bất đồng bộ nên gọi
-        /// <c>CreateInputStream()</c> ngay sau đó có thể sớm hơn vài ms → thử lại ngắn.
-        /// </summary>
-        private static async Task<Stream> OpenInputStreamAsync(SshCommand cmd)
-        {
-            for (int attempt = 0; ; attempt++)
-            {
-                try
-                {
-                    return cmd.CreateInputStream();
-                }
-                catch (InvalidOperationException) when (attempt < 40)
-                {
-                    await Task.Delay(25);
-                }
-            }
-        }
+        private static Task<(string Output, string Error)> RunSshCommandAsync(SshClient ssh, string command, string sudoPassword)
+            => RemoteCommandWindow.RunSshCommandAsync(ssh, command, sudoPassword);
 
         /// <summary>
         /// F05: validate cấu hình SSH của máy TRƯỚC khi tạo SshClient — SshClient ném raw
@@ -165,7 +102,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             if (string.IsNullOrWhiteSpace(profile.SshUsername))
                 throw new InvalidOperationException(
-                    "Máy chưa cấu hình SSH user — bấm '✏️ Sửa' máy tính này để bổ sung SSH username/password rồi chạy lại.");
+                    "Máy chưa cấu hình SSH user — bấm 'Sửa' máy tính này để bổ sung SSH username/password rồi chạy lại.");
         }
 
         private readonly List<ComputerProfile> _targets;
@@ -183,18 +120,18 @@ namespace IPGS.RemoteControl.CcuUI.Views
             {
                 snippetCombo.ItemsSource = new string[]
                 {
-                    "🔄 Khởi động lại (Reboot)",
-                    "🔌 Tắt máy (Shutdown)",
-                    "💾 Kiểm tra RAM & Ổ cứng",
-                    "🧹 Dọn dẹp cache (apt clean)",
-                    "📊 Xem Top Process",
-                    "🌐 Cập nhật APT (apt update)",
-                    "🌐 Cập nhật & Nâng cấp (apt update & upgrade)",
-                    "🔍 Kiểm tra IP & Mạng",
-                    "🛠 Khởi động lại SSH (Restart SSH)",
-                    "📋 Xem log hệ thống (syslog)",
-                    "💾 Cập nhật Remote App",
-                    "🧹 Xóa log cũ"
+                    "Khởi động lại (Reboot)",
+                    "Tắt máy (Shutdown)",
+                    "Kiểm tra RAM & Ổ cứng",
+                    "Dọn dẹp cache (apt clean)",
+                    "Xem Top Process",
+                    "Cập nhật APT (apt update)",
+                    "Cập nhật & Nâng cấp (apt update & upgrade)",
+                    "Kiểm tra IP & Mạng",
+                    "Khởi động lại SSH (Restart SSH)",
+                    "Xem log hệ thống (syslog)",
+                    "Cập nhật Remote App",
+                    "Xóa log cũ"
                 };
             }
             
@@ -302,15 +239,19 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 var profile = taskInfo.Profile;
                 ValidateSshProfile(profile); // F05
                 int sshPort = profile.SshPort > 0 ? profile.SshPort : 22;
-                string remoteDir = customDir.Length > 0 ? customDir : $"/home/{profile.SshUsername}";
 
                 using var sftp = new SftpClient(profile.Host, sshPort, profile.SshUsername ?? "", profile.SshPassword ?? "");
                 sftp.Connect();
 
+                string defaultDir = !string.IsNullOrWhiteSpace(sftp.WorkingDirectory)
+                    ? ShellQuote.NormalizeSftpPath(sftp.WorkingDirectory)
+                    : $"/home/{profile.SshUsername}";
+                string remoteDir = customDir.Length > 0 ? ShellQuote.NormalizeSftpPath(customDir) : defaultDir;
+
                 var sb = new StringBuilder();
                 foreach (var localPath in localPaths)
                 {
-                    string remotePath = $"{remoteDir}/{Path.GetFileName(localPath)}";
+                    string remotePath = ShellQuote.CombineSftpPath(remoteDir, Path.GetFileName(localPath));
                     using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read);
                     sftp.UploadFile(fs, remotePath, true);
                     sb.AppendLine($"Đã upload thành công tới: {remotePath}");
@@ -323,7 +264,7 @@ namespace IPGS.RemoteControl.CcuUI.Views
         {
             var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "Chọn file ứng dụng (.deb, .sh, .run) để cài lên tất cả máy",
+                Title = "Chọn file ứng dụng (.deb, .sh, .run, .msi, .exe) để cài lên tất cả máy",
                 AllowMultiple = false
             });
             if (files.Count == 0) return;
@@ -385,8 +326,8 @@ namespace IPGS.RemoteControl.CcuUI.Views
                 if (ComputerProfileStore.Instance.ReplaceTlsFingerprint(profile.Host, agentPort, fp))
                     profile.TlsCertFingerprint = fp is null ? null : fp.ToUpperInvariant();
                 lock (log) log.AppendLine(fp is null
-                    ? "⚠️ Chưa đọc được vân tay TLS — đã bỏ ghim cũ, lần kết nối đầu tiên sẽ tự ghim lại."
-                    : $"🔐 Đã ghim vân tay TLS mới: {fp[..Math.Min(16, fp.Length)]}…");
+                    ? "Chưa đọc được vân tay TLS — đã bỏ ghim cũ, lần kết nối đầu tiên sẽ tự ghim lại."
+                    : $"Đã ghim vân tay TLS mới: {fp[..Math.Min(16, fp.Length)]}…");
                 lock (log) return log.ToString();
             });
         }
