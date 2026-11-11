@@ -27,7 +27,9 @@
     <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Interop\X11Interop.cs" Link="Interop\X11Interop.cs" />
     <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Interop\X11DisplayResolver.cs" Link="Interop\X11DisplayResolver.cs" />
     <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Capture\FrameChangeDetector.cs" Link="Capture\FrameChangeDetector.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Capture\HeadlessResolutionAdapter.cs" Link="Capture\HeadlessResolutionAdapter.cs" />
     <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Net\AdaptiveRateController.cs" Link="Net\AdaptiveRateController.cs" />
+    <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Net\AdaptiveFpsController.cs" Link="Net\AdaptiveFpsController.cs" />
     <Compile Include="..\IPGS.RemoteControl.ZcuAgent\Net\StreamStats.cs" Link="Net\StreamStats.cs" />
   </ItemGroup>
 

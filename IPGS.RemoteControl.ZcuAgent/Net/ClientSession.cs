@@ -21,6 +21,9 @@ internal sealed class ClientSession
     private readonly IFrameEncoder     _encoder;
     private readonly IMouseInjector    _injector;
     private readonly IKeyboardInjector _keyboard;
+    private readonly IClipboardService _clipboard;
+    private readonly IMonitorProvider  _monitorProvider;
+    private readonly IDesktopPlatformService _platform;
     private readonly AuthManager       _auth;
     private readonly AgentOptions      _options;
     private readonly ILogger           _logger;
@@ -106,6 +109,7 @@ internal sealed class ClientSession
         TcpClient tcp, string remoteIp,
         IScreenCapturer capturer, IFrameEncoder encoder,
         IMouseInjector injector, IKeyboardInjector keyboard,
+        IClipboardService clipboard, IMonitorProvider monitorProvider, IDesktopPlatformService platform,
         AuthManager auth, IOptions<AgentOptions> options, ILogger logger)
     {
         _tcp      = tcp;
@@ -114,6 +118,9 @@ internal sealed class ClientSession
         _encoder  = encoder;
         _injector = injector;
         _keyboard = keyboard;
+        _clipboard = clipboard;
+        _monitorProvider = monitorProvider;
+        _platform = platform;
         _auth     = auth;
         _options  = options.Value;
         _logger   = logger;
@@ -134,7 +141,7 @@ internal sealed class ClientSession
             await DoAuthAsync(ct);
             _logger.LogInformation("Session {IP}: streaming started", _remoteIp);
             Interlocked.Exchange(ref _lastPongTicks, Environment.TickCount64);
-            _files = new FileTransferHandler(_options, _logger, WriteAsync);
+            _files = new FileTransferHandler(_options, _logger, _clipboard, WriteAsync);
 
             using var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var captureTask  = RunCaptureSendLoopAsync(sessionCts.Token);
@@ -237,7 +244,7 @@ internal sealed class ClientSession
         // Chat/Clipboard). Client so sánh chuỗi này để cảnh báo agent phiên bản cũ
         // (agent 1.0 bỏ qua các message đó âm thầm — protocol v1 không có ACK).
         var ackPayload = MessageCodec.EncodeHelloAck(
-            (uint)screenSize.Width, (uint)screenSize.Height, "ZcuAgent/1.2");
+            (uint)screenSize.Width, (uint)screenSize.Height, $"{_platform.AgentName}/1.2");
         await WriteAsync(MessageType.HelloAck, ackPayload, hsCt);
     }
 
@@ -274,7 +281,21 @@ internal sealed class ClientSession
 
         // Nấc 1 — FPS ZCU: chỉ điều tiết theo MẠNG (xem AdaptiveRateController). Khi CPU là giới
         // hạn, vòng lặp tự chạy liền mạch ở tốc độ nén tối đa (sleep ≤ 0), giữ nguyên chất lượng.
+        // Nấc 1 — FPS ZCU: điều tiết theo mạng (AdaptiveRateController) và tải thực tế của máy (AdaptiveFpsController).
         var rate = new AdaptiveRateController(_options.TargetFps, _options.JpegQuality, _options.AdaptiveQuality);
+        var fpsController = new AdaptiveFpsController(
+            maxFps: _options.TargetFps,
+            minFps: _options.MinFps,
+            enabled: _options.CpuAdaptive);
+
+        using var sampler = _platform.CreateLoadSampler();
+        if (_options.CpuAdaptive)
+        {
+            sampler.Start(ct);
+        }
+
+        var lastSampledTimestamp = 0L;
+        var lastWriteMs = 0.0;
 
         // Bỏ qua khung tĩnh: mỗi session một detector riêng → khung đầu tiên luôn được gửi.
         var detector = _options.SkipUnchangedFrames ? new FrameChangeDetector() : null;
@@ -290,8 +311,8 @@ internal sealed class ClientSession
         var nextPing        = Environment.TickCount64 + RemoteControlConstants.PingIntervalMs;
 
         _logger.LogInformation(
-            "Session {IP}: stream {Fps}fps q={Q}, adaptive(mạng)={Adaptive}, bỏ qua khung tĩnh={Skip}, perf log {Perf}s",
-            _remoteIp, rate.MaxFps, rate.MaxQuality, _options.AdaptiveQuality, detector is not null,
+            "Session {IP}: stream {Fps}fps (sàn {MinFps}fps, cpu-adaptive={CpuAdaptive}) q={Q}, net-adaptive={NetAdaptive}, bỏ qua khung tĩnh={Skip}, perf log {Perf}s",
+            _remoteIp, fpsController.MaxFps, fpsController.MinFps, _options.CpuAdaptive, rate.MaxQuality, _options.AdaptiveQuality, detector is not null,
             _options.PerfLogIntervalSec);
 
         try
@@ -310,6 +331,22 @@ internal sealed class ClientSession
                     await WriteAsync(MessageType.Ping,
                         MessageCodec.EncodePingPong((ulong)now), ct);
                     nextPing = now + RemoteControlConstants.PingIntervalMs;
+                }
+
+                // Cập nhật tình trạng tải máy ZCU từ MachineLoadSampler (~500ms / mẫu)
+                if (_options.CpuAdaptive)
+                {
+                    var load = sampler.Current;
+                    if (load.TimestampMs > lastSampledTimestamp)
+                    {
+                        lastSampledTimestamp = load.TimestampMs;
+                        if (fpsController.OnSample(load.XLatencyMs, load.CpuPressureAvg10, lastWriteMs))
+                        {
+                            _logger.LogInformation(
+                                "Session {IP}: điều tiết FPS theo TẢI MÁY ({Reason}) → trần {Fps:F1}fps",
+                                _remoteIp, fpsController.LastReason, fpsController.CurrentFps);
+                        }
+                    }
                 }
 
                 // 1) Capture
@@ -351,6 +388,7 @@ internal sealed class ClientSession
                             await WriteFrameJpegDirectAsync(frameId++, tsMs, frame.Width, frame.Height, jpeg, ct);
                             var writeMs = Stopwatch.GetElapsedTime(t3).TotalMilliseconds;
 
+                            lastWriteMs = writeMs;
                             lastSentMs = Environment.TickCount64;
                             stats.RecordSent(captureMs, compareMs, encodeMs, writeMs, jpeg.Length);
 
@@ -382,17 +420,21 @@ internal sealed class ClientSession
                     _logger.LogInformation(
                         "Perf {IP}: gửi {Sent:F1}fps, bỏ qua(tĩnh) {Skip:F1}fps | capture {CapAvg:F1}/{CapP95:F1}ms | " +
                         "so sánh {CmpAvg:F1}/{CmpP95:F1}ms | nén {EncAvg:F1}/{EncP95:F1}ms | ghi {WrAvg:F1}/{WrP95:F1}ms | " +
-                        "{Kb:F0}KB/frame, {Kbps:F0}kbps | trần {Fps:F1}fps q={Q} (avg/p95)",
+                        "{Kb:F0}KB/frame, {Kbps:F0}kbps | trần {Fps:F1}fps (X-RTT {XRtt:F1}ms, PSI {Psi:F1}%) q={Q} (avg/p95)",
                         _remoteIp, s.SentFps, s.SkippedFps,
                         s.Capture.AvgMs, s.Capture.P95Ms,
                         s.Compare.AvgMs, s.Compare.P95Ms,
                         s.Encode.AvgMs, s.Encode.P95Ms,
                         s.Write.AvgMs, s.Write.P95Ms,
-                        s.AvgJpegKb, s.BitrateKbps, rate.CurrentFps, rate.CurrentQuality);
+                        s.AvgJpegKb, s.BitrateKbps, Math.Min(rate.CurrentFps, fpsController.CurrentFps),
+                        sampler.Current.XLatencyMs >= 0 ? sampler.Current.XLatencyMs : 0,
+                        sampler.Current.CpuPressureAvg10 >= 0 ? sampler.Current.CpuPressureAvg10 : 0,
+                        rate.CurrentQuality);
                 }
 
                 // Throttle: theo trần FPS; màn hình tĩnh một lúc thì chụp thưa lại (IdlePollMs).
-                var interval = rate.FrameIntervalMs;
+                var effectiveFps = Math.Min(rate.CurrentFps, fpsController.CurrentFps);
+                var interval = (int)Math.Max(1, Math.Round(1000.0 / effectiveFps));
                 if (unchangedStreak >= IdleStreakThreshold)
                     interval = Math.Max(interval, IdlePollMs);
 
@@ -586,7 +628,7 @@ internal sealed class ClientSession
                         break;
 
                     case MessageType.MonitorListReq:
-                        _monitors = await MonitorLister.ListAsync(ct);
+                        _monitors = await _monitorProvider.ListAsync(ct);
                         await WriteAsync(MessageType.MonitorList,
                             MessageCodec.EncodeStringMessage(MonitorsToJson(_monitors)), ct);
                         break;
@@ -619,7 +661,7 @@ internal sealed class ClientSession
                         // Agent is a Linux/X11 service (Program.cs enforces X11) — the old
                         // Win32NT "msg" branch was dead code and has been removed (audit Q2).
                         if (_options.EnableDesktopIntegration)
-                            await ShowChatNotificationAsync(chatMsg, ct);
+                            await _platform.ShowChatNotificationAsync(chatMsg, ct);
                         break;
 
                     case MessageType.ClipboardData:
@@ -634,7 +676,7 @@ internal sealed class ClientSession
                         if (_options.EnableDesktopIntegration)
                         {
                             Volatile.Write(ref _lastClipboardHash, clipData.GetHashCode());
-                            await SetClipboardAsync(clipData, ct);
+                            await _clipboard.SetTextAsync(clipData, ct);
                         }
                         break;
 
@@ -652,7 +694,7 @@ internal sealed class ClientSession
 
                     case MessageType.SysInfoReq:
                         _logger.LogInformation("SysInfoReq received, gathering system info...");
-                        string sysInfoJson = GatherSystemInfo();
+                        string sysInfoJson = _platform.GatherSystemInfoJson();
                         await WriteAsync(MessageType.SysInfoResp, MessageCodec.EncodeStringMessage(sysInfoJson), ct);
                         break;
 
@@ -821,42 +863,6 @@ internal sealed class ClientSession
         }
     }
 
-    // ── Desktop integration helpers (audit S2 + L2) ───────────────────────
-
-    /// <summary>
-    /// Show a chat message via <c>notify-send</c>. Uses ProcessStartInfo.ArgumentList so
-    /// the client-supplied text is passed as ONE argv element — no manual quoting, no
-    /// interpretation of quotes/backslashes/newlines (audit S2). Fully async + disposed:
-    /// never blocks the receive loop and never leaks the Process (audit L2).
-    /// </summary>
-    private async Task ShowChatNotificationAsync(string message, CancellationToken ct)
-    {
-        try
-        {
-            var psi = new ProcessStartInfo("notify-send") { UseShellExecute = false };
-            psi.ArgumentList.Add("Remote Admin");
-            psi.ArgumentList.Add(message);
-
-            using var proc = Process.Start(psi);
-            if (proc is null) return;
-
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(2));
-            try
-            {
-                await proc.WaitForExitAsync(cts.Token);
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
-                try { proc.Kill(entireProcessTree: true); } catch { /* already exited */ }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Session {IP}: notify-send failed for chat message", _remoteIp);
-        }
-    }
-
     /// <summary>
     /// Poll clipboard ZCU định kỳ và đẩy sang CCU khi nội dung đổi (chữ → ClipboardData, file vừa Copy trong
     /// trình quản lý file → ClipboardFileList). Nếu xclip không có/không đọc được thì bỏ qua êm.
@@ -890,7 +896,7 @@ internal sealed class ClientSession
     private async Task PushClipboardCoreAsync(bool force, bool markOnly, CancellationToken ct)
     {
         // 1) File vừa Copy trong trình quản lý file?
-        var files = await GetClipboardFilesAsync(ct);
+        var files = await _clipboard.GetFilePathsAsync(ct);
         if (files is not null)
         {
             var key = string.Join("\n", files).GetHashCode();
@@ -909,7 +915,7 @@ internal sealed class ClientSession
         }
 
         // 2) Chữ
-        var text = await GetClipboardAsync(ct);
+        var text = await _clipboard.GetTextAsync(ct);
         if (string.IsNullOrEmpty(text) || text.Length > MaxClipboardChars) return;
 
         var hash = text.GetHashCode();
@@ -954,7 +960,7 @@ internal sealed class ClientSession
                 }
                 else if (Directory.Exists(top))
                 {
-                    var root = new DirectoryInfo(top.TrimEnd('/'));
+                    var root = new DirectoryInfo(Path.TrimEndingDirectorySeparator(top));
                     result.Add(new ClipEntry(root.FullName, root.Name, 0, true));
                     foreach (var fsi in root.EnumerateFileSystemInfos("*", opts))
                     {
@@ -985,167 +991,5 @@ internal sealed class ClientSession
         await _clipLock.WaitAsync(ct);
         try { await PushClipboardCoreAsync(force, markOnly, ct); }
         finally { _clipLock.Release(); }
-    }
-
-    /// <summary>Đọc text clipboard ZCU qua <c>xclip -o</c>. Trả null nếu rỗng/không phải text/xclip lỗi.</summary>
-    private Task<string?> GetClipboardAsync(CancellationToken ct) => RunXclipOutAsync(null, ct);
-
-    /// <summary>
-    /// Nếu clipboard ZCU đang chứa file (Copy trong Nautilus/PCManFM/Thunar…) → danh sách đường dẫn tuyệt đối
-    /// (chỉ mục file:// cục bộ); ngược lại null. Đọc TARGETS trước để không tốn thêm tiến trình khi là chữ.
-    /// </summary>
-    private async Task<List<string>?> GetClipboardFilesAsync(CancellationToken ct)
-    {
-        var targets = await RunXclipOutAsync("TARGETS", ct);
-        if (targets is null) return null;
-
-        string? target = null;
-        foreach (var t in targets.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            if (t == "x-special/gnome-copied-files") { target = t; break; }
-            if (t == "text/uri-list") target = t;
-        }
-        if (target is null) return null;
-
-        var raw = await RunXclipOutAsync(target, ct);
-        if (string.IsNullOrWhiteSpace(raw)) return null;
-
-        var paths = new List<string>();
-        foreach (var line in raw.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            if (line.StartsWith("file://", StringComparison.OrdinalIgnoreCase) &&
-                Uri.TryCreate(line, UriKind.Absolute, out var uri) && uri.IsFile)
-                paths.Add(uri.LocalPath);
-        return paths.Count > 0 ? paths : null;
-    }
-
-    /// <summary><c>xclip -selection clipboard -o [-t target]</c>; null nếu lỗi/rỗng/quá 2 giây.</summary>
-    private async Task<string?> RunXclipOutAsync(string? target, CancellationToken ct)
-    {
-        try
-        {
-            var psi = new ProcessStartInfo("xclip")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                UseShellExecute        = false,
-            };
-            psi.ArgumentList.Add("-selection");
-            psi.ArgumentList.Add("clipboard");
-            psi.ArgumentList.Add("-o");
-            if (target is not null) { psi.ArgumentList.Add("-t"); psi.ArgumentList.Add(target); }
-
-            using var proc = Process.Start(psi);
-            if (proc is null) return null;
-
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(2));
-            try
-            {
-                var text = await proc.StandardOutput.ReadToEndAsync(cts.Token);
-                await proc.WaitForExitAsync(cts.Token);
-                return proc.ExitCode == 0 ? text : null;
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
-                try { proc.Kill(entireProcessTree: true); } catch { /* already exited */ }
-                return null;
-            }
-        }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Session {IP}: xclip -o failed", _remoteIp);
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Push text into the X11 clipboard via <c>xclip</c>, async and fully disposed (audit L2).
-    /// GOTCHA: xclip daemonizes (forks a child that owns the selection) — the parent we
-    /// spawn exits almost immediately after stdin closes, but if it has not exited within
-    /// the grace period we simply release our handle WITHOUT killing it: killing the tree
-    /// would drop the clipboard content we just set.
-    /// </summary>
-    private async Task SetClipboardAsync(string text, CancellationToken ct)
-    {
-        try
-        {
-            var psi = new ProcessStartInfo("xclip")
-            {
-                RedirectStandardInput = true,
-                UseShellExecute       = false,
-            };
-            psi.ArgumentList.Add("-selection");
-            psi.ArgumentList.Add("clipboard");
-
-            using var proc = Process.Start(psi);
-            if (proc is null) return;
-
-            await proc.StandardInput.WriteAsync(text.AsMemory(), ct);
-            proc.StandardInput.Close();
-
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(2));
-            try
-            {
-                await proc.WaitForExitAsync(cts.Token);
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
-                _logger.LogDebug("Session {IP}: xclip did not exit within grace period " +
-                                 "(likely daemonized) — releasing handle without killing", _remoteIp);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Session {IP}: failed to set clipboard via xclip", _remoteIp);
-        }
-    }
-
-    // ── Phase 6 Helper ────────────────────────────────────────────────────
-
-    private string GatherSystemInfo()
-    {
-        try 
-        {
-            var cpu = "Unknown CPU";
-            try {
-                cpu = System.IO.File.ReadAllLines("/proc/cpuinfo")
-                    .FirstOrDefault(l => l.StartsWith("model name"))?.Split(':').LastOrDefault()?.Trim() ?? "Unknown CPU";
-            } catch {
-                cpu = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "Unknown CPU";
-            }
-            
-            var mem = "Unknown RAM";
-            try {
-                var memLine = System.IO.File.ReadAllLines("/proc/meminfo").FirstOrDefault(l => l.StartsWith("MemTotal"));
-                if (memLine != null) {
-                    var parts = memLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length >= 2 && long.TryParse(parts[1], out var kb)) {
-                        mem = $"{kb / 1024} MB";
-                    }
-                }
-            } catch {
-                var gcInfo = GC.GetGCMemoryInfo();
-                mem = $"{gcInfo.TotalAvailableMemoryBytes / 1024 / 1024} MB";
-            }
-
-            var os = Environment.OSVersion.ToString();
-            var arch = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString();
-
-            return $$"""
-            {
-                "cpu": "{{cpu}}",
-                "memory": "{{mem}}",
-                "os": "{{os}}",
-                "arch": "{{arch}}"
-            }
-            """;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to gather sysinfo");
-            return "{ \"error\": \"Failed to gather sysinfo\" }";
-        }
     }
 }

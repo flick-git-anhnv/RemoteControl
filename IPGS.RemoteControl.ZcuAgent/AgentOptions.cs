@@ -62,6 +62,17 @@ public sealed class AgentOptions
     public int TargetFps { get; set; } = RemoteControlConstants.TargetFps;
 
     /// <summary>
+    /// true = tự thích ứng FPS theo tải thực tế của máy (X-Latency, CPU Pressure, Network backpressure).
+    /// Sàn tối thiểu là <see cref="MinFps"/> (mặc định 15). false = không tự điều chỉnh theo tải máy.
+    /// </summary>
+    public bool CpuAdaptive { get; set; } = true;
+
+    /// <summary>
+    /// Sàn FPS tối thiểu khi tính năng thích ứng tải máy hoạt động. Mặc định 15 (cố định theo yêu cầu người dùng).
+    /// </summary>
+    public int MinFps { get; set; } = 15;
+
+    /// <summary>
     /// true = tự hạ FPS/chất lượng JPEG khi mạng nghẽn hoặc CCU xử lý chậm, tăng lại khi ổn định
     /// (TargetFps/JpegQuality là mức tối đa). false = giữ cố định như bản cũ.
     /// </summary>
@@ -84,4 +95,16 @@ public sealed class AgentOptions
 
     /// <summary>Maximum single-frame payload in bytes. Default: 8 MB.</summary>
     public int MaxFrameBytes { get; set; } = RemoteControlConstants.MaxFrameBytes;
+
+    /// <summary>
+    /// true = tự động nhận diện khi máy ZCU không cắm màn hình vật lý (headless / không có EDID)
+    /// để nâng độ phân giải ảo lên <see cref="HeadlessTargetResolution"/> (mặc định 1920x1080);
+    /// khi cắm màn hình thật vào (có EDID), tự động trả về độ phân giải gốc của màn hình thật.
+    /// </summary>
+    public bool AutoHeadlessResolution { get; set; } = true;
+
+    /// <summary>
+    /// Độ phân giải mục tiêu khi máy ZCU chạy ở chế độ không cắm màn hình vật lý. Mặc định "1920x1080".
+    /// </summary>
+    public string HeadlessTargetResolution { get; set; } = "1920x1080";
 }
