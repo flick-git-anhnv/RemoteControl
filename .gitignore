@@ -276,6 +276,8 @@ dist/
 
 # Gói .deb offline cho tính năng Mount folder share (Ubuntu 22.04, ~2MB) — cần đóng gói cùng CcuUI
 !IPGS.RemoteControl.CcuUI/Resources/mount-deb/**/*.deb
+# .deb offline libturbojpeg (nén JPEG SIMD cho ZcuAgent, Ubuntu 22.04) — installer nhúng sẵn để cài không cần mạng
+!IPGS.RemoteControl.CcuUI/Resources/libturbojpeg-deb/**/*.deb
 
 
 

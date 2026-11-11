@@ -36,6 +36,7 @@
 | G023 | `BASH_SOURCE[0]` khi bash exec symlink qua PATH = đường dẫn symlink (KHÔNG phải target) → wrapper tự định vị bị DIR=/usr/bin → binary not found → exit 127; fix: `readlink -f` hoặc ExecStart đường dẫn tuyệt đối target | 2026-07-27 |
 | G024 | `gext install` gọi D-Bus GUI dialog xác nhận — treo ~24s qua SSH không có người bấm → timeout → `set -e` abort script; fix: curl+unzip offline từ extensions.gnome.org, không cần D-Bus | 2026-07-27 |
 | G025 | Desktop Icons NG (`ding@rastersoft.com`, GNOME 41+) từ chối thực thi `.desktop` chưa có `metadata::trusted=true` — click icon desktop không có phản hồi, không báo lỗi. Fix: `gio set <file> metadata::trusted true` sau khi tạo/copy file. Cần DISPLAY=:0 + DBUS_SESSION_BUS_ADDRESS (GVfs đang chạy). Package cài app thường không tự set flag này — phải làm trong deploy script. | 2026-07-27 |
+| G026 | Event của `RemoteControlClient` (`ClipboardFileListReceived`, `SysInfoReceived`, `MonitorListReceived`…) bắn từ THREAD NHẬN TCP, không phải UI thread — handler chạm `Window.Title`/`Clipboard`/`StorageProvider`/`Progress<T>` PHẢI `Dispatcher.UIThread.Post` trước; `async void` + đụng UI từ thread-pool = sập app (Ctrl+C file trên ZCU) | 2026-11-06 |
 
 ---
 
@@ -596,3 +597,20 @@ gio info /home/kztek/Desktop/kztek-ipgskioskavalonia.desktop | grep trust
 - Extension `ubuntu-dock@ubuntu.com` và `ding@rastersoft.com` là 2 extension ĐỘC LẬP — tắt dock không ảnh hưởng Desktop Icons và ngược lại. Tách thành 2 checkbox riêng trong KioskDeploy (DisableUbuntuDock / DisableDesktopIcons).
 
 **Lần đầu gặp:** F14 — WF-BUGFIX BUG-ccu-ui-findings, ZCU `192.168.21.16` (2026-07-27).
+
+
+## G026 — Handler event của `RemoteControlClient` chạy trên thread nhận TCP: đụng UI trực tiếp làm sập CCU khi Ctrl+C file trên ZCU
+
+**Môi trường:** `IPGS.RemoteControl.CcuUI/Views/RemoteScreenWindow.axaml.cs` (`OnClipboardFileListReceived`), Avalonia 12, .NET 8
+
+**Hiện tượng:** Trong cửa sổ remote, Ctrl+C một file/thư mục trong trình quản lý file của ZCU (hoặc agent tự đẩy danh sách sau chu kỳ poll 2s) → app CCU văng, không có hộp thoại lỗi.
+
+**Nguyên nhân:** `RemoteControlClient.ReceiveLoopAsync` chạy trên thread-pool (`ConfigureAwait(false)`), nên `ClipboardFileListReceived?.Invoke(...)` bắn ngay trên thread đó. Handler cũ là `async void` và gọi `SetStatusTitle` (`Title =`), `TopLevel.GetTopLevel`, `StorageProvider`, và tạo `Progress<T>` NGAY trên thread đó (không có SynchronizationContext → callback cũng chạy thread-pool). Avalonia `VerifyAccess` ném `InvalidOperationException: Call from invalid thread`; ngoại lệ trong callback thread-pool / `async void` không ai bắt → process thoát. Các handler anh em (`OnClipboardDataReceived`, `OnMonitorListReceived`) đã `Dispatcher.UIThread.Post` nên không bị — chỉ handler file list bị sót.
+
+**Cách xử lý:** Handler chỉ `Dispatcher.UIThread.Post(() => _ = HandleClipboardFileListAsync(json))`; phần xử lý là `async Task` tự `try/catch` mọi lỗi (không `async void`). Kèm: (1) tải file có timeout "không có byte mới trong 30s" để `_clipFilesBusy`/ô `_download` duy nhất của client không kẹt vĩnh viễn khi agent cũ/kẹt; (2) chỉ bỏ danh sách trùng trong 5s thay vì mãi mãi, để Ctrl+C lại cùng file vẫn chép lại vào clipboard Windows.
+
+**Không cần làm lại:** Không cần nghi `X11ClipboardOwner`/giao thức khi chỉ thấy CCU văng lúc Ctrl+C — luồng ZCU→CCU là nơi vỡ. Quy tắc chung: event nào của `RemoteControlClient` cũng KHÔNG ở UI thread; handler mới phải Post trước khi đụng bất cứ thứ gì của Avalonia.
+
+**Trạng thái xác minh:** Kết luận từ đọc code (chưa chạy được app/ZCU thật trong phiên sửa; môi trường không có dotnet). Cần build + thử Ctrl+C file trên ZCU thật để xác nhận.
+
+**Lần đầu gặp:** báo cáo user 2026-11-06 ("Ctrl+C/V làm app văng").

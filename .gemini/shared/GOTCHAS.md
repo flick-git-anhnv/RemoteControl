@@ -836,3 +836,84 @@ Trên cửa sổ Dashboard Giám sát hệ thống (Health Monitor), chỉ số 
 2. **Kết quả:** Dashboard hiển thị chỉ số CPU chính xác 100% theo thời gian thực (đo trên `192.168.21.56` hiển thị 1.9% CPU, rảnh 98.1% IDLE). Toàn bộ 140 unit tests đạt 100% PASS.
 
 **Lần đầu gặp:** WF-BUGFIX / Sửa lỗi hiển thị CPU Dashboard trên ZCU `192.168.21.56` (2026-11-04)
+
+---
+
+## G030 — Dán file CCU sang ZCU: thiếu delay giữa các sự kiện phím khiến X11/Qt bỏ qua ControlModifier, file bị kẹt lại tại thư mục tạm staging
+
+**Ngày phát hiện:** 2026-11-06  
+**Môi trường:** CCU Client (`RemoteScreenControl.axaml.cs`), Linux X11 (PCManFM-Qt, Nautilus), .NET 8 / Avalonia 12
+
+**Vấn đề:**  
+Khi copy file từ Windows rồi dán (Ctrl+V) sang cửa sổ remote ZCU (đang mở thư mục trong PCManFM-Qt hoặc file manager khác):
+- File được upload thành công sang ZCU và nằm trong thư mục staging `~/RemoteTransfer/.paste-xxxx/`.
+- Clipboard X11 của ZCU đã giữ `text/uri-list` chính xác.
+- Tuy nhiên, file KHÔNG hề được dán vào thư mục người dùng đang chọn/mở trên ZCU, mà chỉ nằm lại trong thư mục tạm `RemoteTransfer/.paste-...`, khiến người dùng nghĩ rằng hệ thống dán vào thư mục cố định thay vì thư mục đang chọn.
+
+**Nguyên nhân:**  
+Trong `RemoteScreenControl.PasteAsync`, sau khi upload xong file và đặt clipboard trên ZCU, client kích hoạt phím Ctrl+V bằng cách gửi liên tiếp các lệnh `SendKeyEvent(Control_L, true)`, `HandleKeyDown(V)`, `HandleKeyUp(V)`, `SendKeyEvent(Control_L, false)` với 0ms delay giữa các sự kiện. Do các sự kiện TCP đến dồn dập trong cùng micro-giây, Xorg server và bộ lọc sự kiện của Qt/X11 (`pcmanfm-qt`) chưa kịp cập nhật modifier state vector (`ControlMask`) thì đã nhận phím 'V', khiến ứng dụng hiểu là người dùng bấm phím 'v' thông thường (nhảy tìm kiếm file) thay vì tổ hợp phím Paste `Ctrl+V`.
+
+**Cách xử lý:**  
+1. Bổ sung khoảng đệm thời gian `await Task.Delay(100)` giữa việc nhấn giữ Ctrl và gửi phím V.
+2. Giữ phím V 100ms trước khi gửi sự kiện nhả phím V.
+3. Nhả Ctrl sau 100ms tiếp theo nếu người dùng không còn giữ phím Ctrl vật lý trên Windows.
+4. Đã xác minh trên ZCU `192.168.21.56`: lệnh paste trong PCManFM-Qt lập tức nhân bản file từ `RemoteTransfer/.paste-...` vào đúng thư mục đang mở (`/opt/kztek/ipgsv4/`).
+
+**Lần đầu gặp:** Báo cáo người dùng 2026-11-06 ("copy/paste từ máy remote sang máy được remote bị nhảy vào thư mục cố định").
+
+---
+
+## G031 — Nhận diện Headless trên máy ZCU có cấu hình `video=HDMI-A-1:e`: cổng HDMI vẫn báo `connected` khi rút cáp nhưng kích thước vật lý là `0mm x 0mm` và rơi về fallback `1024x768`
+
+**Ngày phát hiện:** 2026-11-10  
+**Môi trường:** Linux ZCU (`192.168.21.230`, Intel i915 DRM với tham số kernel `video=HDMI-A-1:e`), Xorg Server, `xrandr`
+
+**Vấn đề:**  
+1. Khi rút cáp màn hình vật lý ra khỏi máy ZCU, độ phân giải X11 tự động rơi về `1024x768` (tỉ lệ 4:3) thay vì giữ Full HD `1920x1080` hoặc tỉ lệ 5:4 (`1280x1024`) của màn hình cũ.
+2. Các bộ kiểm tra headless chỉ nhìn trạng thái chuỗi `"disconnected"` trong `xrandr` đều thất bại vì tham số kernel `video=HDMI-A-1:e` (áp dụng theo G019 để giữ GNOME Mutter vẽ hình) ép cổng `HDMI-1` luôn báo `connected` ngay cả khi không cắm cáp.
+
+**Nguyên nhân:**  
+Khi kernel ép cổng `HDMI-A-1` bật (`e`) nhưng không có màn hình thực cắm vào, giao tiếp DDC/I2C không đọc được bảng EDID nào. Do đó Xorg không biết thông số màn hình, hiển thị kích thước vật lý `0mm x 0mm`, không có mode nào mang cờ `+` (preferred EDID mode) và chỉ nạp 4 mode VESA fallback cơ bản (`1024x768`, `800x600`, `848x480`, `640x480`).
+
+**Cách xử lý:**  
+1. **Phía ZcuAgent (`HeadlessResolutionAdapter.cs`):**
+   - Phân biệt chính xác **màn hình vật lý thật** (`IsConnected && ((PhysicalWidthMm > 0 && PhysicalHeightMm > 0) || PreferredEdidMode != null)`) với **cổng Headless không EDID** (`0mm x 0mm` và không có mode `+`).
+   - Khi phát hiện Headless không EDID: tự động tạo mode CVT `1920x1080_60.00`, gắn vào cổng và kích hoạt `1920x1080` (16:9).
+   - Khi cắm lại màn hình vật lý thực (có EDID): phát hiện cổng đang chạy mode ảo `1920x1080_60.00` và tự động gọi `xrandr --output <cổng> --auto` để khôi phục đúng độ phân giải chuẩn của màn hình vật lý.
+2. **Phía CCU (`RemoteScreenViewModel.cs` & `RemoteScreenWindow.axaml.cs`):**
+   - Bổ sung chế độ `RemoteDisplayMode.AutoFit` tự động điều chỉnh kích thước cửa sổ CCU khớp chính xác tỷ lệ `Width / Height` của máy đích ngay khi nhận frame hoặc khi máy đích đổi độ phân giải, loại bỏ viền đen thừa mà không gây méo hình.
+
+**Lần đầu gặp:** WF-FEATURE / Tự động nhận diện và điều chỉnh độ phân giải theo cấu hình máy remote trên `192.168.21.230` (2026-11-10)
+
+---
+
+## G032 (G029-WinSSH) — Windows OpenSSH Server (`sshd`): lỗi `Event 4625 NOUSER` khi `DefaultShell` là đường dẫn tương đối, lỗi `-NoLogo is not recognized` do `DefaultShellCommandOption`, và lỗi quyền NTFS `sshd_config` (`icacls`)
+
+**Ngày phát hiện:** 2026-11-11  
+**Môi trường:** Windows 10/11 (`192.168.21.14`), Windows Native OpenSSH Server (`OpenSSH.Server~~~~0.0.1.0`), `bootstrap-windows-ssh.ps1`, `autounattend.xml`
+
+**Vấn đề:**  
+Khi kiểm nghiệm thực tế cài đặt từ xa lên máy Windows `192.168.21.14` qua SSH:
+1. Dù tài khoản `kztek` (mật khẩu `123456`) đã tồn tại và thuộc nhóm `Administrators`, đăng nhập SSH vẫn bị từ chối mật khẩu (`Permission denied, please try again`) và Windows Security Event Log ghi nhận `Event ID 4625 (Status: 0xC0000064 - NOUSER / invalid shell)`.
+2. Khi kết nối SSH chạy lệnh từ xa (`ssh kztek@192.168.21.14 "uname -s"`), PowerShell báo lỗi: `-NoLogo : The term '-NoLogo' is not recognized as the name of a cmdlet...`.
+3. Dịch vụ `sshd` từ chối khởi động hoặc bỏ qua cấu hình nếu file `C:\ProgramData\ssh\sshd_config` được tạo mới bằng PowerShell mà kế thừa quyền NTFS mặc định của thư mục cha hoặc còn giữ khối `Match Group administrators`.
+
+**Nguyên nhân:**  
+1. **`DefaultShell` đường dẫn tương đối:** Khi đặt `HKLM:\SOFTWARE\OpenSSH\DefaultShell = "powershell.exe"` (tương đối, không có đường dẫn đầy đủ), `sshd.exe` kiểm tra sự tồn tại của binary shell bằng `GetFileAttributesW` trực tiếp trên chuỗi cấu hình trước khi chấp nhận user. Vì `"powershell.exe"` không phải đường dẫn tuyệt đối nên kiểm tra thất bại, `sshd` đánh dấu user là `FAKESH`/`NOUSER` và từ chối mật khẩu ngay lập tức.
+2. **`DefaultShellCommandOption = "-NoLogo -Command"`:** Khi OpenSSH Server gọi shell để chạy lệnh từ xa, nó truyền toàn bộ chuỗi `DefaultShellCommandOption` như **một** đối số duy nhất (`argv[1]`) cho `powershell.exe` thay vì tách thành 2 cờ. Do đó PowerShell hiểu nhầm `"-NoLogo -Command"` là tên lệnh cần thực thi và báo lỗi `'-NoLogo' is not recognized`.
+3. **Phân quyền NTFS `sshd_config` và `Match Group administrators`:** OpenSSH trên Windows kiểm tra nghiêm ngặt ACL của `C:\ProgramData\ssh\sshd_config` (chỉ cho phép `SYSTEM` và `Administrators` có quyền ghi, không kế thừa quyền `Users` từ thư mục cha). Ngoài ra khối `Match Group administrators` mặc định ép dùng `administrators_authorized_keys` dễ gây xung đột xác thực trên máy trạm LAN.
+
+**Cách xử lý:**  
+1. **Đường dẫn tuyệt đối cho `DefaultShell`:** Luôn đặt `HKLM:\SOFTWARE\OpenSSH\DefaultShell` = `"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"`.
+2. **Xóa bỏ `DefaultShellCommandOption`:** Tuyệt đối không gán `DefaultShellCommandOption`, đồng thời chạy `Remove-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name "DefaultShellCommandOption" -ErrorAction SilentlyContinue` (mặc định `sshd` tự truyền `-c` / `-Command` chuẩn xác cho `powershell.exe`).
+3. **Ghi `sshd_config` sạch & chuẩn hóa ACL bằng `icacls`:**
+   - Ghi `C:\ProgramData\ssh\sshd_config` chỉ gồm 5 dòng sạch (`Port 22`, `ListenAddress 0.0.0.0`, `PasswordAuthentication yes`, `PubkeyAuthentication yes`, `Subsystem sftp sftp-server.exe`), bỏ hoàn toàn `Match Group administrators`.
+   - Chạy lệnh chuẩn hóa ACL:
+     ```powershell
+     & icacls.exe $sshdConfigPath /reset | Out-Null
+     & icacls.exe $sshdConfigPath /grant "SYSTEM:(F)" /grant "Administrators:(F)" /inheritance:r | Out-Null
+     ```
+4. **Nhận diện tức thì Windows qua SSH Banner:** Trong `ZcuRemoteInstallerService.DetectRemoteOs(SshClient ssh)`, kiểm tra ngay `ssh.ConnectionInfo?.ServerVersion` chứa `"Windows"` (`SSH-2.0-OpenSSH_for_Windows_...`) để trả về `RemoteOsType.Windows` trong 0ms mà không cần phụ thuộc vào shell.
+
+**Lần đầu gặp:** Thực nghiệm triển khai Zero-Touch Windows Remote Provisioning trên máy thật `192.168.21.14` (2026-11-11)
+
